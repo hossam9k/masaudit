@@ -9,7 +9,7 @@ date-released: 2026-10-23
 license: Apache-2.0
 repository-code: "https://github.com/hossam9k/masaudit"
 url: "https://github.com/hossam9k/masaudit"
-keywords: [mobile security, android, ios, kotlin multiplatform, owasp masvs, static analysis]
+keywords: [mobile security, android, ios, kotlin multiplatform, flutter, owasp masvs, static analysis]
 references:
   - type: book
     title: "Mobile Application Security: A Study Book for Engineers"

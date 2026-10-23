@@ -1,6 +1,6 @@
 {
   "name": "masaudit",
-  "description": "masaudit: free, risk-calibrated mobile security audits for Android, iOS, and Kotlin Multiplatform.",
+  "description": "masaudit: free, risk-calibrated mobile security audits for Android, iOS, Kotlin Multiplatform, and Flutter.",
   "owner": {
     "name": "Hossam Atef",
     "email": "hossam9k@gmail.com",
@@ -12,7 +12,7 @@
       "source": "./plugin",
       "description": "Audit, fix, and review mobile app security with advice scaled to your app's risk.",
       "category": "security",
-      "tags": ["security", "android", "ios", "mobile", "owasp"]
+      "tags": ["security", "android", "ios", "flutter", "mobile", "owasp"]
     }
   ]
 }
