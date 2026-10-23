@@ -27,6 +27,7 @@ class Hit:
     line: int = 0
     snippet: str = ""
     message: str = ""
+    scope: str = ""          # set by a detector that knows better than the path (e.g. "debug" under #if DEBUG)
 
 
 DetectorFn = Callable[["Context", Rule], Iterable[Hit]]
@@ -176,7 +177,7 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                     rule=rule,
                     location=Location(path=h.path, line=h.line, snippet=h.snippet),
                     message=h.message,
-                    scope=scope_of(h.path) if h.path else "main",
+                    scope=h.scope or (scope_of(h.path) if h.path else "main"),
                 )
             )
     return _dedupe(findings)

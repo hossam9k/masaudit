@@ -683,6 +683,7 @@ These checks ran and found nothing to fix.
 - Code is loaded at runtime (`AND-031`)
 - Java deserialization with ObjectInputStream (`AND-032`)
 - App requests a sensitive permission (`AND-033`)
+- Token or password stored in plain SharedPreferences or DataStore (`AND-034`)
 
 **iOS**
 
@@ -713,6 +714,7 @@ These checks ran and found nothing to fix.
 - Non-cryptographic or seeded random number generator (`XPL-008`)
 - Hardcoded plain-HTTP URL (`XPL-009`)
 - Token, password, or secret written to the log (`XPL-010`)
+- Encryption key is hardcoded in the app (`XPL-011`)
 
 **CI/CD pipeline**
 

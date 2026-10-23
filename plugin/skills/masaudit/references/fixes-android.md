@@ -597,6 +597,30 @@ Verify: Feed the decoder a payload that names a class you didn't expect and conf
 
 Book: [§19.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#194-deserialization)
 
+## AND-034: Token or password stored in plain SharedPreferences or DataStore
+
+Keep short-lived tokens in memory. Encrypt long-lived tokens before storing them, with a key held in the Android Keystore: for example Tink's AEAD with an `AndroidKeysetManager` master key, checking `isUsingKeystore()`. Keep only non-secret settings in plain preferences.
+
+```kotlin
+import com.google.crypto.tink.Aead
+
+// `aead` comes from Tink's AndroidKeysetManager with a Keystore master key (see AND-024).
+class TokenStore(private val prefs: android.content.SharedPreferences, private val aead: Aead) {
+    fun save(token: String) {
+        val sealed = aead.encrypt(token.toByteArray(), "refresh_token".toByteArray())
+        prefs.edit().putString("refresh_token", android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)).apply()
+    }
+
+    fun load(): String? = prefs.getString("refresh_token", null)?.let {
+        String(aead.decrypt(android.util.Base64.decode(it, android.util.Base64.NO_WRAP), "refresh_token".toByteArray()))
+    }
+}
+```
+
+Verify: Sign in on an emulator, then run `adb shell run-as <package> ls -R shared_prefs files/datastore` and print each file with `cat`. Confirm no token or password appears in readable form.
+
+Book: [§6.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked)
+
 ## XPL-004: AES in ECB mode, or with no mode named
 
 Use AES-GCM (`AES/GCM/NoPadding`) with a Keystore key, or Tink's AEAD, or CryptoKit's `AES.GCM` on iOS. Re-encrypt existing data under the new scheme.
@@ -753,3 +777,36 @@ if (BuildConfig.DEBUG) {
 Verify: Install a release build, sign in, and watch `adb logcat` (or Console.app on iOS): no token or password should appear.
 
 Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## XPL-011: Encryption key is hardcoded in the app
+
+Generate the key on the device inside the Android Keystore or the iOS Keychain or Secure Enclave, and never export it. Tink with a Keystore-protected keyset does this for you. If a server must decrypt, wrap a random per-session key with the server's public key instead of sharing one symmetric key.
+
+```kotlin
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+
+private const val KEY_ALIAS = "app_data_key"
+
+// The key is created inside the Keystore and its bytes never leave it.
+fun dataKey(): SecretKey {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    generator.init(
+        KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build(),
+    )
+    return generator.generateKey()
+}
+```
+
+Verify: For every `SecretKeySpec(`, `SymmetricKey(data:`, and `Key.from…(` call, confirm the key bytes come from the Keystore, the Keychain, Tink, or a secure random source, never from a string or byte literal.
+
+Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)

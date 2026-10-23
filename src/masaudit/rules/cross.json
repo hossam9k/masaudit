@@ -241,6 +241,33 @@
       },
       "confidence": "manual",
       "detector": "xpl_sensitive_log"
+    },
+    {
+      "id": "XPL-011",
+      "title": "Encryption key is hardcoded in the app",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anything in the app package is public. A key written in the code can be read from the APK or IPA in minutes, and then every copy of the encrypted data can be decrypted. It also can't be rotated without an app update.",
+      "fix": "Generate the key on the device inside the Android Keystore or the iOS Keychain or Secure Enclave, and never export it. Tink with a Keystore-protected keyset does this for you. If a server must decrypt, wrap a random per-session key with the server's public key instead of sharing one symmetric key.",
+      "verify": "For every `SecretKeySpec(`, `SymmetricKey(data:`, and `Key.from…(` call, confirm the key bytes come from the Keystore, the Keychain, Tink, or a secure random source, never from a string or byte literal.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0003",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0212",
+        "MASTG-TEST-0213"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import android.security.keystore.KeyGenParameterSpec\nimport android.security.keystore.KeyProperties\nimport java.security.KeyStore\nimport javax.crypto.KeyGenerator\nimport javax.crypto.SecretKey\n\nprivate const val KEY_ALIAS = \"app_data_key\"\n\n// The key is created inside the Keystore and its bytes never leave it.\nfun dataKey(): SecretKey {\n    val keyStore = KeyStore.getInstance(\"AndroidKeyStore\").apply { load(null) }\n    (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }\n    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, \"AndroidKeyStore\")\n    generator.init(\n        KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)\n            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)\n            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)\n            .setKeySize(256)\n            .build(),\n    )\n    return generator.generateKey()\n}"
+      },
+      "confidence": "medium",
+      "detector": "xpl_hardcoded_key"
     }
   ]
 }

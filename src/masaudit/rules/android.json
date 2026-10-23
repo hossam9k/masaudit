@@ -928,6 +928,33 @@
       ],
       "confidence": "manual",
       "detector": "android_dangerous_permissions"
+    },
+    {
+      "id": "AND-034",
+      "title": "Token or password stored in plain SharedPreferences or DataStore",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "SharedPreferences and DataStore write plain files in the app's private folder. They are copied into backups and are readable by anyone with root or physical access to the device, so a long-lived token there can be lifted and replayed.",
+      "fix": "Keep short-lived tokens in memory. Encrypt long-lived tokens before storing them, with a key held in the Android Keystore: for example Tink's AEAD with an `AndroidKeysetManager` master key, checking `isUsingKeystore()`. Keep only non-secret settings in plain preferences.",
+      "verify": "Sign in on an emulator, then run `adb shell run-as <package> ls -R shared_prefs files/datastore` and print each file with `cat`. Confirm no token or password appears in readable form.",
+      "effort": "hours",
+      "book": "§6.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0287",
+        "MASTG-TEST-0305"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import com.google.crypto.tink.Aead\n\n// `aead` comes from Tink's AndroidKeysetManager with a Keystore master key (see AND-024).\nclass TokenStore(private val prefs: android.content.SharedPreferences, private val aead: Aead) {\n    fun save(token: String) {\n        val sealed = aead.encrypt(token.toByteArray(), \"refresh_token\".toByteArray())\n        prefs.edit().putString(\"refresh_token\", android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)).apply()\n    }\n\n    fun load(): String? = prefs.getString(\"refresh_token\", null)?.let {\n        String(aead.decrypt(android.util.Base64.decode(it, android.util.Base64.NO_WRAP), \"refresh_token\".toByteArray()))\n    }\n}"
+      },
+      "confidence": "manual",
+      "detector": "android_prefs_token"
     }
   ]
 }

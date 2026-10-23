@@ -473,3 +473,87 @@ def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             seen.add(line)
             yield Hit(path, line, ctx.snippet(path, line), f"`{names[0]}` is written to the log.")
+
+
+# ---------------------------------------------------------------------------- XPL-011
+
+KEY_INLINE = re.compile(
+    r"\bSecretKeySpec\(\s*(?:" + _LITERAL_BYTES
+    + r"|(?:java\.util\.)?Base64\.(?:getDecoder\(\)\.decode|decode)\(\s*\"[^\"\n]+\")"
+)
+KEY_CALL_VAR = re.compile(r"\bSecretKeySpec\(\s*([A-Za-z_]\w*)\s*[,)]")
+KEY_CALL_STRING_VAR = re.compile(
+    r"\bSecretKeySpec\(\s*(?:[A-Za-z_][\w.]*\.)?([A-Za-z_]\w*)\s*\.\s*(?:toByteArray|getBytes|encodeToByteArray)\s*\("
+)
+SWIFT_KEY = re.compile(
+    r"\bSymmetricKey\(\s*data:\s*(?:Data\(\s*\[|Data\(\s*\"|\"[^\"\n]*\"\s*\.data\(|\[|Array\(\s*\""
+    r"|Data\(\s*base64Encoded:\s*\")"
+    r"|\b(?:P256|P384|P521|Curve25519)\.(?:Signing|KeyAgreement)\.PrivateKey\(\s*rawRepresentation:\s*"
+    r"(?:Data\(\s*(?:\[|\"|base64Encoded:\s*\")|\[)"
+    r"|\bSecKeyCreateWithData\(\s*(?:Data\(\s*base64Encoded:\s*\"|\"[^\"\n]*\"\s*\.data\()"
+)
+SWIFT_KEY_VAR = re.compile(r"\bSymmetricKey\(\s*data:\s*(?:Data\(\s*)?([A-Za-z_]\w*)\s*(?:\.utf8|\.data\()")
+# package:encrypt (Key.fromLength is all zeros; Key.fromSecureRandom is the safe one) and PointyCastle.
+DART_KEY = re.compile(
+    r"\bKey\s*\.\s*(?:from(?:Utf8|Base64|Base16)\s*\(\s*r?[\"']|fromLength\s*\()"
+    r"|\bKey\s*\(\s*" + _DART_LITERAL_BYTES
+    + r"|\bKeyParameter\s*\(\s*(?:" + _DART_LITERAL_BYTES + r"|utf8\.encode\s*\(\s*r?[\"'])"
+)
+_KEY_MSG = ("The encryption key is written in the code, so anyone who unpacks the app can read it "
+            "and decrypt the data.")
+
+
+def _mask_literals(snippet: str) -> str:
+    """Hide key material in quoted literals: the report must not repeat the key."""
+    return re.sub(r"([\"'])([^\"'\n]{4,})\1", lambda m: m.group(1) + m.group(2)[:2] + "…[masked]" + m.group(1),
+                  snippet)
+
+
+def _string_constant(code: str, name: str) -> bool:
+    return bool(re.search(
+        r"\b(?:val|var|let|String|final\s+String|static\s+final\s+String)?\s*\b" + re.escape(name)
+        + r"\s*(?::\s*String)?\s*=\s*\"[^\"\n]+\"", code))
+
+
+@detector("xpl_hardcoded_key")
+def hardcoded_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*JVM):
+        raw = ctx.text(path) or ""
+        if "SecretKeySpec" not in raw:
+            continue
+        code = ctx.code(path, keep_strings=True) or ""
+        seen: Set[int] = set()
+        for regex, check in ((KEY_INLINE, None), (KEY_CALL_VAR, _var_is_literal),
+                             (KEY_CALL_STRING_VAR, _string_constant)):
+            for m in regex.finditer(code):
+                line = ctx.line_of(code, m.start())
+                if line in seen or (check is not None and not check(code, m.group(1))):
+                    continue
+                seen.add(line)
+                yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG)
+    for path in ctx.files(".swift"):
+        raw = ctx.text(path) or ""
+        if not any(p in raw for p in ("SymmetricKey", "PrivateKey(", "SecKeyCreateWithData")):
+            continue
+        code = ctx.code(path, keep_strings=True) or ""
+        seen = set()
+        for m in SWIFT_KEY.finditer(code):
+            line = ctx.line_of(code, m.start())
+            seen.add(line)
+            yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG)
+        for m in SWIFT_KEY_VAR.finditer(code):
+            line = ctx.line_of(code, m.start())
+            if line not in seen and _string_constant(code, m.group(1)):
+                seen.add(line)
+                yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG)
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if "Key" not in raw:
+            continue
+        code = ctx.code(path, keep_strings=True) or ""
+        seen = set()
+        for m in DART_KEY.finditer(code):
+            line = ctx.line_of(code, m.start())
+            if line not in seen:
+                seen.add(line)
+                yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG)

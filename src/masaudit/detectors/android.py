@@ -8,6 +8,7 @@ import posixpath
 import re
 from typing import Dict, Iterable, Iterator, List, Set, Tuple
 
+from masaudit import guards
 from masaudit.detect import scope_of
 from masaudit.detectors import flutter
 from masaudit.engine import Context, Hit, detector
@@ -106,27 +107,7 @@ _IF = re.compile(r"\bif\s*\(")
 
 def _debug_guarded(blank: str, idx: int) -> bool:
     """True if idx sits under `if (BuildConfig.DEBUG)` or an `if (... FLAG_DEBUGGABLE ...)` check."""
-    for m in _IF.finditer(blank, max(0, idx - 2000), idx):
-        open_paren = m.end() - 1
-        close = _match(blank, open_paren, "(", ")")
-        if close >= idx:
-            continue
-        cond = re.sub(r"\s+", "", blank[open_paren + 1:close])
-        debug = (re.search(r"(?<!!)BuildConfig\.DEBUG\b", cond) and "!BuildConfig.DEBUG" not in cond) or (
-            "FLAG_DEBUGGABLE" in cond and "==0" not in cond)
-        if not debug:
-            continue
-        j = close + 1
-        while j < len(blank) and blank[j] in " \t\r\n":
-            j += 1
-        if j < len(blank) and blank[j] == "{":
-            if j < idx < _match(blank, j, "{", "}"):
-                return True
-        else:
-            between = blank[close + 1:idx]
-            if ";" not in between and between.count("\n") <= 1:
-                return True
-    return False
+    return guards.jvm_debug_guarded(blank, idx)
 
 
 def _module_of(path: str) -> str:
@@ -918,3 +899,50 @@ def dangerous_permissions(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield _hit(ctx, path, p.line,
                            f"The app asks for {short} ({DANGEROUS_PERMISSIONS[short]}). "
                            "Check that a feature needs it and that a narrower option won't do.")
+
+
+# ---------------------------------------------------------------------------- AND-034
+
+_SENSITIVE_KEY = re.compile(r"(?i)token|password|passwd|secret|jwt|credential|api_?key|private_?key|pin_?code")
+_NOT_SENSITIVE = re.compile(r"(?i)fcm|push|apns|firebase|notification|messaging|device_?token|csrf_?header")
+_PREFS_WRITE = re.compile(r"\.\s*putString\s*\(\s*(\"[^\"\n]*\"|[A-Za-z_][\w.]*)\s*,")
+_DATASTORE_KEY = re.compile(
+    r"\b(?:stringPreferencesKey|stringSetPreferencesKey|preferencesKey\s*<\s*String\s*>)\s*\(\s*"
+    r"(\"[^\"\n]*\"|[A-Za-z_][\w.]*)\s*\)"
+)
+# A file that encrypts (Tink, a Cipher, or an encryptor) is assumed to store ciphertext.
+_ENCRYPTS = re.compile(r"(?i)encrypt|\baead\b|\bcipher\b|tink")
+
+
+def _key_name(code: str, arg: str) -> str:
+    """The key's text: the literal itself, or a constant's name plus its value."""
+    if arg.startswith('"'):
+        return arg.strip('"')
+    name = arg.rsplit(".", 1)[-1]
+    m = re.search(r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code)
+    return name + " " + (m.group(1) if m else "")
+
+
+@detector("android_prefs_token")
+def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(".kt", ".java"):
+        raw = ctx.text(path) or ""
+        if "putString" not in raw and "PreferencesKey" not in raw and "preferencesKey" not in raw:
+            continue
+        if "EncryptedSharedPreferences" in raw:
+            continue                                   # AND-022 covers the deprecated wrapper
+        code = ctx.code(path, keep_strings=True) or ""
+        if _ENCRYPTS.search(ctx.code(path, keep_strings=False) or ""):
+            continue
+        seen: Set[int] = set()
+        for regex, store in ((_PREFS_WRITE, "SharedPreferences"), (_DATASTORE_KEY, "DataStore")):
+            for m in regex.finditer(code):
+                key = _key_name(code, m.group(1))
+                if not _SENSITIVE_KEY.search(key) or _NOT_SENSITIVE.search(key):
+                    continue
+                line = ctx.line_of(code, m.start())
+                if line in seen:
+                    continue
+                seen.add(line)
+                yield _hit(ctx, path, line, f"A value under the key `{m.group(1).strip(chr(34))}` is stored "
+                                            f"in plain {store}.")
