@@ -15,6 +15,39 @@ both the same list.
 
 ---
 
+## What is masaudit?
+
+masaudit reads the source code of your Android, iOS, or Kotlin Multiplatform app and finds security
+weaknesses before you ship. It catches traffic sent over plain HTTP, secrets left in the code,
+screens other apps can open, weak encryption, risky build settings, and unsafe CI workflows. It
+runs on your machine, needs no account, and sends nothing anywhere.
+
+## Why you need it
+
+Most mobile security problems aren't clever attacks. They're settings and code that slipped
+through review: a debug flag left on, a test server that accepts any certificate, a token written
+to the log. A pentest finds them late and costs money. The app stores don't look for them at all.
+
+Other scanners find these too, but they give every app the same list. A news app gets told to pin
+certificates like a bank, which adds outage risk for no gain, and the team learns to ignore the
+tool. masaudit first asks what kind of app you're building. Then it sorts every finding into
+**fix before release**, **fix soon**, or **not needed for your app**, and says why.
+
+## Who it's for
+
+- **Mobile developers** who want a security check without becoming security experts first.
+- **Tech leads** getting ready for a pentest, a security review, or a compliance audit.
+- **Security engineers** who want results scaled to each app's risk, in SARIF, on every pull request.
+
+## How it works
+
+1. **You answer one question:** what kind of app is this (banking, health, shop, loyalty, game, …)?
+   masaudit saves the answer for next time.
+2. **It reads your project:** manifests, Gradle files, `Info.plist`, Xcode projects, Kotlin, Java,
+   and Swift code, and GitHub workflows. It never builds or runs your code.
+3. **It writes `SECURITY-AUDIT.md`:** a verdict, the top fixes with paste-ready code, how to check
+   each fix worked, and links to OWASP and to a free book that explains every finding.
+
 ## Three ways in
 
 | **Scan, no AI needed** | **Fix it with an AI assistant** | **Learn why** |
@@ -178,11 +211,12 @@ See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md
 | Advice scaled to the app's risk | **Yes** | No | No | No |
 | "Not needed for your app", with reasons | **Yes** | No | No | No |
 | Plain-language why, fix, and verify per finding | **Yes** | Partly | Partly | Partly |
-| Android + iOS + KMP + GitHub Actions | **Yes** | Android, iOS (binaries) | Android, iOS (source) | Android |
-| Install | Single file, no dependencies | Docker | pip (Semgrep) | Android SDK |
+| Android + iOS + KMP + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
+| Install | Single file, no dependencies | Docker (recommended) | pip (Semgrep) | Android SDK |
 | Imports the others' SARIF and calibrates it | **Yes** | — | — | — |
 
-MobSF analyzes built binaries and does dynamic testing, which masaudit doesn't. Use both.
+MobSF also analyzes built APK and IPA files and runs the app for dynamic testing, which masaudit
+doesn't. Use both.
 
 ## What it can't do
 
