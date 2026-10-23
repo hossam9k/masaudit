@@ -48,7 +48,7 @@ tool. masaudit first asks what kind of app you're building. Then it sorts every 
 1. **You answer one question:** what kind of app is this (banking, health, shop, loyalty, game, …)?
    masaudit saves the answer for next time.
 2. **It reads your project:** manifests, Gradle files, `Info.plist`, Xcode projects, Kotlin, Java,
-   and Swift code, and GitHub workflows. It never builds or runs your code.
+   Swift, Objective-C, and Dart code, and GitHub workflows. It never builds or runs your code.
 3. **It writes `SECURITY-AUDIT.md`:** a verdict, the top fixes with paste-ready code, how to check
    each fix worked, and links to OWASP and to a free book that explains every finding.
 
