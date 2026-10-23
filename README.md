@@ -10,7 +10,7 @@ both the same list.
 [![ci](https://github.com/hossam9k/masaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/hossam9k/masaudit/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/hossam9k/masaudit/badge)](https://scorecard.dev/viewer/?uri=github.com/hossam9k/masaudit)
 [![PyPI](https://img.shields.io/pypi/v/masaudit)](https://pypi.org/project/masaudit/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSING.md)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/hossam9k/masaudit/blob/main/LICENSING.md)
 
 ---
 
@@ -31,7 +31,7 @@ scanned under two profiles:
 | Fix before release | 13 | 10 |
 | Fix soon | 13 | 10 |
 | Not needed for your app | 0 | 6: pinning, Keychain hardening, biometric key binding, … each with the reason |
-| Full report | [sample-report-banking.md](docs/sample-report-banking.md) | [sample-report-news.md](docs/sample-report-news.md) |
+| Full report | [sample-report-banking.md](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-banking.md) | [sample-report-news.md](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-news.md) |
 
 Each finding says **why it matters**, **how to fix it** (with paste-ready code), **how to verify the
 fix**, how long it takes, its OWASP MASWE/MASVS IDs, and the book section that explains it.
@@ -74,7 +74,7 @@ steps:
 ```
 
 The Action runs from its own pinned source: no download, no network. Results appear in the
-Security tab. A [pre-commit hook](.pre-commit-hooks.yaml) is available too.
+Security tab. A [pre-commit hook](https://github.com/hossam9k/masaudit/blob/main/.pre-commit-hooks.yaml) is available too.
 
 ### Team features
 
@@ -98,7 +98,7 @@ Then `/masaudit:scan`, `/masaudit:fix`, `/masaudit:review`, or `/masaudit:explai
 ask: *"Is my app ready for a pentest?"*
 
 **Other tools** (Codex, GitHub Copilot, Cursor, Gemini CLI, and other tools that read
-[Agent Skills](https://agentskills.io)): copy [`plugin/skills/masaudit/`](plugin/skills/masaudit) into
+[Agent Skills](https://agentskills.io)): copy [`plugin/skills/masaudit/`](https://github.com/hossam9k/masaudit/tree/main/plugin/skills/masaudit) into
 your tool's skills folder. The skill bundles the scanner, so it works offline.
 
 **Any chat assistant:** the end of every `SECURITY-AUDIT.md` has a *Fix plan for your AI assistant*.
@@ -111,7 +111,7 @@ behavior-changing fix and never commits.
 ## What it checks
 
 75 rules: 33 Android, 21 iOS, 10 cross-platform code, 8 CI and supply chain, 3 Kotlin Multiplatform.
-See [docs/rules.md](docs/rules.md).
+See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md).
 
 - **Network:** cleartext, ATS exceptions, user CAs, TLS bypasses, weak TLS, pinning (only where the profile needs it).
 - **Storage:** Keychain classes, file protection, deprecated `EncryptedSharedPreferences`, Tink's silent cleartext fallback, backups, end-of-life SQLCipher.
@@ -144,12 +144,12 @@ need a human or an AI assistant to confirm.
 
 masaudit never executes project code, never follows symlinks out of the scan root, refuses XML
 entity tricks, makes **no network calls** (a test enforces it), and masks secrets in every output.
-No telemetry. See [SECURITY.md](SECURITY.md).
+No telemetry. See [SECURITY.md](https://github.com/hossam9k/masaudit/blob/main/SECURITY.md).
 
 ## Contributing
 
 False-positive reports are the most valuable contribution: a rule that cries wolf gets ignored.
-Adding a rule takes about 30 minutes: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Adding a rule takes about 30 minutes: see [CONTRIBUTING.md](https://github.com/hossam9k/masaudit/blob/main/CONTRIBUTING.md).
 
 ## About
 
@@ -159,6 +159,6 @@ companion to his free book,
 Every rule traces to a section of the book, and the book records how each claim was verified.
 
 masaudit is not an OWASP project; OWASP doesn't certify apps or endorse tools.
-Licensing: code Apache-2.0, fix snippets MIT-0, explanations CC BY-SA 4.0. See [LICENSING.md](LICENSING.md).
+Licensing: code Apache-2.0, fix snippets MIT-0, explanations CC BY-SA 4.0. See [LICENSING.md](https://github.com/hossam9k/masaudit/blob/main/LICENSING.md).
 
 masaudit is free. If it saved you an audit, you can [sponsor it](https://github.com/sponsors/hossam9k).

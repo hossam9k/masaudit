@@ -3,7 +3,7 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.1.0 — 2026-10-23
 
 - First version: risk-calibrated scanning for Android, iOS, Kotlin Multiplatform, and GitHub Actions;
   Markdown, JSON, and SARIF reports; inline suppressions and baselines; safe auto-fix preview;
