@@ -28,7 +28,16 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Unit tests
         working-directory: tests
-        run: python -m unittest -q
+        shell: bash
+        # On failure, the last part of the output becomes a public annotation, so anyone can see
+        # why a run failed without signing in to read the log.
+        run: |
+          if ! python -m unittest -v > "$RUNNER_TEMP/unittest.txt" 2>&1; then
+            cat "$RUNNER_TEMP/unittest.txt"
+            python ../scripts/ci_annotate.py "$RUNNER_TEMP/unittest.txt"
+            exit 1
+          fi
+          tail -n 3 "$RUNNER_TEMP/unittest.txt"
       - name: Zipapp builds and runs offline
         run: |
           python scripts/build_zipapp.py
