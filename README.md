@@ -9,6 +9,7 @@ both the same list.
 
 [![ci](https://github.com/hossam9k/masaudit/actions/workflows/ci.yml/badge.svg)](https://github.com/hossam9k/masaudit/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/hossam9k/masaudit/badge)](https://scorecard.dev/viewer/?uri=github.com/hossam9k/masaudit)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15835/badge)](https://www.bestpractices.dev/projects/15835)
 [![PyPI](https://img.shields.io/pypi/v/masaudit)](https://pypi.org/project/masaudit/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/hossam9k/masaudit/blob/main/LICENSING.md)
 
