@@ -28,7 +28,7 @@ the text has no filler words, and the rule fires only where it should.
 ## Ground rules
 
 - Every bug fix and every new feature comes with a test that fails without it. CI runs the tests
-  on Linux, macOS, and Windows with Python 3.9 to 3.13, plus a fuzzer and CodeQL.
+  on Linux, macOS, and Windows with Python 3.9 to 3.14, plus a fuzzer and CodeQL.
 - Python 3.9+, standard library only. No runtime dependencies.
 - masaudit never executes project code, never follows symlinks out of the scan root, and never
   makes network calls. Changes that break this won't be merged.
