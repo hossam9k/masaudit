@@ -16,7 +16,7 @@ inputs:
     description: "Fail the job on findings at or above: critical, high, medium, low, or none."
     default: "high"
   upload-sarif:
-    description: Upload results to GitHub code scanning (needs `security-events: write`).
+    description: "Upload results to GitHub code scanning (needs `security-events: write`)."
     default: "true"
 
 runs:

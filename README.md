@@ -67,7 +67,7 @@ steps:
   - uses: actions/checkout@<commit-sha>  # pin every action to a full commit SHA
     with:
       persist-credentials: false
-  - uses: hossam9k/masaudit@<commit-sha> # v0.1.0
+  - uses: hossam9k/masaudit@<commit-sha> # v0.1.1
     with:
       app-type: banking
       fail-on: high
