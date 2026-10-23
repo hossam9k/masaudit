@@ -3,7 +3,7 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.3.0 — 2026-10-24
 
 - **Flutter (Dart) source scanning.** Until now masaudit read a Flutter app's Android and iOS
   configuration but not its Dart code.
@@ -21,6 +21,9 @@ their own version (`rules_version`), shown in every report.
     ignores it. React Native apps are still skipped.
   - The lexer understands Dart raw strings (`r'...'`), `'''` strings, and nested block comments.
   - Cross-platform rules now run on projects that are only Flutter (`pubspec.yaml`).
+- README, the Claude Code plugin, the skill, and the GitHub Action now name Flutter as a supported
+  platform.
+- Rules version 1.1.0 (two new rules, Dart patterns in ten existing ones).
 
 ## 0.2.0 — 2026-10-23
 

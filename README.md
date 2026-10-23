@@ -137,7 +137,7 @@ jobs:
       - uses: actions/checkout@<commit-sha>
         with:
           persist-credentials: false
-      - uses: hossam9k/masaudit@<commit-sha> # v0.2.0
+      - uses: hossam9k/masaudit@<commit-sha> # v0.3.0
         with:
           app-type: banking
           fail-on: high
@@ -155,7 +155,7 @@ To scan before every commit, add this to `.pre-commit-config.yaml` ([pre-commit]
 ```yaml
 repos:
   - repo: https://github.com/hossam9k/masaudit
-    rev: v0.2.0
+    rev: v0.3.0
     hooks:
       - id: masaudit
         args: [--app-type, banking]
