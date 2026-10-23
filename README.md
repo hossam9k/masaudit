@@ -22,6 +22,10 @@ weaknesses before you ship. It catches traffic sent over plain HTTP, secrets lef
 screens other apps can open, weak encryption, risky build settings, and unsafe CI workflows. It
 runs on your machine, needs no account, and sends nothing anywhere.
 
+The name is **MAS** + **audit**: it audits your app against
+[OWASP MAS](https://mas.owasp.org/) (Mobile Application Security), the standards behind its checks.
+masaudit is an independent project, not part of OWASP.
+
 ## Why you need it
 
 Most mobile security problems aren't clever attacks. They're settings and code that slipped
