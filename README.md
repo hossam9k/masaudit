@@ -1,7 +1,7 @@
 # masaudit
 
 **A free mobile security scanner that scales its advice to your app's risk.**
-Point it at an Android, iOS, or Kotlin Multiplatform project. It finds the weaknesses that matter
+Point it at an Android, iOS, Kotlin Multiplatform, or Flutter project. It finds the weaknesses that matter
 *for your kind of app*, explains each one in plain words, and tells you what you **don't** need.
 
 A news app should never be told to pin certificates. A banking app should. Most scanners give
@@ -17,7 +17,7 @@ both the same list.
 
 ## What is masaudit?
 
-masaudit reads the source code of your Android, iOS, or Kotlin Multiplatform app and finds security
+masaudit reads the source code of your Android, iOS, Kotlin Multiplatform, or Flutter app and finds security
 weaknesses before you ship. It catches traffic sent over plain HTTP, secrets left in the code,
 screens other apps can open, weak encryption, risky build settings, and unsafe CI workflows. It
 runs on your machine, needs no account, and sends nothing anywhere.
@@ -216,7 +216,7 @@ See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md
 | Advice scaled to the app's risk | **Yes** | No | No | No |
 | "Not needed for your app", with reasons | **Yes** | No | No | No |
 | Plain-language why, fix, and verify per finding | **Yes** | Partly | Partly | Partly |
-| Android + iOS + KMP + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
+| Android + iOS + KMP + Flutter + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
 | Install | Single file, no dependencies | Docker (recommended) | pip (Semgrep) | Android SDK |
 | Imports the others' SARIF and calibrates it | **Yes** | — | — | — |
 

@@ -1,5 +1,5 @@
 name: masaudit
-description: Free mobile security scan for Android, iOS, and KMP that scales its advice to your app's risk.
+description: Free mobile security scan for Android, iOS, KMP, and Flutter that scales its advice to your app's risk.
 author: Hossam Atef
 branding:
   icon: shield
