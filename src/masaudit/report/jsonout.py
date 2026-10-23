@@ -94,6 +94,7 @@ def finding_dict(f: Finding) -> dict:
         "effective_severity": f.effective_severity,
         "bucket": f.bucket,
         "bucket_reason": f.bucket_reason,
+        "acknowledged": f.acknowledged,
         "confidence": r.confidence,
         "status": f.status,
         "suppression_reason": f.suppression_reason,

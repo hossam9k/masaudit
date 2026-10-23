@@ -83,6 +83,14 @@ class Profiles(unittest.TestCase):
 
 
 class Calibration(unittest.TestCase):
+    def test_acknowledged_in_source_lowers_one_level_and_says_why(self):
+        f = finding(make_rule(app_types=None, profiles=["L1"], severity="high"))
+        f.acknowledged = "tools:ignore=AcceptsUserCertificates"
+        engine.calibrate([f], profile.make("banking", "flag"))
+        self.assertEqual(f.effective_severity, "medium")
+        self.assertEqual(f.bucket, "fix-soon")
+        self.assertIn("AcceptsUserCertificates", f.bucket_reason)
+
     def test_pinning_rule_not_needed_for_content(self):
         f = finding(make_rule())
         engine.calibrate([f], profile.make("content", "flag"))

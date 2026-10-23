@@ -28,6 +28,7 @@ class Hit:
     snippet: str = ""
     message: str = ""
     scope: str = ""          # set by a detector that knows better than the path (e.g. "debug" under #if DEBUG)
+    acknowledged: str = ""   # how the source marks it intentional, e.g. "tools:ignore=AcceptsUserCertificates"
 
 
 DetectorFn = Callable[["Context", Rule], Iterable[Hit]]
@@ -178,6 +179,7 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                     location=Location(path=h.path, line=h.line, snippet=h.snippet),
                     message=h.message,
                     scope=h.scope or (scope_of(h.path) if h.path else "main"),
+                    acknowledged=h.acknowledged,
                 )
             )
     return _dedupe(findings)
@@ -260,7 +262,7 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
                 f"This belongs to {wanted}, which a {profile.app_type} app doesn't need."
             )
             continue
-        rank = SEVERITY_RANK[rule.severity] + SCOPE_DOWNGRADE.get(f.scope, 0)
+        rank = SEVERITY_RANK[rule.severity] + SCOPE_DOWNGRADE.get(f.scope, 0) + (1 if f.acknowledged else 0)
         f.effective_severity = SEVERITIES[min(rank, len(SEVERITIES) - 1)]
         if f.effective_severity in ("critical", "high"):
             f.bucket = "fix-before-release"
@@ -270,4 +272,7 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
             f.bucket = "notes"
         if f.scope in ("debug", "test"):
             f.bucket_reason = f"Lowered because it's in {f.scope} code."
+        elif f.acknowledged:
+            f.bucket_reason = (f"Lowered one level: the source marks this as intentional ({f.acknowledged}). "
+                               "Confirm the reason is written down.")
     return findings
