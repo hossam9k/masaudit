@@ -9,6 +9,7 @@ import re
 from typing import Dict, Iterable, Iterator, List, Set, Tuple
 
 from masaudit.detect import scope_of
+from masaudit.detectors import flutter
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import gradle, manifest, xmlsafe
@@ -314,17 +315,27 @@ def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
             apps.extend((path, a) for a in manifest.applications(root))
     if not apps or not internet:
         return
-    files = ctx.project.files
-    if any(f.endswith(".dart") or f.rsplit("/", 1)[-1] in ("pubspec.yaml", "package.json") for f in files):
-        ctx.note_unknown("Pinning check skipped: Flutter or React Native code may pin outside the Android sources.")
+    is_flutter = flutter.is_flutter(ctx)
+    if not is_flutter and any(f.rsplit("/", 1)[-1] == "package.json" for f in ctx.project.files):
+        ctx.note_unknown("Pinning check skipped: React Native code may pin outside the Android sources.")
+        return
+    if is_flutter and flutter.dart_pinning_evidence(ctx):
         return
     if _has_pinning_evidence(ctx):
+        if is_flutter and not flutter.uses_native_http(ctx):
+            ctx.note_unknown("Android pinning is configured natively, but Flutter's Dart HttpClient has its own "
+                             "TLS stack and ignores it; confirm the Dart side pins too.")
         return
     for path, _code, blank in _code_files(ctx, "checkServerTrusted"):
         if "checkServerTrusted" in blank:
             ctx.note_unknown(f"Pinning check skipped: {path} has a custom TrustManager that may pin.")
             return
     path, app = apps[0]
+    if is_flutter:
+        yield _hit(ctx, path, app.line,
+                   "No certificate pinning found: no <pin-set>, no OkHttp CertificatePinner, no pinning library, "
+                   "and no Dart-side pinning (SecurityContext or a pinning package).")
+        return
     yield _hit(ctx, path, app.line,
                "No certificate pinning found: no <pin-set>, no OkHttp CertificatePinner, and no pinning library.")
 

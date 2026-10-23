@@ -194,13 +194,14 @@ behavior-changing fix and never commits.
 
 ## What it checks
 
-75 rules: 33 Android, 21 iOS, 10 cross-platform code, 8 CI and supply chain, 3 Kotlin Multiplatform.
+77 rules: 33 Android, 21 iOS, 10 cross-platform code, 8 CI and supply chain, 3 Kotlin Multiplatform, 2 Flutter.
+Cross-platform rules read Kotlin, Java, Swift, Objective-C, and Dart.
 See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md).
 
-- **Network:** cleartext, ATS exceptions, user CAs, TLS bypasses, weak TLS, pinning (only where the profile needs it).
+- **Network:** cleartext, ATS exceptions, user CAs, TLS bypasses (including Dart's `badCertificateCallback`), weak TLS, pinning (only where the profile needs it; Dart-side pinning counts for Flutter apps).
 - **Storage:** Keychain classes, file protection, deprecated `EncryptedSharedPreferences`, Tink's silent cleartext fallback, backups, end-of-life SQLCipher.
 - **Platform:** exported components, intent redirection, PendingIntent, deep links, FileProvider, WebView TLS, file access, JavaScript bridges, debugging.
-- **Auth:** biometric prompts not bound to a key, keys that survive new enrollments, tokens in UserDefaults.
+- **Auth:** biometric prompts not bound to a key, keys that survive new enrollments, tokens in UserDefaults or Flutter's shared_preferences.
 - **Code:** hardcoded secrets (masked in every output), ECB, fixed IVs, weak hashes and randomness, logged tokens.
 - **Build and CI:** debuggable releases, R8 off, target SDK, unpinned actions, `pull_request_target`, script injection, committed signing keys.
 

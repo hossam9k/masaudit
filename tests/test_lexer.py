@@ -55,9 +55,25 @@ class Lexer(unittest.TestCase):
         self.assertNotIn("one", out)
         self.assertIn("let z = 3", out)
 
+    def test_dart_strings_and_nested_comments(self):
+        code = ("/* a /* b */ print(token) */\nvar p = r'C:\\'; var q = \'\'\'\nmd5 // x\n\'\'\';\n"
+                "var u = 'http://acme.com'; // gone\n")
+        kept = lexer.strip(code, "dart")
+        self.assertTrue(same_shape(code, kept))
+        self.assertNotIn("print(token)", kept)
+        self.assertIn("r'C:\\'", kept)
+        self.assertIn("md5 // x", kept)
+        self.assertIn("'http://acme.com'", kept)
+        self.assertNotIn("gone", kept)
+        blanked = lexer.strip(code, "dart", keep_strings=False)
+        self.assertTrue(same_shape(code, blanked))
+        self.assertNotIn("md5", blanked)
+        self.assertNotIn("acme", blanked)
+        self.assertIn("var u =", blanked)
+
     def test_line_numbers_preserved(self):
         code = "a\n/* x\ny\nz */\nb // c\n\"\"\"q\nr\"\"\"\nd\n"
-        for lang in ("kotlin", "java", "swift", "js"):
+        for lang in ("kotlin", "java", "swift", "js", "dart"):
             for keep in (True, False):
                 with self.subTest(lang=lang, keep=keep):
                     out = lexer.strip(code, lang, keep)

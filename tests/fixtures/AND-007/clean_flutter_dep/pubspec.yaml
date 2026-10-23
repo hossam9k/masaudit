@@ -1,0 +1,5 @@
+name: bank
+dependencies:
+  flutter:
+    sdk: flutter
+  http_certificate_pinning: ^3.0.1

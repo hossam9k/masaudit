@@ -6,6 +6,7 @@
   "ios.json",
   "cross.json",
   "ci.json",
-  "kmp.json"
+  "kmp.json",
+  "flutter.json"
  ]
 }

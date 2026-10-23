@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from masaudit import safety
+from masaudit.detectors import flutter
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import pbxproj, plist, xcconfig
@@ -478,40 +479,52 @@ _PIN_EVIDENCE_CODE = re.compile(
 _PIN_EVIDENCE_DEPS = re.compile(r"TrustKit|ssl-pinning-ios|WultraSSLPinning", re.IGNORECASE)
 
 
-@detector("ios_pinning_missing")
-def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    if ctx.files(name="pubspec.yaml") or ctx.files(name="package.json"):
-        ctx.note_unknown("Flutter or React Native project: iOS pinning may live in Dart or JavaScript; "
-                         "IOS pinning check skipped.")
-        return
-    code_files = ctx.files(*CODE_SUFFIXES)
-    if not code_files:
-        return
+def _native_pinning_evidence(ctx: Context, code_files: List[str]) -> bool:
     for _doc, ats in _ats_docs(ctx):
         if isinstance(ats.get("NSPinnedDomains"), dict) and ats["NSPinnedDomains"]:
-            return
+            return True
     for path in code_files + [p for p in ctx.files(".kt") if re.search(r"/(ios|apple|darwin)Main/", "/" + p)]:
         code = ctx.code(path, keep_strings=False)
         if code and _PIN_EVIDENCE_CODE.search(code):
-            return
+            return True
     for name in ("Podfile", "Package.swift", "Cartfile"):
         for path in ctx.files(name=name):
             text = ctx.code(path) or ""
             if name != "Package.swift":        # Ruby-style comments in Podfile and Cartfile
                 text = re.sub(r"#[^\n]*", "", text)
             if _PIN_EVIDENCE_DEPS.search(text):
-                return
+                return True
+    return False
+
+
+@detector("ios_pinning_missing")
+def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    is_flutter = flutter.is_flutter(ctx)
+    if not is_flutter and ctx.files(name="package.json"):
+        ctx.note_unknown("React Native project: iOS pinning may live in JavaScript; IOS pinning check skipped.")
+        return
+    code_files = ctx.files(*CODE_SUFFIXES)
+    if not code_files:
+        return
+    if is_flutter and flutter.dart_pinning_evidence(ctx):
+        return
+    if _native_pinning_evidence(ctx, code_files):
+        if is_flutter and not flutter.uses_native_http(ctx):
+            ctx.note_unknown("iOS pinning is configured natively, but Flutter's Dart HttpClient has its own "
+                             "TLS stack and ignores it; confirm the Dart side pins too.")
+        return
+    missing = "no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate"
+    if is_flutter:
+        missing = "no NSPinnedDomains, TrustKit, pin-checking URLSession delegate, or Dart-side pinning"
     for proj in _projects(ctx):
         for target in proj.targets():
             if target.is_app:
                 yield Hit(proj.path, target.line, ctx.snippet(proj.path, target.line),
-                          f"No certificate pinning found for app target {target.name}: no NSPinnedDomains, "
-                          "TrustKit, or pin-checking URLSession delegate.")
+                          f"No certificate pinning found for app target {target.name}: {missing}.")
                 return
     for doc in _shipping_plists(ctx):
         if plist.get(doc.data, "CFBundleIdentifier") is not None:
-            yield Hit(doc.path, 0, "", "No certificate pinning found: no NSPinnedDomains, TrustKit, or "
-                                       "pin-checking URLSession delegate.")
+            yield Hit(doc.path, 0, "", f"No certificate pinning found: {missing}.")
             return
 
 

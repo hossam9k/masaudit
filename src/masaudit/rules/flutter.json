@@ -1,0 +1,46 @@
+{
+  "rules": [
+    {
+      "id": "FLT-001",
+      "title": "Dart badCertificateCallback accepts every certificate",
+      "platform": "flutter",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A `badCertificateCallback` that returns `true` turns off TLS server checks for Dart's HttpClient, and for Dio or package:http clients built on it. Anyone on the same network can impersonate your server and read or change the traffic.",
+      "fix": "Delete the callback, or return `false` from it. For a local test server, trust its certificate in a debug-only `SecurityContext` instead. If you need pinning, use `SecurityContext(withTrustedRoots: false)` with your CA's certificate, which keeps the normal checks.",
+      "verify": "Send the app's traffic through a proxy whose CA the phone doesn't trust and confirm every request fails with a HandshakeException.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-KNOW-0015"
+      ],
+      "confidence": "high",
+      "detector": "flutter_trust_all"
+    },
+    {
+      "id": "FLT-002",
+      "title": "Token or password stored in shared_preferences",
+      "platform": "flutter",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "shared_preferences writes a plain XML file on Android and a UserDefaults plist on iOS. Both are copied into backups and are readable by anyone with access to the device's files, so a long-lived token there can be lifted and replayed.",
+      "fix": "Keep short-lived tokens in memory. Store long-lived tokens and credentials with `flutter_secure_storage`, which uses the Android Keystore and the iOS Keychain, and set `IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device)` or stricter. Leave only non-secret settings in shared_preferences.",
+      "verify": "Sign in on an emulator, then run `adb shell run-as <package> cat shared_prefs/FlutterSharedPreferences.xml` and confirm no token or password appears.",
+      "effort": "hours",
+      "book": "§6.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "manual",
+      "detector": "flutter_prefs_token"
+    }
+  ]
+}

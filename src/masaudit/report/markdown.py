@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple
 
 from masaudit import BOOK_URL, REPO_URL, __version__
 from masaudit import profile as profile_mod
-from masaudit.engine import PLATFORM_OF_RULE
+from masaudit.engine import CODE_PLATFORMS, PLATFORM_OF_RULE
 from masaudit.model import Finding, Rule
 from masaudit.report.jsonout import (
     ACTIONABLE, BUCKET_TITLES, counts, open_findings, project_name, report_date, sort_key, top_fixes,
@@ -89,7 +89,7 @@ def applicable(rule: Rule, platforms: List[str]) -> bool:
     needed = PLATFORM_OF_RULE.get(rule.platform)
     if needed and needed not in platforms:
         return False
-    if rule.platform == "cross" and not (set(platforms) & {"android", "ios", "kmp"}):
+    if rule.platform == "cross" and not (set(platforms) & CODE_PLATFORMS):
         return False
     return True
 

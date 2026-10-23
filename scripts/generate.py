@@ -28,7 +28,7 @@ SKILL = os.path.join(ROOT, "plugin", "skills", "masaudit")
 DEMO = os.path.join(ROOT, "examples", "acme-wallet")
 EPOCH = "1767225600"   # 2026-01-01: fixed so generated reports are reproducible
 
-PLATFORM_NAMES = {"android": "Android", "ios": "iOS", "kmp": "Kotlin Multiplatform",
+PLATFORM_NAMES = {"android": "Android", "ios": "iOS", "kmp": "Kotlin Multiplatform", "flutter": "Flutter",
                   "cross": "Cross-platform code", "ci": "CI and supply chain"}
 FIX_FILES = {"android": "fixes-android.md", "ios": "fixes-ios.md", "kmp": "fixes-kmp.md", "ci": "fixes-ci.md"}
 LANG_TO_PLATFORM = {"kotlin": "android", "java": "android", "xml": "android", "groovy": "android",
