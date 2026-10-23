@@ -22,3 +22,14 @@ A false positive or a missed issue in your app isn't a vulnerability in masaudit
 ## Supported versions
 
 Only the latest release gets security fixes.
+
+## Verify a download
+
+Every release is built by GitHub Actions from a tagged commit, with signed build provenance.
+To check that a file you downloaded came from this repository's release workflow:
+
+```bash
+gh attestation verify masaudit.pyz --repo hossam9k/masaudit
+```
+
+Each release also includes `SHA256SUMS` and the signed provenance bundle, `masaudit.sigstore.json`.

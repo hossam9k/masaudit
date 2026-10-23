@@ -292,6 +292,7 @@ def _flow(text: str, i: int, lineno: int) -> Tuple[Node, int]:
                 i += 1
             if i >= n or text[i] == closer:
                 return node, i + 1
+            start = i
             if is_map:
                 key_node, i = _flow_scalar(text, i, lineno, stop=":,}")
                 value: Node = Scalar("", lineno)
@@ -302,6 +303,8 @@ def _flow(text: str, i: int, lineno: int) -> Tuple[Node, int]:
             else:
                 item, i = _flow(text, i, lineno)
                 node.append(item)                    # type: ignore[union-attr]
+            if i <= start:                           # a stray closer, e.g. `[}]`: skip it, never spin
+                i = start + 1
         return node, i
     return _flow_scalar(text, i, lineno, stop=",]}")
 

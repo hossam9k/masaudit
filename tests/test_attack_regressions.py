@@ -11,6 +11,7 @@ import unittest
 
 import helpers  # noqa: F401  (sets sys.path)
 from masaudit import cli, safety
+from masaudit.parsers import workflows
 
 
 class AttackRegressions(unittest.TestCase):
@@ -82,6 +83,29 @@ class AttackRegressions(unittest.TestCase):
             os.remove(marker)   # `git add` above legitimately ran the hook; only masaudit's call matters
         cli._git_clean(self.tmp)
         self.assertFalse(os.path.exists(marker), "git status ran a hook from the scanned repo")
+
+    def test_stray_closer_in_flow_yaml_does_not_hang(self):
+        # Found by fuzzing: a `}` inside `[...]` made the flow parser loop forever.
+        for crafted in ("x: [}]", "x: [a, }, b]", "x: {a: ]}", "x: [[}}]]", "on: [" + "}" * 10_000 + "]"):
+            start = time.monotonic()
+            workflows.load(crafted)
+            self.assertLess(time.monotonic() - start, 2.0, crafted[:20])
+
+
+class FuzzSmoke(unittest.TestCase):
+    def test_parsers_survive_mutated_fixtures(self):
+        # A short run of fuzz/fuzz_parsers.py on every CI job; the long run uses atheris.
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "fuzz"))
+        import fuzz_parsers
+
+        cwd = os.getcwd()
+        tmp = tempfile.mkdtemp()
+        try:
+            os.chdir(tmp)              # a crashing input is saved to the working directory
+            self.assertEqual(fuzz_parsers.smoke(1500, seed=7), 0)
+        finally:
+            os.chdir(cwd)
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

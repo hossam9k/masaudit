@@ -76,3 +76,28 @@ jobs:
           upload-sarif: "false"
       - name: Action wrote both reports
         run: test -s masaudit.sarif && test -s SECURITY-AUDIT.md
+
+  # Coverage-guided fuzzing of every parser that reads untrusted repository files.
+  fuzz:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Fuzz parsers for 2 minutes
+        run: |
+          python -m pip install --require-hashes --only-binary :all: -r fuzz/requirements.txt
+          mkdir -p "$RUNNER_TEMP/corpus" "$RUNNER_TEMP/crash"
+          python fuzz/fuzz_parsers.py -max_total_time=120 -timeout=5 -rss_limit_mb=2048 \
+            -artifact_prefix="$RUNNER_TEMP/crash/" "$RUNNER_TEMP/corpus" tests/fixtures
+      - name: Keep the failing input
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash
+          path: ${{ runner.temp }}/crash/
