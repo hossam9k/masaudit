@@ -44,3 +44,12 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 masaudit = ["rules/*.json"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+src = ["src", "tests", "fuzz", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E501"]

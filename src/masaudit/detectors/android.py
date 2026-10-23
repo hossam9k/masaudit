@@ -6,7 +6,7 @@ from __future__ import annotations
 import datetime
 import posixpath
 import re
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
+from typing import Dict, Iterable, Iterator, List, Set, Tuple
 
 from masaudit.detect import scope_of
 from masaudit.engine import Context, Hit, detector
@@ -223,7 +223,7 @@ _PROCEED = re.compile(r"\??\.proceed\s*\(\s*\)")
 
 @detector("android_webview_ssl_proceed")
 def webview_ssl_proceed(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, code, blank in _code_files(ctx, "onReceivedSslError", "proceed"):
+    for path, _code, blank in _code_files(ctx, "onReceivedSslError", "proceed"):
         for m in _SSL_ERROR.finditer(blank):
             close = _match(blank, m.end() - 1, "(", ")")
             brace = blank.find("{", close)

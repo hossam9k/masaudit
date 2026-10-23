@@ -170,7 +170,7 @@ def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
         try:
             prof = profile_mod.make(cli_type, "flag")
         except ValueError as exc:
-            raise ToolError(str(exc))
+            raise ToolError(str(exc)) from exc
     elif cfg.get("app_type"):
         prof = profile_mod.make(str(cfg["app_type"]), "config")
     else:
@@ -225,7 +225,7 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
         try:
             extra, extra_notes = importers.import_sarif(sarif_path, root, all_rules)
         except importers.SarifImportError as exc:
-            raise ToolError(str(exc))
+            raise ToolError(str(exc)) from exc
         findings += extra
         notes += extra_notes
     findings = _dedupe(findings)
@@ -239,7 +239,7 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
         try:
             fps = suppress.load_baseline(path)
         except suppress.BaselineError as exc:
-            raise ToolError(str(exc))
+            raise ToolError(str(exc)) from exc
         suppress.apply_baseline(findings, fps)
     return ScanResult(root=root, project=project, profile=prof, findings=findings, rules=all_rules,
                       rules_version=engine.rules_version(), notes=notes)
@@ -292,7 +292,7 @@ def _write_file(path: str, text: str) -> None:
         with open(path, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
     except OSError as exc:
-        raise ToolError(f"can't write {path}: {exc}")
+        raise ToolError(f"can't write {path}: {exc}") from exc
 
 
 def _find_rule(rules: List[Rule], rule_id: str) -> Optional[Rule]:

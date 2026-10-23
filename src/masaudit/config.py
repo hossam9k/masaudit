@@ -44,7 +44,7 @@ def load(root: str) -> Dict[str, object]:
         with open(path, encoding="utf-8") as fh:
             parser.read_file(fh, source=path)
     except (configparser.Error, OSError, UnicodeDecodeError) as exc:
-        raise ConfigError(f"{FILE_NAME}: can't read it ({exc.__class__.__name__}: {exc})")
+        raise ConfigError(f"{FILE_NAME}: can't read it ({exc.__class__.__name__}: {exc})") from exc
     for section in parser.sections():
         if section != SECTION:
             raise ConfigError(f"{FILE_NAME}: unknown section [{section}] (only [{SECTION}] is allowed)")
@@ -58,7 +58,7 @@ def load(root: str) -> Dict[str, object]:
         try:
             out["app_type"] = profile.normalize(sec["app_type"])
         except ValueError as exc:
-            raise ConfigError(f"{FILE_NAME}: {exc}")
+            raise ConfigError(f"{FILE_NAME}: {exc}") from exc
     if sec.get("fail_on", "").strip():
         value = sec["fail_on"].strip().lower()
         if value not in FAIL_ON:

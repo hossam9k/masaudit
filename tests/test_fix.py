@@ -140,7 +140,9 @@ class Plan(unittest.TestCase):
         self.assertIsNotNone(cli._git_clean(self.root))      # not a repository
         env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid",
                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid")
-        run = lambda *a: subprocess.run(["git", *a], cwd=self.root, env=env, capture_output=True, check=True)
+        def run(*a):
+            return subprocess.run(["git", *a], cwd=self.root, env=env, capture_output=True, check=True)
+
         run("init", "-q")
         self.assertIsNotNone(cli._git_clean(self.root))      # untracked files
         run("add", "-A")

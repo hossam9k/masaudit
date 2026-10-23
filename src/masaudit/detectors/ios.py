@@ -25,7 +25,7 @@ def _cache(ctx: Context) -> Dict[str, Any]:
     c = getattr(ctx, "_ios_cache", None)
     if c is None:
         c = {}
-        setattr(ctx, "_ios_cache", c)
+        ctx._ios_cache = c  # type: ignore[attr-defined]
     return c
 
 

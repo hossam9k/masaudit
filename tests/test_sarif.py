@@ -84,7 +84,9 @@ class Sarif(unittest.TestCase):
 
     def test_severity_follows_profile_and_not_needed_is_omitted(self):
         r = rule("AND-950", app_types=["banking"], not_needed_reason="Only banking.")
-        mk = lambda: [Finding(rule=r, location=Location(path="a\\b.kt", line=0))]
+        def mk():
+            return [Finding(rule=r, location=Location(path="a\\b.kt", line=0))]
+
         banking = sarif.to_dict(make_result(mk(), "banking"))
         validate(self, banking)
         self.assertEqual(banking["runs"][0]["tool"]["driver"]["rules"][0]["properties"]["security-severity"], "7.5")

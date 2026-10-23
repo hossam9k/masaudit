@@ -19,6 +19,7 @@ Read [docs/writing-rules.md](docs/writing-rules.md), then:
 ```bash
 cd tests && python3 -m unittest -q && cd ..
 python3 scripts/generate.py
+ruff check src tests fuzz scripts      # CI runs the same linter
 ```
 
 The tests check that the book link resolves, the MASWE ID exists and matches its MASVS control,
@@ -26,6 +27,8 @@ the text has no filler words, and the rule fires only where it should.
 
 ## Ground rules
 
+- Every bug fix and every new feature comes with a test that fails without it. CI runs the tests
+  on Linux, macOS, and Windows with Python 3.9 to 3.13, plus a fuzzer and CodeQL.
 - Python 3.9+, standard library only. No runtime dependencies.
 - masaudit never executes project code, never follows symlinks out of the scan root, and never
   makes network calls. Changes that break this won't be merged.

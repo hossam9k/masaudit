@@ -165,14 +165,14 @@ def import_sarif(path: str, root: str, rules: List[Rule]) -> Tuple[List[Finding]
     try:
         size = os.path.getsize(path)
     except OSError as exc:
-        raise SarifImportError(f"can't read {path}: {exc}")
+        raise SarifImportError(f"can't read {path}: {exc}") from exc
     if size > MAX_SARIF_BYTES:
         raise SarifImportError(f"{path} is larger than {MAX_SARIF_BYTES // (1024 * 1024)} MiB")
     try:
         with open(path, encoding="utf-8-sig") as fh:
             data = json.load(fh)
     except (OSError, UnicodeDecodeError, ValueError) as exc:
-        raise SarifImportError(f"{path} is not valid SARIF JSON: {exc}")
+        raise SarifImportError(f"{path} is not valid SARIF JSON: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("runs"), list):
         raise SarifImportError(f"{path} is not SARIF (no 'runs' list)")
 
