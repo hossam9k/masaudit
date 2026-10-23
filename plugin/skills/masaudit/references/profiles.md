@@ -37,7 +37,7 @@ The profile also changes what "unencrypted storage" means. `MASWE-0001` (sensiti
 
 ## What every app needs
 
-These apply to all eleven types, `general` included.
+These apply to all thirteen types, `general` included.
 
 - **Server-side rules.** Validate prices, entitlements, and limits on the server. Derive the user from
   the session token, never from a request field. These rules carry no "it depends" caveat ([§12.1]).
@@ -67,16 +67,18 @@ when the stated condition holds. "Not needed" means masaudit reports it under *N
 | App type | MAS profiles | Required beyond the baseline | Advisable | Not needed |
 |---|---|---|---|---|
 | `banking` | L1, L2, R, P | Keystore/Keychain-protected refresh tokens ([§6.4]); SPKI pinning on an intermediate with a backup, plus CT monitoring ([§8.8]); biometrics bound to a key for transfers and payee changes ([§11.1], [§11.5]); attestation as a server-side signal on login, payment, and password change ([§10.5], [§12.2]); tamper and hook detection that reports to the backend ([§14.2]) | Strong integrity as a bonus signal, never a baseline ([§9.3]); passkeys for sign-in ([§11.7]) | A hard local block on root. If an offline feature needs a local response, degrade only that feature and still report ([§14.2]) |
-| `fintech` | L1, L2, R, P | Same as banking: the book groups banking, fintech, and trading ([§8.8]) | Same as banking | Same as banking |
+| `identity` | L1, L2, R, P | Treat like banking: credentials and identity documents are worth as much as money. OWASP's EU identity-wallet profile draws on all four base profiles ([§3.2]). Protected token and key storage ([§6.4]); biometrics bound to a key ([§11.1]); attestation on login and recovery ([§10.5]) | Pinning when you control both client and server and can update pins securely: §8.8's deciding rule, applied by threat (§8.8 has no identity row, so this is a judgment) | A hard local block on root ([§14.2]) |
 | `health` | L1, L2, P | Protected token storage ([§6.4]); pinning as for banking, because patient data is high-value and long-lived ([§8.8]); step-up for sensitive actions ([Chapter 0.3]) | Attestation on login and account changes ([§10.5]) | Anti-tamper and obfuscation beyond the [§14.1] basics (MAS-R is not in the profile) |
 | `ecommerce-cards` | L1, L2, P | Card handling puts you in the banking category for pinning ([§8.8]); attestation on checkout and "add payment method" ([§10.5]) | Tokenize payments through a provider: the cheapest compliance decision you'll make ([Chapter 30]) | Anti-tamper beyond the basics |
 | `ecommerce` | L1, P | Strict TLS plus CT monitoring is a reasonable position when a payment SDK handles cards ([§8.8]) | Attestation on checkout ([§10.5]) | Pinning; anti-tamper |
+| `loyalty` | L1, R, P | Points, coupons, and tickets are the business's own assets (MAS-R, [§3.2]); a modified app that replays coupons is the cloner ([§1.3]). Redeem on the server: one-time codes, rate limits, risk scoring ([§12.1]) | Attestation on redemption and on phone or email changes ([§10.5]) | Pinning: no card numbers, so strict TLS plus CT monitoring ([§8.8]); L2 storage hardening by reflex ([§6.4]) |
 | `marketplace` | L1, P | Strict TLS, CT monitoring, backend fraud detection ([§8.8]); rate limits and risk scoring against fraudsters ([§1.3]) | Attestation on login and payment ([§10.5]) | Pinning: payment is usually tokenized, and the overhead buys little ([§8.8]); anti-tamper |
 | `social` | L1, P | Platform defaults with a strict configuration ([§8.8]); privacy and SDK data flows ([Chapter 18]) | End-to-end encryption protects content with its own keys, so TLS pinning isn't its main defense ([§8.8]) | Pinning; anti-tamper; biometrics on every launch ([§11.5]) |
 | `content` | L1, P | Platform defaults with a strict configuration ([§8.8]); privacy ([Chapter 18]) | Attestation only on an endpoint worth abusing, such as metered AI inference ([§20.4]) | Pinning: it "adds risk and no security" to a news feed ([§8.8]); anti-debugging and anti-tamper ([§23.1]); encrypting non-secret preferences ([§6.4]) |
+| `device-control` | L1, L2, P | Commands that unlock doors or move cars are sensitive functions (MAS-L2, [§3.2]): protected key storage ([§6.4]) and server-side authorization of every command ([§12.1]) | Biometrics bound to a key for unlock commands ([§11.1]) | Anti-tamper beyond the basics (MAS-R is not in the profile) |
 | `enterprise` | L1, L2, P | Trust your private CA explicitly ([§8.8]); protected token storage ([§6.4]) | Pinning only if you control both client and server ([§8.8]) | Pinning when a customer's MDM inspects traffic: it breaks your own deployment ([§8.8]); anti-tamper |
-| `game` | L1, R, P | Server-side entitlement, attestation, and signature checks against cloners ([§1.3]); detection that reports, not blocks ([§14.2]); obfuscation that protects detection logic ([§14.3]) | Strong integrity as a bonus signal for high-value actions ([§9.3]) | Pinning (masaudit flags it only for banking, fintech, health, and ecommerce-cards) |
-| `general` | L1 | Baseline only | Ask the profile question again if code clues appear | Everything outside L1 |
+| `game` | L1, R, P | Server-side entitlement, attestation, and signature checks against cloners ([§1.3]); detection that reports, not blocks ([§14.2]); obfuscation that protects detection logic ([§14.3]) | Strong integrity as a bonus signal for high-value actions ([§9.3]) | Pinning (masaudit flags it only for banking, identity, health, and ecommerce-cards) |
+| `general` | L1, P | Baseline plus privacy ([§3.2]: MAS-P is for every app that handles user-sensitive data) | Ask the profile question again if code clues appear | Everything outside L1 and P |
 
 Pinning anywhere carries a condition: only if the team can run a pin set for years without locking
 users out. That needs a rotation runbook, backup pins, failure alerts, CT monitoring, a protected kill
@@ -91,10 +93,11 @@ Don't recommend these. If the scanner flags them, leave them in *Not needed for 
   obfuscation beyond R8 ([§23.1], [§3.2]); biometrics on cold start or for reading ([§11.5]); short
   banking-style timeouts ([§14.5]).
 - **ecommerce (payment SDK), marketplace:** pinning ([§8.8]); anti-tamper ([§3.2]).
+- **loyalty:** pinning ([§8.8]); MAS-L2 storage encryption by reflex ([§6.4]). Coupon fraud is fixed on the server ([§12.1]).
 - **enterprise:** pinning where MDM inspection is legitimate ([§8.8]).
-- **health, ecommerce-cards, enterprise:** MAS-R controls such as anti-debugging (not in the profile).
+- **health, ecommerce-cards, device-control, enterprise:** MAS-R controls such as anti-debugging (not in the profile).
 - **game:** pinning (no row in [§8.8]; reason from the threat); L2 storage encryption by reflex ([§6.4]).
-- **general:** anything beyond the L1 baseline, until the user confirms a riskier type.
+- **general:** anything beyond the L1 baseline and privacy, until the user confirms a riskier type.
 - **Every type:** a hard local block on rooted devices for an ordinary online app ([§14.2]); `MEETS_STRONG_INTEGRITY` as a
   baseline gate, because on Android 13+ a missing strong label usually means an unpatched phone, not an
   attacker ([§9.3]).
@@ -130,8 +133,13 @@ masaudit looks for these clues and reports them. They only *suggest* a higher-ri
 | Clue in code | Suggests |
 |---|---|
 | `com.stripe`, `StripePaymentSheet`, Braintree, Adyen, Checkout.com, PayPal | `ecommerce` (a payment SDK handles cards) |
-| `HealthKit`, `HKHealthStore`, `androidx.health.connect` | `health` |
-| Fields named `cardNumber`, `card_number`, `pan`, `cvv`, `cvc` | `ecommerce-cards` (the app touches card numbers) |
+| `HealthKit`, `HKHealthStore`, `androidx.health.connect`, `HealthConnectClient` | `health` |
+| Fields named `cardNumber`, `card_number`, `primaryAccountNumber`, `cvv`, `cvc` | `ecommerce-cards` (the app touches card numbers) |
+| Google Wallet or Apple Wallet passes (`play-services-pay`, `PKAddPassesViewController`, `.pkpass`) | `loyalty` |
+| Loyalty or points code (`loyalty`, `pointsBalance`, `redeemCoupon`) | `loyalty` |
+| Crypto wallet libraries (web3j, bitcoinj, ethers, WalletConnect, Trust Wallet Core) | `banking` |
+| Passport or ID-card NFC reading (`NFCTagReaderSession`, `IsoDep`, JMRTD) | `identity` |
+| Smart-home or car APIs (`HMHomeManager`, `androidx.car.app`, CarPlay, Matter) | `device-control` |
 | `BiometricPrompt`, `LAContext` | No type; check biometric binding ([Chapter 11]) |
 | Play Integrity, `DCAppAttestService` | No type; check server verification ([Chapter 9], [Chapter 10]) |
 

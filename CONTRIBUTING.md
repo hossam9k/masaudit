@@ -19,7 +19,7 @@ Read [docs/writing-rules.md](docs/writing-rules.md), then:
 ```bash
 cd tests && python3 -m unittest -q && cd ..
 python3 scripts/generate.py
-ruff check src tests fuzz scripts      # CI runs the same linter
+uvx ruff@0.17.1 check src tests fuzz scripts   # the linter CI runs
 ```
 
 The tests check that the book link resolves, the MASWE ID exists and matches its MASVS control,

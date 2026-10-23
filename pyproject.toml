@@ -8,7 +8,8 @@ dynamic = ["version"]
 description = "A free mobile security scanner that scales its advice to your app's risk profile."
 readme = "README.md"
 requires-python = ">=3.9"
-license = "Apache-2.0"
+license = "Apache-2.0 AND MIT-0 AND CC-BY-SA-4.0"
+license-files = ["LICENSE", "LICENSES/*.txt"]
 authors = [{ name = "Hossam Atef", email = "hossam9k@gmail.com" }]
 keywords = ["security", "mobile", "android", "ios", "masvs", "sast", "sarif"]
 dependencies = []

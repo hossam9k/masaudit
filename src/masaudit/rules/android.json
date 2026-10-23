@@ -16,7 +16,9 @@
       "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
       "maswe": "MASWE-0026",
       "masvs": "MASVS-NETWORK-1",
-      "mastg": [],
+      "mastg": [
+        "MASTG-TEST-0235"
+      ],
       "fix_code": {
         "lang": "xml",
         "code": "<network-security-config>\n    <base-config cleartextTrafficPermitted=\"false\" />\n    <!-- Only if a host truly needs HTTP: -->\n    <!-- <domain-config cleartextTrafficPermitted=\"true\"><domain>legacy.example.com</domain></domain-config> -->\n</network-security-config>"
@@ -191,11 +193,11 @@
       ],
       "app_types": [
         "banking",
-        "fintech",
+        "identity",
         "health",
         "ecommerce-cards"
       ],
-      "not_needed_reason": "Pinning is for apps that handle money, health data, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8).",
+      "not_needed_reason": "Pinning is for apps that handle money, health data, identity credentials, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8).",
       "fix_code": {
         "lang": "xml",
         "code": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!-- res/xml/network_security_config.xml -->\n<network-security-config>\n    <domain-config cleartextTrafficPermitted=\"false\">\n        <domain includeSubdomains=\"true\">api.example.com</domain>\n        <!-- base64 SHA-256 of the SPKI, not of the whole certificate -->\n        <pin-set expiration=\"2027-12-31\">\n            <!-- Primary: your CA's intermediate -->\n            <pin digest=\"SHA-256\">YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</pin>\n            <!-- Backup: an intermediate at a second CA, or a spare key you hold -->\n            <pin digest=\"SHA-256\">Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</pin>\n        </pin-set>\n    </domain-config>\n</network-security-config>\n<!-- The pin values are placeholders: generate your own (§8.10). -->"

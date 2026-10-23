@@ -102,7 +102,7 @@ class FuzzSmoke(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         try:
             os.chdir(tmp)              # a crashing input is saved to the working directory
-            self.assertEqual(fuzz_parsers.smoke(1500, seed=7), 0)
+            self.assertEqual(fuzz_parsers.smoke(1500, seed=7, quiet=True), 0)
         finally:
             os.chdir(cwd)
             shutil.rmtree(tmp, ignore_errors=True)

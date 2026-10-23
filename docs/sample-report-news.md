@@ -1,16 +1,16 @@
 # Security audit: acme-wallet
 
 - **Date:** 2026-01-01
-- **Scanner:** masaudit 0.1.1, rules 1.0.0
+- **Scanner:** masaudit 0.2.0, rules 1.0.0
 - **Platforms:** Android, iOS, CI/CD pipeline
-- **App profile:** content (News, media, reading, or other content); MAS-L1+P; from --app-type
+- **App profile:** content (News, video, music, reading, or learning); MAS-L1+P; from --app-type
 - **Code clues (suggestions only, not applied):**
-  - Found a payment SDK (Stripe) in android/app/build.gradle.kts — ecommerce may fit
+  - Found a payment SDK (Stripe) in android/app/build.gradle.kts — ecommerce or banking may fit
   - Found biometric authentication in android/app/src/main/java/com/acme/wallet/WalletApi.kt — no type on its own; check biometric binding (Chapter 11)
 
 **Verdict: not ready to release.** 10 issues to fix before release for a content app, plus 10 to fix soon.
 
-## Top 3 fixes
+## Top fixes
 
 1. **Release build is debuggable** (critical, minutes) at `android/app/build.gradle.kts:17`
 2. **WebView ignores TLS certificate errors** (critical, minutes) at `android/app/src/main/java/com/acme/wallet/WalletApi.kt:40`
@@ -149,7 +149,7 @@ Matched line (masked):
 
 **How to verify:** Build a release APK, open an `http://` URL your app uses, and confirm the request fails with a cleartext error.
 
-**Effort:** minutes · **IDs:** MASWE-0026 · MASVS-NETWORK-1 · **Book:** [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
+**Effort:** minutes · **IDs:** MASWE-0026 · MASVS-NETWORK-1 · MASTG-TEST-0235 · **Book:** [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
 
 ### 5. User-installed CAs are trusted in release
 
@@ -653,12 +653,12 @@ These were found, but a content app doesn't need them. If your app type is wrong
 
 - **Keychain item is readable before the first unlock** (`IOS-008`) at `ios/AcmeWallet/TokenStore.swift:11`. This belongs to MAS-L2, which a content app doesn't need. Book: [§4.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#44-data-protection-classes-the-decision-you-keep-getting-wrong)
 - **Token or password stored in UserDefaults** (`IOS-011`) at `ios/AcmeWallet/TokenStore.swift:14`. This belongs to MAS-L2, which a content app doesn't need. Book: [§6.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked)
-- **No certificate pinning (needed for high-risk apps)** (`AND-007`) at `android/app/src/main/AndroidManifest.xml:4`. Pinning is for apps that handle money, health data, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8). Book: [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type)
+- **No certificate pinning (needed for high-risk apps)** (`AND-007`) at `android/app/src/main/AndroidManifest.xml:4`. Pinning is for apps that handle money, health data, identity credentials, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8). Book: [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type)
 - **Biometric prompt is not tied to a key** (`AND-025`) at `android/app/src/main/java/com/acme/wallet/WalletApi.kt:34`. This belongs to MAS-L2, which a content app doesn't need. Book: [§11.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real)
-- **No certificate pinning (needed for high-risk apps)** (`IOS-007`) at `ios/AcmeWallet/Info.plist`. Book §8.8: outside banking, fintech, health, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8). Book: [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type)
+- **No certificate pinning (needed for high-risk apps)** (`IOS-007`) at `ios/AcmeWallet/Info.plist`. Book §8.8: outside banking, health, identity, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8). Book: [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type)
 - **Biometric check only flips a boolean** (`IOS-012`) at `ios/AcmeWallet/TokenStore.swift:18`. This belongs to MAS-L2, which a content app doesn't need. Book: [§11.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real)
 
-## What was checked and held
+## Checked, nothing found
 
 These checks ran and found nothing to fix.
 
@@ -956,4 +956,4 @@ minSdk = 23
 
 ---
 
-Generated by masaudit v0.1.1 — https://github.com/hossam9k/masaudit
+Generated by masaudit v0.2.0 — https://github.com/hossam9k/masaudit

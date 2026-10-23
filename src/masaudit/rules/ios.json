@@ -173,11 +173,11 @@
       ],
       "app_types": [
         "banking",
-        "fintech",
+        "identity",
         "health",
         "ecommerce-cards"
       ],
-      "not_needed_reason": "Book §8.8: outside banking, fintech, health, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8).",
+      "not_needed_reason": "Book §8.8: outside banking, health, identity, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8).",
       "fix_code": {
         "lang": "xml",
         "code": "<key>NSAppTransportSecurity</key>\n<dict>\n    <key>NSPinnedDomains</key>\n    <dict>\n        <key>api.example.com</key>\n        <dict>\n            <key>NSIncludesSubdomains</key>\n            <true/>\n            <!-- Pins an intermediate or root. Use NSPinnedLeafIdentities to pin the leaf. -->\n            <key>NSPinnedCAIdentities</key>\n            <array>\n                <dict>\n                    <key>SPKI-SHA256-BASE64</key>\n                    <string>YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</string>\n                </dict>\n                <dict>\n                    <!-- Backup pin -->\n                    <key>SPKI-SHA256-BASE64</key>\n                    <string>Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</string>\n                </dict>\n            </array>\n        </dict>\n    </dict>\n</dict>"

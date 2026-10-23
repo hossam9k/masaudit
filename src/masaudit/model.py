@@ -69,7 +69,7 @@ class Finding:
 
 @dataclass
 class Profile:
-    app_type: str                      # banking, fintech, health, ...
+    app_type: str                      # banking, identity, health, ...
     mas_profiles: List[str]            # e.g. ["L1", "L2", "P", "R"]
     source: str                        # "flag", "config", "prompt", "default"
     suggestions: List[str] = field(default_factory=list)   # code clues, stated, never applied silently

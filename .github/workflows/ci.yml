@@ -92,6 +92,15 @@ jobs:
           upload-sarif: "false"
       - name: Action wrote both reports
         run: test -s masaudit.sarif && test -s SECURITY-AUDIT.md
+      - name: Save an app type in the project's .masaudit.ini
+        run: printf '[masaudit]\napp_type = content\n' > examples/acme-wallet/.masaudit.ini
+      - uses: ./
+        with:
+          path: examples/acme-wallet
+          fail-on: none
+          upload-sarif: "false"
+      - name: Without an app-type input, the Action uses .masaudit.ini
+        run: grep -q "App profile:\*\* content" SECURITY-AUDIT.md
 
   # Coverage-guided fuzzing of every parser that reads untrusted repository files.
   fuzz:

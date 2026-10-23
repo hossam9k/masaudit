@@ -276,7 +276,31 @@ def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield _hit(ctx, path, line, "An allow-all HostnameVerifier accepts certificates for any host name.")
 
 
-_PIN_MARKERS = re.compile(r"<pin-set|CertificatePinner|TrustKit|[Pp]inning|sha256/[A-Za-z0-9+/=]{20,}")
+# Pinning evidence counts only in shipping code, and never in comments: a test or a comment that
+# mentions "pinning" must not silence the finding.
+_PIN_CODE = re.compile(r"\bCertificatePinner\b|\bTrustKit\b|\w*[Pp]inning\w*|\w*Pinner\b")
+_PIN_VALUE = re.compile(r"sha256/[A-Za-z0-9+/]{43}=")
+_PIN_DEPS = re.compile(r"trustkit|ssl-?pinning", re.IGNORECASE)
+_XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _has_pinning_evidence(ctx: Context) -> bool:
+    for path in ctx.files(".xml", ".kt", ".java", ".kts", ".gradle", ".toml"):
+        if scope_of(path) == "test":
+            continue
+        if path.endswith(".xml"):
+            if "<pin-set" in _XML_COMMENT.sub("", ctx.text(path) or ""):
+                return True
+        elif path.endswith(".toml"):
+            if _PIN_DEPS.search(re.sub(r"#[^\n]*", "", ctx.text(path) or "")):
+                return True
+        else:
+            code, blank = ctx.code(path, True) or "", ctx.code(path, False) or ""
+            if _PIN_CODE.search(blank) or _PIN_VALUE.search(code):
+                return True
+            if path.endswith((".kts", ".gradle")) and _PIN_DEPS.search(code):
+                return True
+    return False
 
 
 @detector("android_pinning_missing")
@@ -294,10 +318,8 @@ def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if any(f.endswith(".dart") or f.rsplit("/", 1)[-1] in ("pubspec.yaml", "package.json") for f in files):
         ctx.note_unknown("Pinning check skipped: Flutter or React Native code may pin outside the Android sources.")
         return
-    for path in ctx.files(".xml", ".kt", ".java", ".kts", ".gradle", ".toml", ".json"):
-        text = ctx.text(path) or ""
-        if _PIN_MARKERS.search(text):
-            return
+    if _has_pinning_evidence(ctx):
+        return
     for path, _code, blank in _code_files(ctx, "checkServerTrusted"):
         if "checkServerTrusted" in blank:
             ctx.note_unknown(f"Pinning check skipped: {path} has a custom TrustManager that may pin.")

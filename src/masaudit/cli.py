@@ -354,6 +354,9 @@ def run_fix_safe(result: ScanResult, args) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # `--import-sarif a.sarif PATH` puts PATH into the list; take a trailing directory back as PATH.
+    if args.path == "." and len(args.import_sarif) > 1 and os.path.isdir(args.import_sarif[-1]):
+        args.path = args.import_sarif.pop()
     try:
         return _main(args)
     except (ToolError, config.ConfigError) as exc:
@@ -415,7 +418,12 @@ def _main(args) -> int:
             _write_stdout(text)
         if result.profile.source == "default" and args.format != "text":
             sys.stderr.write(ASSUMED_LINE + "\n")
-    return EXIT_FINDINGS if fails(result.findings, fail_on) else EXIT_OK
+    if fails(result.findings, fail_on):
+        n = sum(1 for f in result.findings if f.status == "open" and f.bucket in ("fix-before-release", "fix-soon")
+                and SEVERITY_RANK.get(f.effective_severity, 9) <= SEVERITY_RANK[fail_on])
+        sys.stderr.write(f"Exit 1: {n} open finding(s) at {fail_on} severity or above (--fail-on {fail_on}).\n")
+        return EXIT_FINDINGS
+    return EXIT_OK
 
 
 if __name__ == "__main__":  # pragma: no cover

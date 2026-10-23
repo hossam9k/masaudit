@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Pinning disabled until the rotation runbook exists:
+    <domain-config>
+        <domain includeSubdomains="true">api.example.com</domain>
+        <pin-set expiration="2027-01-01">
+            <pin digest="SHA-256">YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</pin>
+        </pin-set>
+    </domain-config>
+    -->
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

@@ -214,7 +214,7 @@ def _held_section(result) -> List[str]:
         if not applicable(rule, platforms) or rule.id in with_findings or rule.id in result.project.undecided:
             continue
         held.setdefault(rule.platform, []).append(rule)
-    out = ["## What was checked and held", ""]
+    out = ["## Checked, nothing found", ""]
     if not held:
         out += ["No checks passed cleanly for the platforms found." if platforms
                 else "No supported platform was found, so no platform checks ran.", ""]
@@ -313,7 +313,7 @@ def render(result) -> str:
     out += ["", _verdict(result), ""]
 
     top = top_fixes(result.findings)
-    out += ["## Top 3 fixes", ""]
+    out += ["## Top fixes", ""]
     if top:
         for i, f in enumerate(top, 1):
             out.append(f"{i}. **{text(f.rule.title)}** ({f.effective_severity}, "

@@ -6,7 +6,7 @@ metadata:
   author: Hossam Atef
   homepage: https://github.com/hossam9k/masaudit
   book: https://github.com/hossam9k/mobile-app-security
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
 # masaudit: risk-calibrated mobile security audits
@@ -35,9 +35,13 @@ Book for Engineers*; every rule links to the section that explains it.
 
 Use the first that works:
 
-1. `masaudit --version` (installed with `pipx install masaudit` or available as `uvx masaudit`).
-2. `python3 scripts/masaudit.pyz --version`, run from this skill's folder (bundled, offline, no
+1. `masaudit --version` (installed with `pipx install masaudit`).
+2. `uvx masaudit --version` (needs uv and network access the first time).
+3. `python3 scripts/masaudit.pyz --version`, run from this skill's folder (bundled, offline, no
    dependencies). On Windows use `py` instead of `python3`.
+
+Use the same prefix for every command in the workflow files. They write `masaudit`; replace it with
+`uvx masaudit` or `python3 <this skill's folder>/scripts/masaudit.pyz` if that's what worked.
 
 If Python 3.9+ isn't available, say so and offer the manual path: read
 [references/rules.md](references/rules.md) and check the project by hand.
@@ -57,9 +61,10 @@ If it's unclear, start with the audit: every other job builds on its report.
 
 Before scanning, settle the app type. If the user hasn't said, ask one question:
 
-> What kind of app is this? Banking/payments, fintech, health, shopping (handles cards itself),
-> shopping (uses a payment SDK), marketplace/delivery, social/messaging, news/content, internal
-> enterprise, game, or something else?
+> What kind of app is this? Banking/payments/crypto, identity (eID, password manager, VPN, carrier),
+> health, shop that handles card numbers itself, shop or restaurant using a payment provider,
+> loyalty/coupons/tickets, marketplace/delivery, social/messaging, news/content, controls devices
+> (smart home, cars), internal enterprise, game, or something else?
 
 If you can't ask (a headless or CI run), check for a `.masaudit.ini`; otherwise use `general` and
 state the assumption at the top of your answer. Code clues (a payment SDK, HealthKit) are reasons to

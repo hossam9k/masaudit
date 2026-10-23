@@ -2,7 +2,7 @@
 """Run rules against a project and calibrate the results to the app's profile.
 
 Two kinds of rule:
-  * detector rules: a Python function registered with @detector("AND-001"); used for
+  * detector rules: a Python function registered by name, e.g. @detector("android_cleartext"); used for
     structured files (manifest, plist, pbxproj, workflows) and anything needing logic.
   * pattern rules: a declarative regex in rules/*.json, run on code after comments are
     blanked by the lexer, with a cheap literal prefilter.

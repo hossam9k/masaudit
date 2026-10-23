@@ -35,7 +35,7 @@ For each confirmed finding:
 ## Pinning: extra care
 
 Pinning done badly locks every user out until a store update. Only add pins when the profile needs
-them (banking, fintech, health, apps that handle cards) and the team agrees to operate them:
+them (banking, identity, health, apps that handle cards) and the team agrees to operate them:
 pin the SPKI of an intermediate, ship a backup pin at a second CA, set an expiration on Android,
 and document the rotation runbook (new pin ships long before the new key serves traffic).
 See [fixes-android.md](fixes-android.md) and [fixes-ios.md](fixes-ios.md).
