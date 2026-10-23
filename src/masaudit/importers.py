@@ -104,10 +104,9 @@ def _find_rule(ext_id: str, rules: List[Rule]) -> Optional[Rule]:
 
 def _book() -> Tuple[str, str]:
     try:
-        from importlib import resources
+        from masaudit.engine import rules_data
 
-        sections = json.loads(resources.files("masaudit.rules").joinpath("_book_sections.json")
-                              .read_text(encoding="utf-8"))
+        sections = json.loads(rules_data("_book_sections.json").decode("utf-8"))
         return "Chapter 23", sections.get("Chapter 23", "")
     except Exception:  # pragma: no cover - packaging problem; fall back to the book root
         from masaudit import BOOK_URL

@@ -1,1 +1,11 @@
-{"schema_version": 1, "rules_version": "1.0.0"}
+{
+ "schema_version": 1,
+ "rules_version": "1.0.0",
+ "rule_files": [
+  "android.json",
+  "ios.json",
+  "cross.json",
+  "ci.json",
+  "kmp.json"
+ ]
+}

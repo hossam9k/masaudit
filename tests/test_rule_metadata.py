@@ -75,5 +75,18 @@ class RuleMetadata(unittest.TestCase):
                     self.assertEqual(r.id, "AND-002", "only the vetted debuggable rule may be safe_fix in v1")
 
 
+class RuleFiles(unittest.TestCase):
+    def test_meta_lists_every_rule_file(self):
+        on_disk = sorted(n for n in os.listdir(RULES_DIR) if n.endswith(".json") and not n.startswith("_"))
+        self.assertEqual(sorted(_load("_meta.json")["rule_files"]), on_disk,
+                         "add new rule files to rule_files in _meta.json")
+
+    def test_every_detector_module_is_imported(self):
+        detectors = os.path.join(os.path.dirname(RULES_DIR), "detectors")
+        modules = {n[:-3] for n in os.listdir(detectors) if n.endswith(".py") and n != "__init__.py"}
+        self.assertTrue(modules <= {"android", "ios", "cross", "ci", "kmp"},
+                        "add new detector modules to the list in engine._import_detectors")
+
+
 if __name__ == "__main__":
     unittest.main()

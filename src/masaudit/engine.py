@@ -103,21 +103,28 @@ class Context:
 # ---------------------------------------------------------------------------- rules
 
 
-def load_rules() -> List[Rule]:
-    """Load every rules/*.json shipped with the package (works from a zipapp too)."""
-    from importlib import resources
+def rules_data(name: str) -> bytes:
+    """Read a file shipped in masaudit/rules/. pkgutil works inside a zipapp on every supported
+    Python; importlib.resources can't list a zip's contents on Windows before Python 3.10."""
+    import pkgutil
 
+    data = pkgutil.get_data("masaudit.rules", name)
+    if data is None:
+        raise FileNotFoundError(f"masaudit/rules/{name} is missing from this installation")
+    return data
+
+
+def load_rules() -> List[Rule]:
+    """Load every rule file listed in _meta.json (works from a zipapp too)."""
     rules: List[Rule] = []
     seen = set()
-    pkg = resources.files("masaudit.rules")
-    for entry in sorted(pkg.iterdir(), key=lambda e: e.name):
-        if not entry.name.endswith(".json"):
-            continue
-        data = json.loads(entry.read_text(encoding="utf-8"))
+    meta = json.loads(rules_data("_meta.json").decode("utf-8"))
+    for name in meta["rule_files"]:
+        data = json.loads(rules_data(name).decode("utf-8"))
         for raw in data.get("rules", []):
             rule = Rule(**raw)
             if rule.id in seen:
-                raise ValueError(f"duplicate rule id {rule.id} in {entry.name}")
+                raise ValueError(f"duplicate rule id {rule.id} in {name}")
             if rule.severity not in SEVERITIES:
                 raise ValueError(f"{rule.id}: unknown severity {rule.severity}")
             seen.add(rule.id)
@@ -126,10 +133,7 @@ def load_rules() -> List[Rule]:
 
 
 def rules_version() -> str:
-    from importlib import resources
-
-    meta = resources.files("masaudit.rules").joinpath("_meta.json")
-    return json.loads(meta.read_text(encoding="utf-8"))["rules_version"]
+    return json.loads(rules_data("_meta.json").decode("utf-8"))["rules_version"]
 
 
 # ---------------------------------------------------------------------------- running
@@ -222,8 +226,12 @@ def _import_detectors() -> None:
 
     import masaudit.detectors as pkg
 
-    for mod in pkgutil.iter_modules(pkg.__path__):
-        importlib.import_module(f"masaudit.detectors.{mod.name}")
+    # Listing modules can fail inside a zipapp on old Pythons, so the known modules are always
+    # imported, plus anything else that's discoverable.
+    names = {"android", "ios", "cross", "ci", "kmp"}
+    names |= {mod.name for mod in pkgutil.iter_modules(pkg.__path__)}
+    for name in sorted(names):
+        importlib.import_module(f"masaudit.detectors.{name}")
     _IMPORTED = True
 
 
