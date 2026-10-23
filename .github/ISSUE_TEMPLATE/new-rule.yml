@@ -1,0 +1,25 @@
+name: New rule
+description: Suggest a check masaudit should add.
+labels: [new-rule]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should masaudit detect?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Vulnerable example and a safe version
+      render: text
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: A book section (§x.y), MASWE ID, or vendor documentation link.
+  - type: dropdown
+    id: apps
+    attributes:
+      label: Which apps need it?
+      options: [All apps, High-risk apps only (banking, health, ...), Privacy-sensitive apps, Games / anti-tamper]

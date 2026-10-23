@@ -1,0 +1,2 @@
+#include "DebugShared.xcconfig"
+ENABLE_TESTABILITY = YES

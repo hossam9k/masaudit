@@ -1,0 +1,72 @@
+{
+  "rules": [
+    {
+      "id": "KMP-001",
+      "title": "Shared declaration is named after one platform's key mechanism",
+      "platform": "kmp",
+      "severity": "low",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A shared API such as `getKeystoreKey` forces Android's model onto iOS. The Secure Enclave holds only asymmetric keys, so the iOS implementation quietly weakens to fit the interface.",
+      "fix": "Name shared `expect` declarations and interfaces after the intent, such as `storeToken(token, requiringUserAuth)`, and let each platform's `actual` pick the right primitive. Prefer an interface with injected implementations to `expect class`, which is still Beta.",
+      "verify": "List every `expect` declaration and shared interface that touches keys or tokens; each name should describe what the caller needs, not a platform API.",
+      "effort": "hours",
+      "book": "§21.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#212-the-mistake-that-will-bite-you",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// commonMain: say what you need, not how.\ninterface SecureTokenStore {\n    suspend fun store(token: String, requireUserPresence: Boolean)\n    suspend fun read(): String?          // null if absent or the user canceled\n    suspend fun clear()\n}\n\n// androidMain: Keystore-backed key + Tink/DataStore (§6.6).\n// iosMain: Keychain item with kSecAttrAccessibleWhenUnlockedThisDeviceOnly and,\n//          when requireUserPresence is true, a SecAccessControl built from that class plus\n//          .userPresence, passed as kSecAttrAccessControl in place of kSecAttrAccessible (§4.6)."
+      },
+      "confidence": "medium",
+      "detector": "kmp_mechanism_expect"
+    },
+    {
+      "id": "KMP-002",
+      "title": "Platform crypto, keystore, or biometric API used in commonMain",
+      "platform": "kmp",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Keystore and Keychain access, biometrics, and attestation get their security from one platform's hardware or vendor service. Shared code that reaches for them either fails to build for the other platform or hides a weaker fallback there.",
+      "fix": "Keep these calls in `androidMain` and `iosMain`. Put an intent-based interface in `commonMain` and inject each platform's implementation.",
+      "verify": "Search `commonMain` for `javax.crypto`, `java.security`, `android.security`, `androidx.biometric`, `platform.Security`, and `platform.LocalAuthentication`; nothing should remain.",
+      "effort": "hours",
+      "book": "§21.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#211-the-line-and-the-reasoning-behind-it",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// commonMain: say what you need, not how.\ninterface SecureTokenStore {\n    suspend fun store(token: String, requireUserPresence: Boolean)\n    suspend fun read(): String?          // null if absent or the user canceled\n    suspend fun clear()\n}\n\n// androidMain: Keystore-backed key + Tink/DataStore (§6.6).\n// iosMain: Keychain item with kSecAttrAccessibleWhenUnlockedThisDeviceOnly and,\n//          when requireUserPresence is true, a SecAccessControl built from that class plus\n//          .userPresence, passed as kSecAttrAccessControl in place of kSecAttrAccessible (§4.6)."
+      },
+      "confidence": "medium",
+      "detector": "kmp_native_in_common"
+    },
+    {
+      "id": "KMP-003",
+      "title": "Ktor pins are shared, but an engine doesn't enforce them",
+      "platform": "kmp",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Ktor's common API doesn't pin; each engine enforces pins separately. A project that configures Android and forgets iOS is pinned on one platform and open on the other, and its tests still pass.",
+      "fix": "Keep the pin strings in `commonMain`, and enforce them in each platform's `actual`: OkHttp's `CertificatePinner` on Android and the Darwin engine's `CertificatePinner` through `handleChallenge` on iOS. Put both in the same pull request.",
+      "verify": "Put a proxy such as mitmproxy in front of the app and make the device trust its CA (§8.10, Verify it). Requests to the pinned host should fail on Android and on iOS.",
+      "effort": "hours",
+      "book": "§8.10",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// commonMain: the pins themselves are shared\nobject CertificatePins {\n    const val HOST = \"api.example.com\"\n    const val CURRENT = \"sha256/YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=\"\n    const val BACKUP = \"sha256/Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=\"\n}\n\nexpect fun createPinnedHttpClient(): HttpClient\n\n// iosMain: Darwin engine, with Ktor's own pinner. It validates the chain first by default.\nimport io.ktor.client.HttpClient\nimport io.ktor.client.engine.darwin.Darwin\nimport io.ktor.client.engine.darwin.certificates.CertificatePinner\n\nactual fun createPinnedHttpClient(): HttpClient = HttpClient(Darwin) {\n    engine {\n        handleChallenge(\n            CertificatePinner.Builder()\n                .add(CertificatePins.HOST, CertificatePins.CURRENT, CertificatePins.BACKUP)\n                .build()\n        )\n    }\n}\n\n// androidMain: OkHttp engine, so OkHttp's CertificatePinner applies\nimport io.ktor.client.engine.okhttp.OkHttp\nimport okhttp3.CertificatePinner\n\nactual fun createPinnedHttpClient(): HttpClient = HttpClient(OkHttp) {\n    engine {\n        config {\n            certificatePinner(\n                CertificatePinner.Builder()\n                    .add(CertificatePins.HOST, CertificatePins.CURRENT, CertificatePins.BACKUP)\n                    .build()\n            )\n        }\n    }\n}"
+      },
+      "confidence": "manual",
+      "detector": "kmp_ktor_pinning"
+    }
+  ]
+}

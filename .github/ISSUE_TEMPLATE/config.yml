@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability in masaudit
+    url: https://github.com/hossam9k/masaudit/security/advisories/new
+    about: Report privately, not as an issue.
+  - name: Learn why a rule exists
+    url: https://github.com/hossam9k/mobile-app-security
+    about: Every rule links to the free book section that explains it.

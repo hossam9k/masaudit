@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="com.example.permission.WEAK" />
+    <application>
+        <activity android:name=".TransferActivity" android:exported="true" />
+        <service android:name=".SyncService" android:exported="true" />
+        <receiver android:name=".PushReceiver">
+            <intent-filter>
+                <action android:name="com.example.PUSH" />
+            </intent-filter>
+        </receiver>
+        <provider android:name=".DataProvider" android:authorities="com.example.data" android:exported="true" />
+        <service android:name=".WeakService" android:exported="true" android:permission="com.example.permission.WEAK" />
+    </application>
+</manifest>

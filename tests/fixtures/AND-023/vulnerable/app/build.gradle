@@ -1,0 +1,5 @@
+apply plugin: 'com.android.application'
+
+dependencies {
+    implementation 'net.zetetic:android-database-sqlcipher:4.5.4'
+}

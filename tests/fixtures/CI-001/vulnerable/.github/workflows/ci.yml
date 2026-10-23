@@ -1,0 +1,13 @@
+name: ci
+on: [push]
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: some-org/setup-thing@main
+      - uses: docker://alpine:3.19
+      - uses: ./.github/actions/local-thing
+  shared:
+    uses: some-org/workflows/.github/workflows/build.yml@v1

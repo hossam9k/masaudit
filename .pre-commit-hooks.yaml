@@ -1,0 +1,7 @@
+- id: masaudit
+  name: masaudit (mobile security scan)
+  description: Fails the commit on high-severity mobile security findings.
+  entry: masaudit --fail-on high --format text
+  language: python
+  pass_filenames: false
+  always_run: true

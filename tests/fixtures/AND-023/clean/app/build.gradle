@@ -1,0 +1,6 @@
+apply plugin: 'com.android.application'
+
+dependencies {
+    // was: net.zetetic:android-database-sqlcipher
+    implementation 'net.zetetic:sqlcipher-android:4.19.1@aar'
+}

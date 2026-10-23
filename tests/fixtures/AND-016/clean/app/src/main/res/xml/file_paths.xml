@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Never: <root-path name="root" path="" /> or path="." -->
+    <cache-path name="shared_exports" path="exports/" />
+    <files-path name="images" path="images/" />
+</paths>

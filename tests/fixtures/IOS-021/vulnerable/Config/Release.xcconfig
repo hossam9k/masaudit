@@ -1,0 +1,3 @@
+// Release.xcconfig (used by the XcodeGen spec)
+#include "Shared.xcconfig"
+ENABLE_TESTABILITY = YES

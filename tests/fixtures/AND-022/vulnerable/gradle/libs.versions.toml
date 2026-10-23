@@ -1,0 +1,5 @@
+[versions]
+securityCrypto = "1.1.0"
+
+[libraries]
+security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }

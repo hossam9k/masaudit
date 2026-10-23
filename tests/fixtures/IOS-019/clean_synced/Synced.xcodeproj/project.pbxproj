@@ -1,0 +1,157 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CC000000000000000000000B /* Synced */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Synced;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXGroup section */
+		CC0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				CC0000000000000000000003 /* Synced */,
+				CC0000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CC0000000000000000000003 /* Synced */ = {
+			isa = PBXGroup;
+			children = (
+
+			);
+			path = Synced;
+			sourceTree = "<group>";
+		};
+		CC0000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CC0000000000000000000006 /* Synced */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000008 /* Build configuration list for PBXNativeTarget "Synced" */;
+			buildPhases = (
+				CC0000000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CC000000000000000000000B /* Synced */,
+			);
+			name = Synced;
+			productName = Synced;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CC0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+			};
+			buildConfigurationList = CC000000000000000000000C /* Build configuration list for PBXProject "Synced" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = CC0000000000000000000002;
+			productRefGroup = CC0000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CC0000000000000000000006 /* Synced */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CC0000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CC0000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		CC000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		CC000000000000000000000D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+			};
+			name = Debug;
+		};
+		CC000000000000000000000E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CC0000000000000000000008 /* Build configuration list for PBXNativeTarget "Synced" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000009,
+				CC000000000000000000000A,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC000000000000000000000C /* Build configuration list for PBXProject "Synced" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC000000000000000000000D,
+				CC000000000000000000000E,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = CC0000000000000000000001 /* Project object */;
+}

@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: audit-news-app-no-pinning
+expected_outcome: |
+  A shareable security report for a news app. It flags the real release blockers (the WebView that
+  proceeds past TLS errors, the debuggable release build, cleartext traffic, ATS turned off, the
+  pull_request_target workflow) with file and line, and it does not tell a news app to add
+  certificate pinning or anti-tamper controls; if pinning comes up, it is explained as not needed.
+context:
+  scaffold_script: place-files.sh

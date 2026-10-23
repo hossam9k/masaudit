@@ -1,0 +1,6 @@
+[versions]
+datastore = "1.3.0-rc01"
+
+[libraries]
+# security-crypto = { module = "androidx.security:security-crypto" }
+datastore-tink = { module = "androidx.datastore:datastore-tink", version.ref = "datastore" }

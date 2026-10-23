@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: fix-banking-critical-issues
+expected_outcome: |
+  The critical issues are fixed in the code: the WebView no longer proceeds past TLS errors, and the
+  release build is no longer debuggable. Behavior-affecting changes (cleartext, pinning, exported
+  components) are either applied with a clear explanation of what could break or left as decisions
+  for the user. Nothing is committed. The summary lists each change, how to verify it, and what still
+  needs the user's decision.
+context:
+  scaffold_script: place-files.sh

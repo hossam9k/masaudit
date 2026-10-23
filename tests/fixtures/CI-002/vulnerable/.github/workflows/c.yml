@@ -1,0 +1,8 @@
+on: push
+permissions: {}
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - run: ./gradlew test

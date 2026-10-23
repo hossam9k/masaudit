@@ -1,0 +1,7 @@
+plugins {
+    id("com.android.application")
+}
+
+dependencies {
+    implementation("androidx.security:security-crypto:1.1.0")
+}

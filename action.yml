@@ -1,0 +1,49 @@
+name: masaudit
+description: Free mobile security scan for Android, iOS, and KMP that scales its advice to your app's risk.
+author: Hossam Atef
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  path:
+    description: Project directory to scan.
+    default: "."
+  app-type:
+    description: "banking, fintech, health, ecommerce-cards, ecommerce, marketplace, social, content, enterprise, game, or general."
+    default: "general"
+  fail-on:
+    description: "Fail the job on findings at or above: critical, high, medium, low, or none."
+    default: "high"
+  upload-sarif:
+    description: Upload results to GitHub code scanning (needs `security-events: write`).
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # The scanner runs from this action's own pinned source: no download, no network.
+    - name: Scan
+      shell: bash
+      env:
+        MASAUDIT_PATH: ${{ inputs.path }}
+        MASAUDIT_APP_TYPE: ${{ inputs.app-type }}
+        MASAUDIT_FAIL_ON: ${{ inputs.fail-on }}
+        PYTHONPATH: ${{ github.action_path }}/src
+      run: |
+        set +e
+        fail_args=()
+        if [ "$MASAUDIT_FAIL_ON" != "none" ]; then fail_args=(--fail-on "$MASAUDIT_FAIL_ON"); fi
+        python3 -m masaudit "$MASAUDIT_PATH" --app-type "$MASAUDIT_APP_TYPE" --format sarif --output masaudit.sarif "${fail_args[@]}"
+        echo "MASAUDIT_EXIT=$?" >> "$GITHUB_ENV"
+        python3 -m masaudit "$MASAUDIT_PATH" --app-type "$MASAUDIT_APP_TYPE" --format md --output SECURITY-AUDIT.md > /dev/null
+        exit 0
+    - name: Upload to code scanning
+      if: inputs.upload-sarif == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+      with:
+        sarif_file: masaudit.sarif
+        category: masaudit
+    - name: Fail on findings
+      shell: bash
+      run: exit "${MASAUDIT_EXIT:-0}"

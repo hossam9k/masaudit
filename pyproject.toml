@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "masaudit"
+dynamic = ["version"]
+description = "A free mobile security scanner that scales its advice to your app's risk profile."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+authors = [{ name = "Hossam Atef", email = "hossam9k@gmail.com" }]
+keywords = ["security", "mobile", "android", "ios", "masvs", "sast", "sarif"]
+dependencies = []
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/hossam9k/masaudit"
+Book = "https://github.com/hossam9k/mobile-app-security"
+Sponsor = "https://github.com/sponsors/hossam9k"
+
+[project.scripts]
+masaudit = "masaudit.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "masaudit.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+masaudit = ["rules/*.json"]

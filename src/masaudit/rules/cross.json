@@ -1,0 +1,246 @@
+{
+  "rules": [
+    {
+      "id": "XPL-001",
+      "title": "Restricted or server-only secret is hardcoded in the app",
+      "platform": "cross",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anything in the app can be extracted by anyone who downloads it. A cloud key, model-provider key, payment key, repository token, or private key found this way lets an attacker spend your money or act as your servers.",
+      "fix": "Rotate the credential first, because it is already exposed. Then move the call behind your backend so the key never ships, and read server-side keys from your CI or server secret store.",
+      "verify": "Run `strings` on the release APK or IPA and search for the key's prefix; nothing should come back. Turn on push protection or a secret scanner so a new key can't be committed.",
+      "effort": "hours",
+      "book": "§15.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#152-secrets-classify-then-protect",
+      "maswe": "MASWE-0004",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "xpl_restricted_secret"
+    },
+    {
+      "id": "XPL-002",
+      "title": "Google API key in code (restrict it in the console)",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Maps and Firebase keys are client identifiers: they ship in every app and anyone can read them. Without restrictions, someone else can use your key and your quota.",
+      "fix": "In Google Cloud Console, restrict the key to your Android package name and signing certificate, or your iOS bundle ID, and to only the APIs it needs. If it calls a paid API such as Gemini, move that call behind your backend instead.",
+      "verify": "In Google Cloud Console, open the key's page and confirm it lists application restrictions and API restrictions.",
+      "effort": "minutes",
+      "book": "§15.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#152-secrets-classify-then-protect",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "xpl_google_api_key"
+    },
+    {
+      "id": "XPL-003",
+      "title": "Client or API secret is assigned a literal value",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A value named as a secret ships inside the app, where anyone can extract it. An OAuth client secret in a mobile app protects nothing and lets others impersonate your app to the server.",
+      "fix": "Rotate the secret. Mobile OAuth clients should use PKCE with no client secret; other secrets belong on your backend. If the value is not a secret, rename it so reviewers can tell.",
+      "verify": "Search the release build with `strings` for the value; it should be gone.",
+      "effort": "hours",
+      "book": "§15.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#152-secrets-classify-then-protect",
+      "maswe": "MASWE-0004",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_secret_assignment"
+    },
+    {
+      "id": "XPL-004",
+      "title": "AES in ECB mode, or with no mode named",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "ECB encrypts identical blocks to identical ciphertext, so patterns in the data show through, and it detects no tampering. On Android, `Cipher.getInstance(\"AES\")` with no mode can silently give you ECB.",
+      "fix": "Use AES-GCM (`AES/GCM/NoPadding`) with a Keystore key, or Tink's AEAD, or CryptoKit's `AES.GCM` on iOS. Re-encrypt existing data under the new scheme.",
+      "verify": "Search for `AES/ECB`, `\"AES\"`, and `kCCOptionECBMode`; every remaining hit should be gone or explained in a comment.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0232",
+        "MASTG-TEST-0350",
+        "MASTG-TEST-0317"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import javax.crypto.Cipher\nimport javax.crypto.SecretKey\nimport javax.crypto.spec.GCMParameterSpec\n\nprivate const val IV_BYTES = 12\nprivate const val TAG_BITS = 128\n\nfun encrypt(plaintext: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {\n    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\n    cipher.init(Cipher.ENCRYPT_MODE, key)          // the Keystore generates the IV; do not supply one\n    cipher.updateAAD(aad)                          // e.g. \"refresh_token\", binds purpose to ciphertext\n    val ciphertext = cipher.doFinal(plaintext)\n    return cipher.iv + ciphertext                  // store the IV alongside; it is not secret\n}\n\nfun decrypt(stored: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {\n    val iv = stored.copyOfRange(0, IV_BYTES)\n    val ciphertext = stored.copyOfRange(IV_BYTES, stored.size)\n    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\n    cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))\n    cipher.updateAAD(aad)\n    return cipher.doFinal(ciphertext)              // throws AEADBadTagException if tampered\n}"
+      },
+      "confidence": "high",
+      "detector": "xpl_ecb"
+    },
+    {
+      "id": "XPL-005",
+      "title": "AES-CBC needs a separate MAC to detect tampering",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "CBC hides data but doesn't detect changes. An attacker can alter ciphertext to change the plaintext predictably, and padding errors can leak the plaintext byte by byte.",
+      "fix": "Prefer AES-GCM. If you must keep CBC, compute an HMAC-SHA-256 over the IV and the ciphertext with a separate key, and check it in constant time before decrypting.",
+      "verify": "For each hit, confirm a MAC over IV plus ciphertext is checked before decryption, or that the code moved to GCM.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import javax.crypto.Cipher\nimport javax.crypto.SecretKey\nimport javax.crypto.spec.GCMParameterSpec\n\nprivate const val IV_BYTES = 12\nprivate const val TAG_BITS = 128\n\nfun encrypt(plaintext: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {\n    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\n    cipher.init(Cipher.ENCRYPT_MODE, key)          // the Keystore generates the IV; do not supply one\n    cipher.updateAAD(aad)                          // e.g. \"refresh_token\", binds purpose to ciphertext\n    val ciphertext = cipher.doFinal(plaintext)\n    return cipher.iv + ciphertext                  // store the IV alongside; it is not secret\n}\n\nfun decrypt(stored: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {\n    val iv = stored.copyOfRange(0, IV_BYTES)\n    val ciphertext = stored.copyOfRange(IV_BYTES, stored.size)\n    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\n    cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))\n    cipher.updateAAD(aad)\n    return cipher.doFinal(ciphertext)              // throws AEADBadTagException if tampered\n}"
+      },
+      "confidence": "manual",
+      "detector": "xpl_cbc"
+    },
+    {
+      "id": "XPL-006",
+      "title": "Fixed IV or nonce",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An IV or nonce must be fresh for every message. With GCM, one repeat under the same key reveals the XOR of the two plaintexts and lets an attacker forge messages.",
+      "fix": "Don't supply an IV. Let the Keystore, Tink, or CryptoKit generate a random 12-byte nonce for each encryption, and store it next to the ciphertext.",
+      "verify": "For each encryption call, confirm the IV comes from `cipher.iv` after `init`, or from a secure random source, never from a constant.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import javax.crypto.Cipher\nimport javax.crypto.SecretKey\nimport javax.crypto.spec.GCMParameterSpec\n\nprivate const val IV_BYTES = 12\nprivate const val TAG_BITS = 128\n\nfun encrypt(plaintext: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {\n    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\n    cipher.init(Cipher.ENCRYPT_MODE, key)          // the Keystore generates the IV; do not supply one\n    cipher.updateAAD(aad)                          // e.g. \"refresh_token\", binds purpose to ciphertext\n    val ciphertext = cipher.doFinal(plaintext)\n    return cipher.iv + ciphertext                  // store the IV alongside; it is not secret\n}\n\nfun decrypt(stored: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {\n    val iv = stored.copyOfRange(0, IV_BYTES)\n    val ciphertext = stored.copyOfRange(IV_BYTES, stored.size)\n    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\n    cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))\n    cipher.updateAAD(aad)\n    return cipher.doFinal(ciphertext)              // throws AEADBadTagException if tampered\n}"
+      },
+      "confidence": "medium",
+      "detector": "xpl_static_iv"
+    },
+    {
+      "id": "XPL-007",
+      "title": "MD5 or SHA-1 used (fine only as a non-security checksum)",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Attackers can build two different inputs with the same MD5 or SHA-1 hash. Anything that relies on these hashes for integrity, signatures, or identity can be forged.",
+      "fix": "Use SHA-256 or stronger. If the hash is only a non-security checksum, such as detecting a corrupted download, add a comment saying so.",
+      "verify": "For each hit, confirm it uses SHA-256 or is commented as a non-security checksum.",
+      "effort": "minutes",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0008",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0211"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val digest = MessageDigest.getInstance(\"SHA-256\")\n    .digest(verifier.toByteArray(Charsets.US_ASCII))\n\n// Swift (CryptoKit)\n// Data(SHA256.hash(data: Data(verifier.utf8)))"
+      },
+      "confidence": "manual",
+      "detector": "xpl_weak_hash"
+    },
+    {
+      "id": "XPL-008",
+      "title": "Non-cryptographic or seeded random number generator",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Default random generators are built for speed, not unpredictability: an attacker can often predict later values from a few samples. A seeded generator repeats its values for anyone who can guess the seed.",
+      "fix": "For keys, nonces, salts, and tokens, use `SecureRandom()` with the default constructor on Android and `SecRandomCopyBytes` on iOS, and never seed them. Other uses, such as shuffling a list for display, are fine.",
+      "verify": "For each hit, confirm the value doesn't protect anything, or that it now comes from `SecureRandom` or `SecRandomCopyBytes`.",
+      "effort": "minutes",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0012",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0204",
+        "MASTG-TEST-0205",
+        "MASTG-TEST-0311",
+        "MASTG-TEST-0349"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val bytes = ByteArray(32)\nSecureRandom().nextBytes(bytes) // never java.util.Random or kotlin.random.Random\n\n// Swift\n// var bytes = [UInt8](repeating: 0, count: 32)\n// let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)\n// guard status == errSecSuccess else { throw PKCEError.randomGenerationFailed(status) }"
+      },
+      "confidence": "manual",
+      "detector": "xpl_insecure_random"
+    },
+    {
+      "id": "XPL-009",
+      "title": "Hardcoded plain-HTTP URL",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anyone on the same network, such as public Wi-Fi, can read and change plain HTTP traffic. Even if the platform blocks cleartext today, an exception added later would let this URL through.",
+      "fix": "Change the URL to `https://`. If the server doesn't support HTTPS, fix the server; don't add a cleartext exception.",
+      "verify": "Build a release version and confirm requests to this host use HTTPS, or fail with a cleartext error.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0233",
+        "MASTG-TEST-0321",
+        "MASTG-TEST-0236"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_http_url"
+    },
+    {
+      "id": "XPL-010",
+      "title": "Token, password, or secret written to the log",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A token in a log line is a token on disk. Logs reach `adb logcat`, bug reports, and crash reporters that upload recent lines.",
+      "fix": "Remove the value from the message. Plant a release logging tree that drops everything below error, and strip `Log.v/d/i` with R8's `-assumenosideeffects`. On iOS, remove debug logging from release builds; where a log line stays, use `Logger` and leave dynamic values at the default `.private` privacy, never `privacy: .public` for a token.",
+      "verify": "Install a release build, sign in, and watch `adb logcat` (or Console.app on iOS): no token or password should appear.",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0203",
+        "MASTG-TEST-0231",
+        "MASTG-TEST-0296",
+        "MASTG-TEST-0297"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// Application.onCreate\nif (BuildConfig.DEBUG) {\n    Timber.plant(Timber.DebugTree())\n} else {\n    Timber.plant(object : Timber.Tree() {\n        override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {\n            if (priority >= Log.ERROR) crashReporter.log(message)   // no verbose/debug/info\n        }\n    })\n}"
+      },
+      "confidence": "manual",
+      "detector": "xpl_sensitive_log"
+    }
+  ]
+}

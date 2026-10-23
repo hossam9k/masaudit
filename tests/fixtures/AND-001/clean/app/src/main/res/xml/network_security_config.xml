@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- cleartextTrafficPermitted="true" is only mentioned in this comment -->
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">legacy.example.com</domain>
+    </domain-config>
+</network-security-config>

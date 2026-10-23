@@ -1,0 +1,45 @@
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -12,6 +12,9 @@
+         <activity android:name=".MainActivity" android:exported="true">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+         </activity>
++        <activity
++            android:name=".payouts.PayoutConfirmActivity"
++            android:exported="true" />
+     </application>
+ </manifest>
+diff --git a/app/src/main/java/com/acme/pay/session/SessionStore.kt b/app/src/main/java/com/acme/pay/session/SessionStore.kt
+new file mode 100644
+--- /dev/null
++++ b/app/src/main/java/com/acme/pay/session/SessionStore.kt
+@@ -0,0 +1,27 @@
++package com.acme.pay.session
++
++import android.content.Context
++import android.util.Log
++import androidx.security.crypto.EncryptedSharedPreferences
++import androidx.security.crypto.MasterKey
++
++class SessionStore(private val context: Context) {
++    private val prefs by lazy {
++        EncryptedSharedPreferences.create(
++            context,
++            "session",
++            MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
++            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
++            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
++        )
++    }
++
++    fun saveRefreshToken(token: String) {
++        Log.d("SessionStore", "saving refresh token $token")
++        prefs.edit().putString("refresh_token", token).apply()
++    }
++
++    fun refreshToken(): String? = prefs.getString("refresh_token", null)
++}

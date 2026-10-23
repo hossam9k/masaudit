@@ -1,0 +1,639 @@
+{
+  "rules": [
+    {
+      "id": "IOS-001",
+      "title": "App Transport Security is turned off",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "NSAllowsArbitraryLoads turns ATS off for the whole app; NSAllowsArbitraryLoadsInWebContent turns it off for everything web views load. Anyone on the same network, such as public Wi-Fi, can then read and change plain HTTP traffic, including tokens and personal data.",
+      "fix": "Remove NSAllowsArbitraryLoads and NSAllowsArbitraryLoadsInWebContent from Info.plist (and any INFOPLIST_KEY_ build setting that adds them). If one host really needs HTTP, add a narrow NSExceptionDomains entry for that host only.",
+      "verify": "Build the release configuration, open an http:// URL your app uses, and confirm the request fails with an App Transport Security error.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0322"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<key>NSAppTransportSecurity</key>\n<dict>\n    <!-- No NSAllowsArbitraryLoads: ATS blocks plain HTTP and requires TLS 1.2+. -->\n    <!-- Only if one host truly needs HTTP: -->\n    <!--\n    <key>NSExceptionDomains</key>\n    <dict>\n        <key>legacy.example.com</key>\n        <dict>\n            <key>NSExceptionAllowsInsecureHTTPLoads</key>\n            <true/>\n        </dict>\n    </dict>\n    -->\n</dict>"
+      },
+      "confidence": "high",
+      "detector": "ios_ats_arbitrary_loads"
+    },
+    {
+      "id": "IOS-002",
+      "title": "An ATS exception allows plain HTTP to a host",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "NSExceptionAllowsInsecureHTTPLoads lets the app talk to that host over plain HTTP. Anyone on the network path can read or change those requests and responses.",
+      "fix": "Move the host to HTTPS and delete the exception. If you can't yet, keep the exception to that one host, without NSIncludesSubdomains, and plan its removal.",
+      "verify": "Remove the exception, build the release configuration, and confirm every request to that host still works over https://.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0322"
+      ],
+      "confidence": "high",
+      "detector": "ios_ats_exception_http"
+    },
+    {
+      "id": "IOS-003",
+      "title": "A TLS version below 1.2 is allowed",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "ATS requires at least TLS 1.2. An NSExceptionMinimumTLSVersion of TLSv1.0 or TLSv1.1, or a URLSession minimum set that low, lets a connection fall back to old protocol versions with known weaknesses.",
+      "fix": "Delete the NSExceptionMinimumTLSVersion entry (ATS then enforces TLS 1.2), and set tlsMinimumSupportedProtocolVersion to .TLSv12 or higher in code.",
+      "verify": "Point a test build at a server limited to TLS 1.1 (for example `openssl s_server -accept 8443 -tls1_1 -cipher 'DEFAULT:@SECLEVEL=0' -cert cert.pem -key key.pem` behind a test hostname) and confirm the app refuses the connection.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0342"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "// URLSession. ATS already enforces 1.2; raise it only if every server you call speaks 1.3.\nlet configuration = URLSessionConfiguration.default\nconfiguration.tlsMinimumSupportedProtocolVersion = .TLSv12"
+      },
+      "confidence": "high",
+      "detector": "ios_weak_tls"
+    },
+    {
+      "id": "IOS-004",
+      "title": "A server-trust handler accepts certificates without validating them",
+      "platform": "ios",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "The authentication-challenge handler returns .useCredential for the server's trust without calling SecTrustEvaluateWithError. An attacker on the network can present any certificate, even a self-signed one, and read or change all traffic.",
+      "fix": "Validate the chain with SecTrustEvaluateWithError before anything else, cancel the challenge when it fails, and only then compare pins. If you don't pin, return .performDefaultHandling.",
+      "verify": "Route the app through a proxy whose CA the device does not trust (mitmproxy, §22.3) and confirm every request fails with a TLS error.",
+      "effort": "hours",
+      "book": "§8.10",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0396",
+        "MASTG-TEST-0397"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "// Or delete this delegate method entirely: the default handling validates for you.\n// Pinning: see IOS-005 and IOS-007 (high-risk apps only).\nfunc urlSession(\n    _ session: URLSession,\n    didReceive challenge: URLAuthenticationChallenge\n) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {\n\n    guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,\n          let trust = challenge.protectionSpace.serverTrust else {\n        return (.performDefaultHandling, nil)\n    }\n\n    // Validate the chain the normal way: trusted root, dates, hostname.\n    let policy = SecPolicyCreateSSL(true, challenge.protectionSpace.host as CFString)\n    SecTrustSetPolicies(trust, policy)\n    guard SecTrustEvaluateWithError(trust, nil) else {\n        return (.cancelAuthenticationChallenge, nil)\n    }\n    return (.useCredential, URLCredential(trust: trust))\n}"
+      },
+      "confidence": "medium",
+      "detector": "ios_trust_all"
+    },
+    {
+      "id": "IOS-005",
+      "title": "Pinning code falls back to default handling when no pin matches",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "The delegate compares pins but never cancels the challenge. When no pin matches it returns .performDefaultHandling, which accepts any publicly trusted certificate, so the pinning check never blocks anything.",
+      "fix": "Return .cancelAuthenticationChallenge when the chain fails validation and when no pin matches. Use .performDefaultHandling only for challenges that aren't server trust.",
+      "verify": "Make the pin set wrong in a test build and confirm requests fail with NSURLErrorCancelled (-999), as in §8.10.",
+      "effort": "minutes",
+      "book": "§8.10",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [
+        "MASTG-TEST-0396"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "func urlSession(\n    _ session: URLSession,\n    didReceive challenge: URLAuthenticationChallenge\n) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {\n\n    guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,\n          let trust = challenge.protectionSpace.serverTrust else {\n        return (.performDefaultHandling, nil)\n    }\n\n    // 1. Validate the chain the normal way first: trusted root, dates, hostname.\n    let policy = SecPolicyCreateSSL(true, challenge.protectionSpace.host as CFString)\n    SecTrustSetPolicies(trust, policy)\n    guard SecTrustEvaluateWithError(trust, nil) else {\n        return (.cancelAuthenticationChallenge, nil)\n    }\n\n    // 2. Only then compare pins, across the whole evaluated chain (SPKIPin: book §8.10).\n    let chain = (SecTrustCopyCertificateChain(trust) as? [SecCertificate]) ?? []\n    if chain.contains(where: { SPKIPin.of($0).map(pins.contains) == true }) {\n        return (.useCredential, URLCredential(trust: trust))\n    }\n\n    // 3. No pin matched. Refuse. Never fall back to .performDefaultHandling here.\n    return (.cancelAuthenticationChallenge, nil)\n}"
+      },
+      "confidence": "medium",
+      "detector": "ios_pin_fallback"
+    },
+    {
+      "id": "IOS-006",
+      "title": "Pinned domain has no backup pin",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "NSPinnedDomains pins never expire. With a single pin, a key rotation or a CA change locks every user on that build out of your servers until they install an update.",
+      "fix": "Add a second SPKI-SHA256-BASE64 entry: a backup key at a second CA, or a key you hold offline. If you list both CA and leaf identities, each list needs its own backup.",
+      "verify": "Serve a test endpoint with a certificate issued for the backup key (or from the backup CA) and confirm the app connects. Then confirm that a certificate matching neither pin fails.",
+      "effort": "hours",
+      "book": "§8.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#86-where-the-pins-live-static-dynamic-and-hybrid",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [],
+      "not_needed_reason": "Your app type usually doesn't need pinning (§8.8). If you keep the pins anyway, add a backup pin so a key change can't lock users out.",
+      "fix_code": {
+        "lang": "xml",
+        "code": "<key>NSAppTransportSecurity</key>\n<dict>\n    <key>NSPinnedDomains</key>\n    <dict>\n        <key>api.example.com</key>\n        <dict>\n            <key>NSIncludesSubdomains</key>\n            <true/>\n            <!-- Pins an intermediate or root. Use NSPinnedLeafIdentities to pin the leaf. -->\n            <key>NSPinnedCAIdentities</key>\n            <array>\n                <dict>\n                    <key>SPKI-SHA256-BASE64</key>\n                    <string>YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</string>\n                </dict>\n                <dict>\n                    <!-- Backup pin -->\n                    <key>SPKI-SHA256-BASE64</key>\n                    <string>Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</string>\n                </dict>\n            </array>\n        </dict>\n    </dict>\n</dict>"
+      },
+      "confidence": "high",
+      "detector": "ios_pins_no_backup"
+    },
+    {
+      "id": "IOS-007",
+      "title": "No certificate pinning (needed for high-risk apps)",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.",
+      "fix": "Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).",
+      "verify": "Make the device trust a proxy CA, then confirm requests to pinned hosts fail while an unpinned host still loads through the proxy (§8.10, step 1).",
+      "effort": "days",
+      "book": "§8.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [
+        "MASTG-TEST-0385"
+      ],
+      "app_types": [
+        "banking",
+        "fintech",
+        "health",
+        "ecommerce-cards"
+      ],
+      "not_needed_reason": "Book §8.8: outside banking, fintech, health, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8).",
+      "fix_code": {
+        "lang": "xml",
+        "code": "<key>NSAppTransportSecurity</key>\n<dict>\n    <key>NSPinnedDomains</key>\n    <dict>\n        <key>api.example.com</key>\n        <dict>\n            <key>NSIncludesSubdomains</key>\n            <true/>\n            <!-- Pins an intermediate or root. Use NSPinnedLeafIdentities to pin the leaf. -->\n            <key>NSPinnedCAIdentities</key>\n            <array>\n                <dict>\n                    <key>SPKI-SHA256-BASE64</key>\n                    <string>YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</string>\n                </dict>\n                <dict>\n                    <!-- Backup pin -->\n                    <key>SPKI-SHA256-BASE64</key>\n                    <string>Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</string>\n                </dict>\n            </array>\n        </dict>\n    </dict>\n</dict>"
+      },
+      "confidence": "medium",
+      "detector": "ios_pinning_missing"
+    },
+    {
+      "id": "IOS-008",
+      "title": "Keychain item is readable before the first unlock",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "kSecAttrAccessibleAlways (and AlwaysThisDeviceOnly) makes the item readable even before the user first unlocks the phone. These are the items forensic tools recover from a locked device. Apple deprecated the class in iOS 12.",
+      "fix": "Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.",
+      "verify": "Search the code for kSecAttrAccessibleAlways and confirm no match. On a test device, lock it and confirm background code that needs the item behaves as you expect.",
+      "effort": "minutes",
+      "book": "§4.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#44-data-protection-classes-the-decision-you-keep-getting-wrong",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let attributes: [String: Any] = [\n    kSecValueData as String: token,\n    // WhenUnlocked: needs an unlocked device. ThisDeviceOnly: never migrates\n    // to another device. See §4.4.\n    kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,\n]\n// Background refresh while locked? Use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,\n// never kSecAttrAccessibleAlways."
+      },
+      "confidence": "high",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "lways",
+        "strings": "blank",
+        "regex": "\\bkSecAttrAccessibleAlways(?:ThisDeviceOnly)?\\b|\\.accessibility\\(\\s*\\.always(?:ThisDeviceOnly)?\\b",
+        "message": "This Keychain item uses an 'Always' accessibility class."
+      }
+    },
+    {
+      "id": "IOS-009",
+      "title": "Keychain item can migrate to another device",
+      "platform": "ios",
+      "severity": "low",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Without ThisDeviceOnly, the item can be restored from a backup onto another device. A session token then travels with the backup instead of staying on the phone it was issued to.",
+      "fix": "Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. Skip this for items you sync on purpose with kSecAttrSynchronizable.",
+      "verify": "Back up a test device, restore it onto a second device, and confirm the app asks the user to sign in again.",
+      "effort": "minutes",
+      "book": "§4.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#44-data-protection-classes-the-decision-you-keep-getting-wrong",
+      "maswe": "MASWE-0006",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let attributes: [String: Any] = [\n    kSecValueData as String: token,\n    // WhenUnlocked: needs an unlocked device. ThisDeviceOnly: never migrates\n    // to another device. See §4.4.\n    kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,\n]\n// Background refresh while locked? Use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,\n// never kSecAttrAccessibleAlways."
+      },
+      "confidence": "medium",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "ccessib",
+        "strings": "blank",
+        "regex": "\\bkSecAttrAccessible(?:WhenUnlocked|AfterFirstUnlock)\\b|\\.accessibility\\(\\s*\\.(?:whenUnlocked|afterFirstUnlock)\\s*\\)",
+        "unless_file": "kSecAttrSynchronizable\\b[^\\n]{0,40}\\b(?:true|kCFBooleanTrue|YES)\\b|\\.synchronizable\\(\\s*true\\s*\\)",
+        "message": "This Keychain accessibility class has no ThisDeviceOnly suffix."
+      }
+    },
+    {
+      "id": "IOS-010",
+      "title": "File written with no Data Protection",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "NSFileProtectionNone (.noFileProtection) leaves the file readable at all times, even before the first unlock after a restart. Anyone who extracts data from the device can read it.",
+      "fix": "Write sensitive files with .completeFileProtection, and exclude them from backup. Use completeUntilFirstUserAuthentication only for files background work must read while locked.",
+      "verify": "On a physical device, write the file, lock the phone, and confirm code that runs while locked can't read it (the simulator doesn't enforce Data Protection).",
+      "effort": "minutes",
+      "book": "§4.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#44-data-protection-classes-the-decision-you-keep-getting-wrong",
+      "mastg": [
+        "MASTG-TEST-0299"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "func writeSensitive(_ data: Data, to url: URL) throws {\n    try data.write(to: url, options: [.atomic, .completeFileProtection])\n    var values = URLResourceValues()\n    values.isExcludedFromBackup = true\n    var fileURL = url\n    try fileURL.setResourceValues(values)\n}"
+      },
+      "confidence": "high",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "rotection",
+        "strings": "blank",
+        "regex": "\\bNSFileProtectionNone\\b|\\.noFileProtection\\b|\\bFileProtectionType\\.none\\b|\\bprotectionKey\\s*:\\s*\\.none\\b|\\bNSDataWritingFileProtectionNone\\b",
+        "message": "This file is written with no Data Protection class."
+      }
+    },
+    {
+      "id": "IOS-011",
+      "title": "Token or password stored in UserDefaults",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "UserDefaults is a plain plist in the app container. It is copied into backups and is readable by anyone with access to the device's files. A long-lived token there can be lifted and replayed.",
+      "fix": "Keep short-lived tokens in memory. Store long-lived tokens and credentials in the Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly. Leave only non-secret settings in UserDefaults.",
+      "verify": "On the simulator, sign in, then run `grep -rl \"eyJ\" \"$(xcrun simctl get_app_container booted <bundle id> data)/Library/Preferences\"` and confirm there is no output. UserDefaults is a binary plist, so don't add `-I`. If your tokens aren't JWTs, search for a known part of one instead.",
+      "effort": "hours",
+      "book": "§6.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0300",
+        "MASTG-TEST-0302"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "func storeToken(_ token: Data, account: String,\n                service: String = \"com.example.app.session\") throws {\n    let query: [String: Any] = [\n        kSecClass as String: kSecClassGenericPassword,\n        kSecAttrService as String: service,\n        kSecAttrAccount as String: account,\n    ]\n    let attributes: [String: Any] = [\n        kSecValueData as String: token,\n        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,\n    ]\n\n    // Update in place if it exists; add it if not. No delete-then-add window.\n    var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)\n    if status == errSecItemNotFound {\n        let newItem = query.merging(attributes) { _, new in new }\n        status = SecItemAdd(newItem as CFDictionary, nil)\n    }\n    guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }\n}"
+      },
+      "confidence": "manual",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "flags": "i",
+        "strings": "keep",
+        "regex": "(?:UserDefaults|NSUserDefaults)\\b[^\\n;]{0,120}?\\b(?:set|setValue|setObject)\\s*[(:][^\\n]{0,160}?forKey\\s*:\\s*@?\\\"(?![^\\\"]*(?:fcm|apns|push|device))[^\\\"]*(?:token|password|passwd|secret|jwt|credential|api_?key)[^\\\"]*\\\"|@AppStorage\\(\\s*\\\"(?![^\\\"]*(?:fcm|apns|push|device))[^\\\"]*(?:token|password|passwd|secret|jwt|credential|api_?key)[^\\\"]*\\\"",
+        "message": "A value whose key names a token or secret is written to UserDefaults."
+      }
+    },
+    {
+      "id": "IOS-012",
+      "title": "Biometric check only flips a boolean",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "LAContext.evaluatePolicy returns a success flag. An attacker with Frida calls your success branch without any Face ID or Touch ID happening, and the bypass takes minutes. Nothing cryptographic depends on the result.",
+      "fix": "Bind the prompt to a key: create a Secure Enclave key with SecAccessControl [.privateKeyUsage, .biometryCurrentSet] and sign a server challenge with it. The server accepts the action only with a valid signature.",
+      "verify": "Hook evaluatePolicy to report success (for example, `ios ui biometrics_bypass` in objection) and confirm the protected action still fails because no valid signature reaches the server.",
+      "effort": "days",
+      "book": "§11.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "// Create the key with [.privateKeyUsage, .biometryCurrentSet] (book §6.6), register its\n// public key with your server, then sign the server's challenge. The Face ID / Touch ID sheet\n// appears as part of using the key: there is no boolean to hook.\nlet context = LAContext()\ncontext.localizedReason = reason\nlet query: [String: Any] = [\n    kSecClass as String: kSecClassKey,\n    kSecAttrApplicationTag as String: tag,\n    kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,\n    kSecReturnRef as String: true,\n    kSecUseAuthenticationContext as String: context\n]\nvar item: CFTypeRef?\nlet status = SecItemCopyMatching(query as CFDictionary, &item)\nguard status == errSecSuccess, let item else { throw BiometricKeyError.keyMissing(status) }\nlet privateKey = item as! SecKey\n\nvar error: Unmanaged<CFError>?\nguard let signature = SecKeyCreateSignature(\n    privateKey, .ecdsaSignatureMessageX962SHA256, message as CFData, &error\n) as Data? else {\n    throw BiometricKeyError.signingFailed(error?.takeRetainedValue())\n}\n// Send `signature` with the request; the server verifies it with the enrolled public key."
+      },
+      "confidence": "manual",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "evaluatePolicy",
+        "strings": "blank",
+        "regex": "\\.evaluatePolicy\\s*\\(|\\bevaluatePolicy\\s*:",
+        "unless_file": "kSecAttrAccessControl|SecAccessControlCreateWithFlags|kSecUseAuthenticationContext|SecKeyCreateSignature",
+        "message": "evaluatePolicy is used, and this file never touches a key protected by SecAccessControl."
+      }
+    },
+    {
+      "id": "IOS-013",
+      "title": "Biometric key stays valid after a new fingerprint or face is enrolled",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "With .biometryAny, someone who knows the device passcode can enroll their own fingerprint or face and then unlock your app's protected key. .biometryCurrentSet invalidates the key when the enrolled set changes.",
+      "fix": "Replace .biometryAny with .biometryCurrentSet, and handle the signing failure that follows an enrollment change by sending the user to re-enroll or to server-side step-up.",
+      "verify": "Add a new fingerprint or re-enroll Face ID on a test device, use the feature again, and confirm signing fails and the app asks the user to re-enroll.",
+      "effort": "hours",
+      "book": "§11.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#113-the-enrollment-problem-nobody-thinks-about",
+      "maswe": "MASWE-0022",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0270",
+        "MASTG-TEST-0271"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "guard let access = SecAccessControlCreateWithFlags(\n    kCFAllocatorDefault,\n    kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,   // unusable if the passcode is removed\n    [.privateKeyUsage, .biometryCurrentSet],           // \"CurrentSet\", not \"Any\": §11.3\n    &cfError\n) else { throw cfError!.takeRetainedValue() as Error }"
+      },
+      "confidence": "high",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "Any",
+        "strings": "blank",
+        "regex": "\\.biometryAny\\b|\\bkSecAccessControlBiometryAny\\b|\\.touchIDAny\\b|\\bkSecAccessControlTouchIDAny\\b",
+        "message": "This access control accepts any enrolled biometric, including one added later."
+      }
+    },
+    {
+      "id": "IOS-014",
+      "title": "Web view inspection is on in release builds",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "isInspectable = true lets anyone with the device and a Mac attach Safari's Web Inspector, read the page, and call your JavaScript bridge from a console.",
+      "fix": "Wrap the line in #if DEBUG so it never compiles into release builds.",
+      "verify": "Install the release build on a device connected to a Mac, open a web view screen, and confirm your app doesn't appear in Safari's Develop menu.",
+      "effort": "minutes",
+      "book": "§16.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#166-cleanup-and-hygiene",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let webView = WKWebView(frame: .zero, configuration: config)\n#if DEBUG\nif #available(iOS 16.4, *) { webView.isInspectable = true }   // never in release\n#endif"
+      },
+      "confidence": "high",
+      "detector": "ios_webview_inspectable"
+    },
+    {
+      "id": "IOS-015",
+      "title": "Script message handler doesn't check who sent the message",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "WebKit has no origin allowlist for message handlers. Without a check on message.frameInfo, any page or iframe the web view loads, including an ad or an attacker's page, can call your native code.",
+      "fix": "In the handler, reject messages unless frameInfo.isMainFrame is true and frameInfo.securityOrigin is your https host. Then validate every argument, and let the server authorize the action.",
+      "verify": "Load a page from a different origin in the same web view, post a message to each handler name, and confirm every handler rejects it.",
+      "effort": "hours",
+      "book": "§16.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#162-the-javascript-bridge-and-why-its-the-sharpest-edge",
+      "maswe": "MASWE-0033",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0376",
+        "MASTG-TEST-0377"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "func userContentController(_ userContentController: WKUserContentController,\n                           didReceive message: WKScriptMessage) async -> (Any?, String?) {\n    // 1. Who is calling? WebKit has no origin allowlist for handlers, so check here.\n    let origin = message.frameInfo.securityOrigin\n    guard message.frameInfo.isMainFrame,\n          origin.protocol == \"https\",\n          origin.host == \"app.example.com\" else { return (nil, \"rejected\") }\n\n    // 2. What did they send? Untrusted input.\n    guard let code = message.body as? String,\n          code.range(of: #\"^[A-Z0-9]{8}$\"#, options: .regularExpression) != nil\n    else { return (nil, \"invalid\") }\n\n    // 3. The server authorizes. The bridge only relays.\n    do {\n        try await redeem(code)\n        return (\"received\", nil)\n    } catch {\n        return (nil, \"failed\")\n    }\n}"
+      },
+      "confidence": "medium",
+      "detector": "ios_message_handler_origin"
+    },
+    {
+      "id": "IOS-016",
+      "title": "UIWebView is still in the app",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Apple deprecated UIWebView in iOS 12 and the App Store rejects apps and updates that use it. It also runs web content inside your app's process, unlike WKWebView.",
+      "fix": "Replace UIWebView with WKWebView. If the reference comes from a third-party SDK, update or remove that SDK.",
+      "verify": "Run `grep -r UIWebView` on the source and `nm -u` on the release binary, and confirm neither finds it.",
+      "effort": "hours",
+      "book": "§16.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#166-cleanup-and-hygiene",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0331"
+      ],
+      "confidence": "high",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "UIWebView",
+        "strings": "blank",
+        "regex": "\\bUIWebView\\b",
+        "message": "UIWebView is referenced here."
+      }
+    },
+    {
+      "id": "IOS-017",
+      "title": "Sign-in callback uses a custom URL scheme",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A custom URL scheme isn't tied to your app. When the redirect goes through the OS (a scheme in CFBundleURLTypes), another app that registers it can receive the authorization code. Even inside ASWebAuthenticationSession, any app can start a sign-in with your client ID and scheme and impersonate your app. A verified https callback ties the redirect to your associated domain.",
+      "fix": "Return to a verified https redirect: Universal Links (Associated Domains applinks:) and, on iOS 17.4+, ASWebAuthenticationSession with .https(host:path:). Keep PKCE and state either way.",
+      "verify": "Install a test app that registers the same scheme, start sign-in, and confirm the callback can't reach it once the https redirect is in place.",
+      "effort": "days",
+      "book": "§17.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#175-deep-links-and-the-verification-that-makes-them-safe",
+      "maswe": "MASWE-0029",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "// In a class with `private var session: ASWebAuthenticationSession?`\nlet session = ASWebAuthenticationSession(\n    url: authorizeURL,   // carries code_challenge, code_challenge_method=S256 and state\n    callback: .https(host: \"auth.example.com\", path: \"/oauth/callback\") // iOS 17.4+\n) { callbackURL, error in\n    guard let callbackURL, error == nil else { return } // canceled or failed\n    // Check `state`, then send `code` plus the verifier to the token endpoint.\n    _ = callbackURL\n}\nsession.presentationContextProvider = self\nself.session = session   // keep a strong reference until the callback runs\nsession.start()"
+      },
+      "confidence": "medium",
+      "detector": "ios_custom_scheme_auth"
+    },
+    {
+      "id": "IOS-018",
+      "title": "Insecure NSKeyedUnarchiver API",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "unarchiveObject(with:) and unarchiveTopLevelObjectWithData build whatever classes the archive names. If an attacker controls the bytes (a file, a deep link, a shared item), they choose which objects your app constructs.",
+      "fix": "Decode with Codable. If you must read NSKeyedArchiver data, use unarchivedObject(ofClass:from:) with an NSSecureCoding class.",
+      "verify": "Search the code for unarchiveObject(with and unarchiveTopLevelObjectWithData and confirm no match remains.",
+      "effort": "hours",
+      "book": "§19.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#194-deserialization",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-TEST-0386"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "// Best for new code: Codable builds only the types you declared.\nlet order = try JSONDecoder().decode(Order.self, from: data)\n\n// If you must read NSKeyedArchiver data: secure coding with an explicit class.\nlet legacyOrder = try NSKeyedUnarchiver.unarchivedObject(ofClass: LegacyOrder.self, from: data)"
+      },
+      "confidence": "medium",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "Unarchiver",
+        "strings": "blank",
+        "regex": "\\bNSKeyedUnarchiver\\s*\\.\\s*unarchiveObject\\s*\\(\\s*(?:with|withFile)\\s*:|\\bunarchiveTopLevelObjectWithData\\b|\\[\\s*NSKeyedUnarchiver\\s+unarchiveObjectWith(?:Data|File)\\s*:|\\brequiresSecureCoding\\s*=\\s*(?:false|NO)\\b",
+        "message": "This NSKeyedUnarchiver call doesn't restrict which classes it builds."
+      }
+    },
+    {
+      "id": "IOS-019",
+      "title": "App target has no privacy manifest",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1",
+        "P"
+      ],
+      "why": "Apple expects a PrivacyInfo.xcprivacy in your app that declares collected data, tracking domains, and the reason for each required-reason API (UserDefaults is one). App Store Connect rejects uploads that use these APIs without a declared reason.",
+      "fix": "Add a PrivacyInfo.xcprivacy to the app target (File > New > File > App Privacy) and fill in what the app and its SDKs collect and why.",
+      "verify": "Archive the app, then in Xcode's Organizer choose Generate Privacy Report and confirm it lists your app's manifest.",
+      "effort": "hours",
+      "book": "§18.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#183-transparency-and-control",
+      "maswe": "MASWE-0073",
+      "masvs": "MASVS-PRIVACY-3",
+      "mastg": [],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n    <key>NSPrivacyTracking</key>\n    <false/>\n    <key>NSPrivacyTrackingDomains</key>\n    <array/>\n    <key>NSPrivacyCollectedDataTypes</key>\n    <array/>\n    <key>NSPrivacyAccessedAPITypes</key>\n    <array>\n        <dict>\n            <key>NSPrivacyAccessedAPIType</key>\n            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>\n            <key>NSPrivacyAccessedAPITypeReasons</key>\n            <array><string>CA92.1</string></array>\n        </dict>\n    </array>\n</dict>\n</plist>"
+      },
+      "confidence": "high",
+      "detector": "ios_privacy_manifest"
+    },
+    {
+      "id": "IOS-020",
+      "title": "Secret copied to the general pasteboard without localOnly",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Without .localOnly, a value on the general pasteboard can travel to the user's other Apple devices through Universal Clipboard, and other apps can read it until something replaces it.",
+      "fix": "Copy secrets only when the user asks, with setItems(_:options:) and the options .localOnly: true and an .expirationDate.",
+      "verify": "Copy the value in the app, then try pasting on a second device signed in to the same Apple Account, and confirm nothing arrives; wait past the expiration and confirm the pasteboard is empty.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0030",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-TEST-0276",
+        "MASTG-TEST-0277"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "import UniformTypeIdentifiers\n\nUIPasteboard.general.setItems(\n    [[UTType.plainText.identifier: sensitiveValue]],\n    options: [\n        .localOnly: true,                                // do not sync to other devices\n        .expirationDate: Date().addingTimeInterval(60)   // clears itself\n    ]\n)"
+      },
+      "confidence": "medium",
+      "pattern": {
+        "suffixes": [
+          ".swift",
+          ".m",
+          ".mm",
+          ".h"
+        ],
+        "prefilter": "asteboard",
+        "flags": "i",
+        "strings": "keep",
+        "regex": "(?:UIPasteboard\\s*\\.\\s*general|\\[\\s*UIPasteboard\\s+generalPasteboard\\s*\\])\\s*(?:\\.\\s*(?:string|strings|url|urls|items)\\s*=|\\.?\\s*(?:setValue|setData|setItems|addItems|setString)\\s*[(:])[^\\n]{0,160}?(?:password|passcode|token|secret|otp|\\bpin\\b|iban|card|cvv|cvc|seed|mnemonic|recovery|private_?key|api_?key)",
+        "unless_file": "localOnly|UIPasteboardOptionLocalOnly",
+        "message": "A value that looks secret goes to the general pasteboard without .localOnly."
+      }
+    },
+    {
+      "id": "IOS-021",
+      "title": "Release build keeps symbols or testability",
+      "platform": "ios",
+      "severity": "low",
+      "profiles": [
+        "L1"
+      ],
+      "why": "ENABLE_TESTABILITY = YES exports internal symbols and makes Xcode skip stripping; STRIP_INSTALLED_PRODUCT = NO ships the symbol table. Both hand a reverse engineer readable function and type names for free.",
+      "fix": "In the Release configuration set ENABLE_TESTABILITY = NO and STRIP_INSTALLED_PRODUCT = YES, and keep symbols in a separate dSYM (DEBUG_INFORMATION_FORMAT = dwarf-with-dsym) for crash reports.",
+      "verify": "Archive the release build and run `nm -U` on the app binary: you should see few or no readable Swift or Objective-C symbol names.",
+      "effort": "minutes",
+      "book": "§15.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code",
+      "mastg": [
+        "MASTG-TEST-0219"
+      ],
+      "fix_code": {
+        "lang": "xcconfig",
+        "code": "// Release.xcconfig\nDEPLOYMENT_POSTPROCESSING = YES\nSTRIP_INSTALLED_PRODUCT = YES\nSTRIP_STYLE = all\nSTRIP_SWIFT_SYMBOLS = YES\nDEBUG_INFORMATION_FORMAT = dwarf-with-dsym\nENABLE_TESTABILITY = NO"
+      },
+      "confidence": "high",
+      "detector": "ios_release_testability"
+    }
+  ]
+}

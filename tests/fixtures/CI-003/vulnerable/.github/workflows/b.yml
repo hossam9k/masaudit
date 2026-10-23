@@ -1,0 +1,10 @@
+on: [pull_request_target]
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "fetching"
+          gh pr checkout ${{ github.event.pull_request.number }}
+          ./gradlew test

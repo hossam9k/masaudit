@@ -1,0 +1,13 @@
+on: [pull_request, issues]
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Checking ${{ github.event.pull_request.title }}"
+      - name: triage
+        run: |
+          echo "start"
+          set -e
+          echo '${{ github.event.issue.body }}' > body.txt
+      - run: git push origin "${{ github.head_ref }}"

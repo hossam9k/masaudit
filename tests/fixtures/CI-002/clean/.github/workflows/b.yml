@@ -1,0 +1,13 @@
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - run: echo 'permissions: write-all is only text'
+  lint:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - run: ./gradlew lint

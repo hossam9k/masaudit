@@ -1,0 +1,13 @@
+on: [pull_request, issues]
+permissions: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # run: echo "${{ github.event.pull_request.title }}"  (a YAML comment, never runs)
+    if: contains(github.event.pull_request.title, 'release')
+    steps:
+      - env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: echo "Checking $PR_TITLE"
+      - run: echo "PR number ${{ github.event.pull_request.number }} at ${{ github.sha }}"
+      - run: echo "${{ github.event.pull_request.head.sha }} ${{ github.event.issue.created_at }}"

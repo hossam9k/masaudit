@@ -1,0 +1,7 @@
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+
+Full legal code: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Applies to the explanatory text in masaudit that is adapted from the book
+"Mobile Application Security: A Study Book for Engineers" by Hossam Atef
+(https://github.com/hossam9k/mobile-app-security) and from OWASP MASVS/MASWE/MASTG.

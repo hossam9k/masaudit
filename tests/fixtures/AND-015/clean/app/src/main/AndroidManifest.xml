@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="com.example.permission.SYNC" android:protectionLevel="signature" />
+    <application>
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".LinkActivity" android:exported="true">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="app.example.com" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".InternalActivity" android:exported="false" />
+        <service android:name=".SyncService" android:exported="true" android:permission="com.example.permission.SYNC" />
+        <service android:name=".Jobs" android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE" />
+        <provider android:name=".SharedProvider" android:authorities="com.example.shared" android:exported="true"
+            android:readPermission="com.example.permission.SYNC" android:writePermission="com.example.permission.SYNC" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="com.example.files"
+            android:exported="false" android:grantUriPermissions="true" />
+        <receiver android:name="com.vendor.Tracker" android:exported="true" tools:node="remove" />
+        <activity android:name=".FlavorActivity" android:exported="${exportFlag}" />
+    </application>
+</manifest>

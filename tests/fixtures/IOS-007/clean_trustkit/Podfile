@@ -1,0 +1,5 @@
+platform :ios, '16.0'
+
+target 'Bank' do
+  pod 'TrustKit', '~> 3.0'
+end

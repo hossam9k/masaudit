@@ -1,0 +1,931 @@
+{
+  "rules": [
+    {
+      "id": "AND-001",
+      "title": "Cleartext (plain HTTP) traffic is allowed",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Plain HTTP can be read and changed by anyone on the same network, such as public Wi-Fi. Tokens and personal data sent this way are exposed.",
+      "fix": "Remove `cleartextTrafficPermitted=\"true\"` from the base config (and `android:usesCleartextTraffic=\"true\"` from the manifest). If one host really needs HTTP, allow only that host in a `<domain-config>`.",
+      "verify": "Build a release APK, open an `http://` URL your app uses, and confirm the request fails with a cleartext error.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<network-security-config>\n    <base-config cleartextTrafficPermitted=\"false\" />\n    <!-- Only if a host truly needs HTTP: -->\n    <!-- <domain-config cleartextTrafficPermitted=\"true\"><domain>legacy.example.com</domain></domain-config> -->\n</network-security-config>"
+      },
+      "confidence": "high",
+      "detector": "android_cleartext"
+    },
+    {
+      "id": "AND-002",
+      "title": "Release build is debuggable",
+      "platform": "android",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A debuggable release lets anyone with a USB cable attach a debugger and use `run-as` to read every private file the app has. It also turns on `debug-overrides`, which can switch off pinning.",
+      "fix": "Remove `android:debuggable=\"true\"` from the main manifest and set `isDebuggable = false` (Groovy: `debuggable false`) in the `release` build type. Let the `debug` build type stay debuggable.",
+      "verify": "Build the release APK (or extract one from the bundle with bundletool) and run `aapt2 dump badging app-release.apk | grep application-debuggable`. It should print nothing.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-TEST-0226",
+        "MASTG-BEST-0007"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// app/build.gradle.kts\nandroid {\n    buildTypes {\n        debug {\n            isDebuggable = true\n        }\n        release {\n            isDebuggable = false\n            isMinifyEnabled = true\n            isShrinkResources = true\n            proguardFiles(\n                getDefaultProguardFile(\"proguard-android-optimize.txt\"),\n                \"proguard-rules.pro\"\n            )\n        }\n    }\n}"
+      },
+      "confidence": "high",
+      "safe_fix": true,
+      "detector": "android_debuggable"
+    },
+    {
+      "id": "AND-003",
+      "title": "User-installed CAs are trusted in release",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With `<certificates src=\"user\"/>` outside `debug-overrides`, any certificate a user installs, such as a proxy's, can read and change the app's HTTPS traffic in release builds.",
+      "fix": "Remove `<certificates src=\"user\"/>` from `base-config` and `domain-config`. If you need a proxy while developing, put it inside `<debug-overrides>`, which Android uses only in debuggable builds.",
+      "verify": "Install a proxy CA on a test phone, run the release build through the proxy, and confirm HTTPS requests fail.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0286"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<network-security-config>\n    <base-config cleartextTrafficPermitted=\"false\">\n        <trust-anchors>\n            <certificates src=\"system\" />\n        </trust-anchors>\n    </base-config>\n    <!-- Only honored when android:debuggable=\"true\". Lets you proxy debug builds. -->\n    <debug-overrides>\n        <trust-anchors>\n            <certificates src=\"user\" />\n        </trust-anchors>\n    </debug-overrides>\n</network-security-config>"
+      },
+      "confidence": "high",
+      "detector": "android_user_certs"
+    },
+    {
+      "id": "AND-004",
+      "title": "WebView ignores TLS certificate errors",
+      "platform": "android",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Calling `proceed()` in `onReceivedSslError` turns off certificate checks for that WebView. Anyone on the network can then show their own page and read what the user types.",
+      "fix": "Call `handler.cancel()` in `onReceivedSslError` and never `handler.proceed()`. Fix the certificate on the server instead.",
+      "verify": "Point the WebView at a site with a bad certificate (for example through a proxy without its CA installed) and confirm the page doesn't load.",
+      "effort": "minutes",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0284"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "override fun onReceivedSslError(\n    view: WebView, handler: SslErrorHandler, error: SslError\n) {\n    handler.cancel()                   // NEVER handler.proceed()\n}"
+      },
+      "confidence": "high",
+      "detector": "android_webview_ssl_proceed"
+    },
+    {
+      "id": "AND-005",
+      "title": "TrustManager or HostnameVerifier accepts everything",
+      "platform": "android",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An empty `checkServerTrusted()` or a host-name check that always returns `true` turns off TLS server checks. Anyone on the same network can impersonate your server and read the traffic.",
+      "fix": "Delete the custom TrustManager and HostnameVerifier and use the platform defaults. If you need pinning, add a `<pin-set>` or OkHttp `CertificatePinner`, which run on top of normal validation.",
+      "verify": "Send the app's traffic through a proxy whose CA the phone doesn't trust and confirm every request fails.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0234",
+        "MASTG-TEST-0282",
+        "MASTG-TEST-0283"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// Delete .sslSocketFactory(..., trustAllManager) and .hostnameVerifier { _, _ -> true }.\n// The default client validates the chain and the host name.\nval client = OkHttpClient.Builder()\n    .connectionSpecs(listOf(ConnectionSpec.MODERN_TLS))\n    // High-risk apps only: pins run on top of normal validation (§8.8).\n    // .certificatePinner(CertificatePinner.Builder().add(\"api.example.com\", \"sha256/...\").build())\n    .build()"
+      },
+      "confidence": "high",
+      "detector": "android_trust_all"
+    },
+    {
+      "id": "AND-006",
+      "title": "OkHttp or SSLContext allows old TLS or plain HTTP",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`ConnectionSpec.CLEARTEXT`, `COMPATIBLE_TLS`, or TLS 1.0/1.1 lets connections fall back to plain HTTP or to old protocol versions with known weaknesses.",
+      "fix": "Use `ConnectionSpec.MODERN_TLS` (TLS 1.3 and 1.2 only) and leave `ConnectionSpec.CLEARTEXT` out of the list. Request `SSLContext.getInstance(\"TLS\")`, not `SSL` or `TLSv1`.",
+      "verify": "Check that an `http://` URL fails and that a server limited to TLS 1.1 is refused.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0217",
+        "MASTG-TEST-0218"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// OkHttp 5.x. MODERN_TLS already offers TLS 1.3 and 1.2 only.\n// Leaving ConnectionSpec.CLEARTEXT out of the list makes every http:// URL fail.\nval client = OkHttpClient.Builder()\n    .connectionSpecs(listOf(ConnectionSpec.MODERN_TLS))\n    .build()"
+      },
+      "confidence": "medium",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "",
+        "regex": "ConnectionSpec\\.(?:CLEARTEXT|COMPATIBLE_TLS)\\b|TlsVersion\\.(?:TLS_1_0|TLS_1_1|SSL_3_0)\\b|SSLContext\\.getInstance\\(\\s*\\\"(?:SSL|SSLv3|TLSv1|TLSv1\\.1)\\\"",
+        "flags": "",
+        "strings": "keep",
+        "unless_file": "",
+        "message": "This allows plain HTTP or a TLS version older than 1.2."
+      }
+    },
+    {
+      "id": "AND-007",
+      "title": "No certificate pinning (needed for high-risk apps)",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Without pinning, any CA in the system trust store can issue a certificate for your server, so a rogue or hacked CA can intercept the app's traffic. Apps that move money or hold health data are worth that extra protection.",
+      "fix": "Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).",
+      "verify": "Configure a wrong pin on a test build and confirm connections fail with a pin error. Then restore the real pins.",
+      "effort": "days",
+      "book": "§8.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [
+        "MASTG-TEST-0242"
+      ],
+      "app_types": [
+        "banking",
+        "fintech",
+        "health",
+        "ecommerce-cards"
+      ],
+      "not_needed_reason": "Pinning is for apps that handle money, health data, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8).",
+      "fix_code": {
+        "lang": "xml",
+        "code": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!-- res/xml/network_security_config.xml -->\n<network-security-config>\n    <domain-config cleartextTrafficPermitted=\"false\">\n        <domain includeSubdomains=\"true\">api.example.com</domain>\n        <!-- base64 SHA-256 of the SPKI, not of the whole certificate -->\n        <pin-set expiration=\"2027-12-31\">\n            <!-- Primary: your CA's intermediate -->\n            <pin digest=\"SHA-256\">YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</pin>\n            <!-- Backup: an intermediate at a second CA, or a spare key you hold -->\n            <pin digest=\"SHA-256\">Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</pin>\n        </pin-set>\n    </domain-config>\n</network-security-config>\n<!-- The pin values are placeholders: generate your own (§8.10). -->"
+      },
+      "confidence": "medium",
+      "detector": "android_pinning_missing"
+    },
+    {
+      "id": "AND-008",
+      "title": "Pin set has no backup pin or no expiration date",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "With one pin and no backup, a routine key change locks every user on that build out of your server until they update. With no expiration, an app nobody updates stays broken forever.",
+      "fix": "Add a second pin for an intermediate at another CA (or a spare key you hold), and set `expiration` a little past the longest time you support a build. Set a reminder well before that date.",
+      "verify": "Read `network_security_config.xml` in the release APK and confirm each `<pin-set>` has two or more pins and a future `expiration`.",
+      "effort": "hours",
+      "book": "§8.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#86-where-the-pins-live-static-dynamic-and-hybrid",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [
+        "MASTG-TEST-0243"
+      ],
+      "not_needed_reason": "Your app type usually doesn't need pinning (§8.8). If you keep the pins anyway, add a backup pin and an expiration date so a key change can't lock users out.",
+      "fix_code": {
+        "lang": "xml",
+        "code": "<pin-set expiration=\"2027-12-31\">\n    <!-- Primary: your CA's intermediate -->\n    <pin digest=\"SHA-256\">YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</pin>\n    <!-- Backup: an intermediate at a second CA, or a spare key you hold -->\n    <pin digest=\"SHA-256\">Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</pin>\n</pin-set>"
+      },
+      "confidence": "high",
+      "detector": "android_pin_set"
+    },
+    {
+      "id": "AND-009",
+      "title": "Pinning or certificate trust depends on a BuildConfig flag",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A flag that relaxes security is a flag an attacker wants to flip. R8 doesn't always delete the relaxed branch, so it can survive in the release binary for someone to switch back on.",
+      "fix": "Configure pinning and trust the same way in every build. Put debug-only trust in `src/debug/` (for example a `network_security_config.xml` with `<debug-overrides>`) so the code doesn't exist in release.",
+      "verify": "Decompile the release APK and confirm the relaxed trust path isn't there.",
+      "effort": "hours",
+      "book": "§15.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code",
+      "mastg": [],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<!-- app/src/debug/res/xml/network_security_config.xml: exists only in debug builds -->\n<network-security-config>\n    <debug-overrides>\n        <trust-anchors>\n            <certificates src=\"user\" />\n        </trust-anchors>\n    </debug-overrides>\n</network-security-config>"
+      },
+      "confidence": "medium",
+      "detector": "android_buildconfig_trust"
+    },
+    {
+      "id": "AND-010",
+      "title": "WebView can read local files",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out.",
+      "fix": "Remove `allowFileAccess = true` and never enable `allowFileAccessFromFileURLs` or `allowUniversalAccessFromFileURLs`. Serve bundled HTML with `WebViewAssetLoader` over `https://appassets.androidplatform.net/`.",
+      "verify": "Load a test page that tries to fetch a `file:///data/data/<package>/` URL and confirm it's blocked.",
+      "effort": "hours",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0250",
+        "MASTG-TEST-0251",
+        "MASTG-TEST-0252",
+        "MASTG-TEST-0253"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "webView.settings.apply {\n    javaScriptEnabled = false            // turn on only if the page needs it\n    allowFileAccess = false              // default false only when targeting API 30+\n    allowContentAccess = false           // defaults to true on every version\n    // allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs are deprecated\n    // and already false when targeting API 16+. Never set them to true.\n}"
+      },
+      "confidence": "high",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "",
+        "regex": "\\b(?:setAllowFileAccess|setAllowFileAccessFromFileURLs|setAllowUniversalAccessFromFileURLs)\\s*\\(\\s*true\\s*\\)|\\b(?:allowFileAccess|allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\\s*=\\s*true\\b",
+        "flags": "",
+        "strings": "blank",
+        "unless_file": "",
+        "message": "This WebView setting lets page content read local files."
+      }
+    },
+    {
+      "id": "AND-011",
+      "title": "WebView loads HTTP content inside HTTPS pages",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`MIXED_CONTENT_ALWAYS_ALLOW` lets an HTTPS page pull scripts and images over plain HTTP. Anyone on the network can replace those scripts and take over the page.",
+      "fix": "Remove the `mixedContentMode` line. Apps targeting API 21+ default to `MIXED_CONTENT_NEVER_ALLOW`. Serve every resource over HTTPS.",
+      "verify": "Load your pages in a debug build with WebView debugging on and confirm the console shows no mixed-content requests succeeding.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "mastg": [],
+      "confidence": "high",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "ixedContentMode",
+        "regex": "(?:mixedContentMode\\s*=\\s*|setMixedContentMode\\s*\\(\\s*)(?:WebSettings\\.)?(?:MIXED_CONTENT_ALWAYS_ALLOW\\b|0\\b)",
+        "flags": "",
+        "strings": "blank",
+        "unless_file": "",
+        "message": "The WebView always allows HTTP content inside HTTPS pages."
+      }
+    },
+    {
+      "id": "AND-012",
+      "title": "JavaScript bridge is reachable from every frame",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code.",
+      "fix": "Use `WebViewCompat.addWebMessageListener` with an allowlist of origins, and validate every message. If you must keep `addJavascriptInterface`, expose one narrow method and treat its input as untrusted.",
+      "verify": "Load a page with a third-party iframe and confirm the iframe can't reach the bridge.",
+      "effort": "hours",
+      "book": "§16.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#162-the-javascript-bridge-and-why-its-the-sharpest-edge",
+      "maswe": "MASWE-0033",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0334",
+        "MASTG-BEST-0035"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {\n    WebViewCompat.addWebMessageListener(\n        webView,\n        \"AppBridge\",                                   // window.AppBridge in the page\n        setOf(\"https://app.example.com\"),              // the platform enforces this\n    ) { _, message, sourceOrigin, isMainFrame, replyProxy ->\n        if (!isMainFrame || sourceOrigin.host != \"app.example.com\") return@addWebMessageListener\n        val code = message.data ?: return@addWebMessageListener\n        if (!Regex(\"^[A-Z0-9]{8}$\").matches(code)) return@addWebMessageListener\n        redeemVoucher(code)                            // the server authorizes; the bridge does not\n        replyProxy.postMessage(\"received\")\n    }\n}"
+      },
+      "confidence": "medium",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "addJavascriptInterface",
+        "regex": "\\.addJavascriptInterface\\s*\\(",
+        "flags": "",
+        "strings": "blank",
+        "unless_file": "",
+        "message": "addJavascriptInterface exposes native methods to every frame in this WebView."
+      }
+    },
+    {
+      "id": "AND-013",
+      "title": "WebView debugging is on in release",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With WebView debugging on, anyone with the phone and a USB cable can open Chrome DevTools, read the page, change its content, and call your JavaScript bridge.",
+      "fix": "Tie debugging to the build type: `WebView.setWebContentsDebuggingEnabled(debuggable)`, where `debuggable` comes from `FLAG_DEBUGGABLE`. Never pass a plain `true`.",
+      "verify": "Install the release build, open `chrome://inspect` on a computer, and confirm the app's WebViews aren't listed.",
+      "effort": "minutes",
+      "book": "§16.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#166-cleanup-and-hygiene",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-TEST-0227",
+        "MASTG-BEST-0008"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import android.content.pm.ApplicationInfo\nimport android.webkit.WebView\n\n// Debugging follows the build type. Never call this with `true` unconditionally.\nval debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0\nWebView.setWebContentsDebuggingEnabled(debuggable)"
+      },
+      "confidence": "high",
+      "detector": "android_webview_debugging"
+    },
+    {
+      "id": "AND-014",
+      "title": "WebView loads a URL from an intent or deep link",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "If a deep link or intent extra decides what the WebView loads, an attacker chooses the page that runs inside your app, with its cookies and any JavaScript bridge.",
+      "fix": "Parse the URL with `Uri.parse`, require `https`, and compare the parsed host with an exact allowlist before calling `loadUrl`. Check again in `shouldOverrideUrlLoading`.",
+      "verify": "Send the app a link that carries `https://evil.example/` as the URL parameter and confirm the WebView refuses it.",
+      "effort": "hours",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0398",
+        "MASTG-TEST-0400"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "private val allowedHosts = setOf(\"app.example.com\", \"help.example.com\")\n\n// Exact host match on the parsed URL, https only. NOT `url.contains(\"example.com\")`.\nfun isAllowed(uri: Uri): Boolean =\n    uri.scheme == \"https\" && uri.host?.lowercase() in allowedHosts\n\n// shouldOverrideUrlLoading does not see this call, so check it here too.\nfun openInWebView(target: Uri) {\n    if (isAllowed(target)) webView.loadUrl(target.toString())\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_webview_untrusted_url"
+    },
+    {
+      "id": "AND-015",
+      "title": "Exported component has no permission",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly.",
+      "fix": "Set `android:exported=\"false\"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel=\"signature\"` and validate every input.",
+      "verify": "Run `adb shell am start -n <package>/<component>` (or `am startservice`, `am broadcast`) from a shell and confirm it's refused.",
+      "effort": "hours",
+      "book": "§17.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#171-android-app-components-and-the-word-exported",
+      "maswe": "MASWE-0018",
+      "masvs": "MASVS-AUTH-1",
+      "mastg": [
+        "MASTG-TEST-0364",
+        "MASTG-TEST-0365",
+        "MASTG-TEST-0366",
+        "MASTG-TEST-0355"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<activity android:name=\".InternalActivity\" android:exported=\"false\" />\n\n<!-- Shared only with your own apps: same signing key required -->\n<permission android:name=\"com.example.permission.SYNC\"\n    android:protectionLevel=\"signature\" />\n<service android:name=\".SyncService\"\n    android:exported=\"true\"\n    android:permission=\"com.example.permission.SYNC\" />"
+      },
+      "confidence": "medium",
+      "detector": "android_exported"
+    },
+    {
+      "id": "AND-016",
+      "title": "FileProvider shares too much of the filesystem",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`<root-path>` or `path=\".\"` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences.",
+      "fix": "Scope each entry in `file_paths.xml` to the narrowest folder that works, such as `<cache-path name=\"shared_exports\" path=\"exports/\" />`. Remove `<root-path>`. Grant read, not write, unless the recipient must write.",
+      "verify": "Ask the provider for a URI that points at `../databases/` and confirm it fails.",
+      "effort": "minutes",
+      "book": "§17.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#174-content-providers",
+      "maswe": "MASWE-0018",
+      "masvs": "MASVS-AUTH-1",
+      "mastg": [
+        "MASTG-TEST-0357"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<!-- res/xml/file_paths.xml -->\n<paths>\n    <cache-path name=\"shared_exports\" path=\"exports/\" />\n    <!-- Never: <root-path name=\"root\" path=\"\" />  or  path=\".\" -->\n</paths>"
+      },
+      "confidence": "high",
+      "detector": "android_file_provider_paths"
+    },
+    {
+      "id": "AND-017",
+      "title": "App starts an Intent it received from another app",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An Intent pulled out of another Intent's extras runs as your app. It can open your non-exported screens or hand out access to your private files.",
+      "fix": "Don't forward nested Intents. If you must, run them through AndroidX `IntentSanitizer`, allowing only the component and extras you expect.",
+      "verify": "From a test app, send an Intent whose extra points at one of your non-exported activities and confirm it doesn't open.",
+      "effort": "hours",
+      "book": "§17.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#172-intents-explicit-versus-implicit",
+      "maswe": "MASWE-0032",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val nested = IntentCompat.getParcelableExtra(intent, \"next\", Intent::class.java) ?: return\n\n// Keep only what you expect. Flags you did not allow, including FLAG_GRANT_*, are dropped.\nval safe = IntentSanitizer.Builder()\n    .allowComponent(ComponentName(this, ReceiptActivity::class.java))\n    .allowExtra(\"receipt_id\", String::class.java)\n    .build()\n    .sanitizeByFiltering(nested)\n\nstartActivity(safe)"
+      },
+      "confidence": "medium",
+      "detector": "android_intent_redirect"
+    },
+    {
+      "id": "AND-018",
+      "title": "Mutable PendingIntent",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A mutable `PendingIntent` lets the app that receives it change the destination or data, and the result runs with your app's identity and permissions.",
+      "fix": "Use `PendingIntent.FLAG_IMMUTABLE` with an explicit Intent. Keep `FLAG_MUTABLE` only where you need it, such as inline replies, and make the base Intent explicit there.",
+      "verify": "Check each place that creates a `PendingIntent` and confirm it's immutable or has an explicit component.",
+      "effort": "minutes",
+      "book": "§17.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#173-pendingintent-the-one-that-looks-harmless",
+      "maswe": "MASWE-0032",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-TEST-0381",
+        "MASTG-BEST-0063"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val intent = Intent(context, ResultReceiverActivity::class.java)   // explicit\nval pendingIntent = PendingIntent.getActivity(\n    context, 0, intent,\n    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT\n)"
+      },
+      "confidence": "manual",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "FLAG_MUTABLE",
+        "regex": "^(?!\\s*import\\b).*?\\bFLAG_MUTABLE\\b",
+        "flags": "",
+        "strings": "blank",
+        "unless_file": "",
+        "message": "A PendingIntent is created mutable. Confirm the base Intent is explicit."
+      }
+    },
+    {
+      "id": "AND-019",
+      "title": "App Link is not verified",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Without `android:autoVerify=\"true\"`, Android doesn't confirm that your domain belongs to your app. Another app can claim the same links, or Android opens them in the browser.",
+      "fix": "Add `android:autoVerify=\"true\"` to the `https` intent filter and host `/.well-known/assetlinks.json` with your app signing certificate fingerprint.",
+      "verify": "Run `adb shell pm get-app-links <package>` on a Play install and confirm each domain shows `verified`.",
+      "effort": "hours",
+      "book": "§17.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#175-deep-links-and-the-verification-that-makes-them-safe",
+      "maswe": "MASWE-0029",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-TEST-0393",
+        "MASTG-BEST-0070"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<activity android:name=\".TransferActivity\" android:exported=\"true\">\n    <intent-filter android:autoVerify=\"true\">\n        <action android:name=\"android.intent.action.VIEW\" />\n        <category android:name=\"android.intent.category.DEFAULT\" />\n        <category android:name=\"android.intent.category.BROWSABLE\" />\n        <data android:scheme=\"https\" android:host=\"app.example.com\" android:pathPrefix=\"/transfer\" />\n    </intent-filter>\n</activity>"
+      },
+      "confidence": "medium",
+      "detector": "android_app_links"
+    },
+    {
+      "id": "AND-020",
+      "title": "SQL query built by joining strings",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider.",
+      "fix": "Use `?` placeholders and pass values as `selectionArgs`, or Room `@Query` with bound parameters. Allowlist column names and sort orders.",
+      "verify": "Pass `' OR '1'='1` into the code path and confirm it's treated as plain text.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-TEST-0339"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// Bound values, never string concatenation.\ndb.rawQuery(\"SELECT * FROM orders WHERE user_id = ?\", arrayOf(currentUserId))"
+      },
+      "confidence": "medium",
+      "detector": "android_sql_concat"
+    },
+    {
+      "id": "AND-021",
+      "title": "Backup is on with no exclusion rules",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Android Auto Backup copies the app's files, including tokens and databases, to cloud storage and to new phones. Keystore keys are never backed up, so restored ciphertext can also crash the app.",
+      "fix": "Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`.",
+      "verify": "Run `adb shell bmgr backupnow <package>` over an encrypted local transport, reinstall, and confirm the excluded files are gone after the restore.",
+      "effort": "hours",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0006",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0216",
+        "MASTG-TEST-0262"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<!-- AndroidManifest.xml -->\n<application\n    android:allowBackup=\"true\"\n    android:dataExtractionRules=\"@xml/data_extraction_rules\"\n    android:fullBackupContent=\"@xml/backup_rules\">\n</application>\n\n<!-- res/xml/data_extraction_rules.xml: Android 12+ when targeting API 31+ -->\n<data-extraction-rules>\n    <cloud-backup disableIfNoEncryptionCapabilities=\"true\">\n        <exclude domain=\"file\" path=\"datastore/session.enc\" />\n        <exclude domain=\"sharedpref\" path=\"tink_keysets.xml\" />\n    </cloud-backup>\n    <device-transfer>\n        <exclude domain=\"file\" path=\"datastore/session.enc\" />\n        <exclude domain=\"sharedpref\" path=\"tink_keysets.xml\" />\n    </device-transfer>\n</data-extraction-rules>\n\n<!-- res/xml/backup_rules.xml: Android 11 and lower -->\n<full-backup-content>\n    <exclude domain=\"file\" path=\"datastore/session.enc\" />\n    <exclude domain=\"sharedpref\" path=\"tink_keysets.xml\" />\n</full-backup-content>"
+      },
+      "confidence": "high",
+      "detector": "android_backup"
+    },
+    {
+      "id": "AND-022",
+      "title": "Deprecated EncryptedSharedPreferences (Jetpack Security)",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Google deprecated every API in `androidx.security:security-crypto` in 2025, and it gets no fixes. It's also known for keyset-corruption crashes on some devices.",
+      "fix": "If the stored values aren't secrets (flags, UI state), move them to plain DataStore or SharedPreferences: the sandbox already protects them (§6.4). For tokens and credentials, use DataStore, Tink, and an Android Keystore master key (`androidx.datastore:datastore-tink`). Migrate with `SharedPreferencesMigration`, then delete the old file and Keystore alias.",
+      "verify": "Confirm the dependency is gone from the build and that `files/datastore/` holds only binary ciphertext.",
+      "effort": "days",
+      "book": "§6.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#61-encryptedsharedpreferences-is-dead",
+      "maswe": "MASWE-0046",
+      "masvs": "MASVS-CODE-3",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// build.gradle.kts\ndependencies {\n    implementation(\"androidx.datastore:datastore:1.3.0-rc01\")\n    implementation(\"androidx.datastore:datastore-tink:1.3.0-rc01\")  // pre-release: pin and test\n    implementation(\"com.google.crypto.tink:tink-android:1.24.0\")\n}"
+      },
+      "confidence": "high",
+      "detector": "android_security_crypto"
+    },
+    {
+      "id": "AND-023",
+      "title": "End-of-life SQLCipher package",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`net.zetetic:android-database-sqlcipher` reached end of life in 2023 and gets no security fixes. Its open-source build won't get the 16 KB page-size support Play will require.",
+      "fix": "Switch to `net.zetetic:sqlcipher-android` (package `net.zetetic.database.sqlcipher`). Use `SupportOpenHelperFactory` with Room 2 or `SQLCipherDriver` with Room 3.",
+      "verify": "Confirm the old coordinates and `net.sqlcipher` imports are gone, then open an existing database to check the migration.",
+      "effort": "hours",
+      "book": "§6.7",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#67-encrypting-a-local-database",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// build.gradle.kts:\n//   implementation(\"net.zetetic:sqlcipher-android:4.19.1@aar\")\n//   implementation(\"androidx.sqlite:sqlite:<the version SQLCipher's README names>\")\n\nimport net.zetetic.database.sqlcipher.driver.SQLCipherDriver\n\nfun buildDatabase(context: Context, passphrase: ByteArray): AppDatabase {\n    System.loadLibrary(\"sqlcipher\")                  // once, before first use\n    return Room.databaseBuilder(\n            context, AppDatabase::class.java, context.getDatabasePath(\"app.db\").absolutePath\n        )\n        .setDriver(SQLCipherDriver(passphrase, null, null))\n        .build()\n}"
+      },
+      "confidence": "high",
+      "detector": "android_sqlcipher_legacy"
+    },
+    {
+      "id": "AND-024",
+      "title": "Tink may silently store its keyset in plain text",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "When the Android Keystore fails its self-test, Tink's `AndroidKeysetManager` stores the keyset unencrypted and only logs a warning. Your encrypted data is then protected by a key anyone with file access can read.",
+      "fix": "After `build()`, check `manager.isUsingKeystore` and record the result (for example in security telemetry), so you know when the fallback happens.",
+      "verify": "Log `isUsingKeystore` in a debug build on your test devices and confirm it's `true` where you expect hardware backing.",
+      "effort": "minutes",
+      "book": "§6.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#63-what-to-use-instead",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val manager = AndroidKeysetManager.Builder()\n    .withSharedPref(context, \"session_keyset\", \"tink_keysets\")\n    .withKeyTemplate(KeyTemplate.createFrom(PredefinedAeadParameters.AES256_GCM))\n    .withMasterKeyUri(\"android-keystore://session_master_key\")\n    .build()\nif (!manager.isUsingKeystore) {\n    // Tink fell back to a cleartext keyset. Record it; do not pretend.\n    SecurityTelemetry.record(\"tink_keystore_unavailable\")\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_tink_keystore"
+    },
+    {
+      "id": "AND-025",
+      "title": "Biometric prompt is not tied to a key",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Without a `CryptoObject`, the biometric prompt only returns success or failure. A Frida hook can call your success callback with no fingerprint at all.",
+      "fix": "Pass a `CryptoObject` wrapping a Keystore key created with `setUserAuthenticationRequired(true)`, and do the protected work (sign or decrypt) with `result.cryptoObject` in the success callback.",
+      "verify": "Run a biometric-bypass Frida script against a debug build and confirm the protected action still fails.",
+      "effort": "days",
+      "book": "§11.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0327",
+        "MASTG-BEST-0036"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val callback = object : BiometricPrompt.AuthenticationCallback() {\n    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {\n        // Use the unlocked object. Never just note that authentication \"succeeded\".\n        val unlocked = result.cryptoObject?.signature ?: return onFailed()\n        unlocked.update(challengeAndTransfer)\n        onSigned(unlocked.sign())\n    }\n}\n\nBiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback)\n    .authenticate(promptInfo, BiometricPrompt.CryptoObject(signature))"
+      },
+      "confidence": "medium",
+      "detector": "android_biometric_no_crypto"
+    },
+    {
+      "id": "AND-026",
+      "title": "Biometric key survives a new fingerprint or face",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Someone who knows the phone's PIN can add their own fingerprint. If the key isn't invalidated on new enrollment, your app then accepts them.",
+      "fix": "Keep `setInvalidatedByBiometricEnrollment(true)` (the default), use `setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)`, and don't add `AUTH_DEVICE_CREDENTIAL` or a validity window to the key.",
+      "verify": "Add a new fingerprint on a test phone and confirm using the key throws `KeyPermanentlyInvalidatedException`.",
+      "effort": "hours",
+      "book": "§11.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#113-the-enrollment-problem-nobody-thinks-about",
+      "maswe": "MASWE-0022",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0328",
+        "MASTG-TEST-0330"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val spec = KeyGenParameterSpec.Builder(TRANSFER_KEY_ALIAS, KeyProperties.PURPOSE_SIGN)\n    .setAlgorithmParameterSpec(ECGenParameterSpec(\"secp256r1\"))\n    .setDigests(KeyProperties.DIGEST_SHA256)\n    .setUserAuthenticationRequired(true)\n    .apply {\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {\n            setInvalidatedByBiometricEnrollment(true)     // the default for this shape; say it anyway\n        }\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {\n            // 0 = authenticate for every use. Biometric only: no device-credential fallback.\n            setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)\n        }\n    }\n    .build()"
+      },
+      "confidence": "medium",
+      "detector": "android_biometric_enrollment"
+    },
+    {
+      "id": "AND-027",
+      "title": "R8 is off in the release build",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Without R8, the release build keeps every class and method name, which hands a reverse engineer a map of your code, and ships unused code you never meant to include.",
+      "fix": "Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs.",
+      "verify": "Decompile the release APK with jadx and confirm your class names are shortened.",
+      "effort": "hours",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0059",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [
+        "MASTG-TEST-0368"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// app/build.gradle.kts\nandroid {\n    buildTypes {\n        release {\n            isMinifyEnabled = true\n            isShrinkResources = true\n            proguardFiles(\n                getDefaultProguardFile(\"proguard-android-optimize.txt\"),\n                \"proguard-rules.pro\"\n            )\n        }\n    }\n}"
+      },
+      "confidence": "high",
+      "detector": "android_r8_off"
+    },
+    {
+      "id": "AND-028",
+      "title": "targetSdk is below Google Play's requirement",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Google Play requires new apps and updates to target API 36. Each newer target turns on platform protections that older targets don't get, such as a required PendingIntent mutability flag (API 31) and a block on mutable implicit PendingIntents (API 34).",
+      "fix": "Raise `targetSdk` to 36 or later, then test the behavior changes for each version you skipped.",
+      "verify": "Run `aapt2 dump badging app-release.apk | grep targetSdkVersion` and confirm it shows 36 or more.",
+      "effort": "days",
+      "book": "§19.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency",
+      "maswe": "MASWE-0042",
+      "masvs": "MASVS-CODE-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "android {\n    defaultConfig {\n        targetSdk = 36\n    }\n}"
+      },
+      "confidence": "high",
+      "detector": "android_target_sdk"
+    },
+    {
+      "id": "AND-029",
+      "title": "minSdk is below 24",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "L1"
+      ],
+      "why": "On Android 6 and older (below API 24), every app trusts user-installed CAs by default, so a proxy certificate can read your traffic. Old API levels also lack newer security features.",
+      "fix": "Raise `minSdk` to at least 24. Android ignores the network security config below API 24, so it can't protect those devices. If you must support them, use a TrustManager that trusts only system CAs (or OkHttp `CertificatePinner` in a high-risk app), or accept the risk for those users.",
+      "verify": "Run `aapt2 dump badging app-release.apk | grep sdkVersion` and confirm it shows 24 or more.",
+      "effort": "hours",
+      "book": "§19.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency",
+      "maswe": "MASWE-0041",
+      "masvs": "MASVS-CODE-1",
+      "mastg": [
+        "MASTG-TEST-0245",
+        "MASTG-TEST-0285",
+        "MASTG-BEST-0010"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "android {\n    defaultConfig {\n        minSdk = 24\n    }\n}"
+      },
+      "confidence": "high",
+      "detector": "android_min_sdk"
+    },
+    {
+      "id": "AND-030",
+      "title": "HTTP bodies are logged in every build",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`HttpLoggingInterceptor.Level.BODY` writes full requests and responses, including tokens and personal data, to logcat, where bug reports and crash reporters can collect them.",
+      "fix": "Use `Level.BODY` only when `BuildConfig.DEBUG` is true and `Level.NONE` otherwise, or add the interceptor only in debug builds.",
+      "verify": "Run the release build, sign in, and watch `adb logcat --pid=$(adb shell pidof -s <package>)`. No request bodies or tokens should appear.",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0203",
+        "MASTG-TEST-0231"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val logging = HttpLoggingInterceptor().apply {\n    level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY\n            else HttpLoggingInterceptor.Level.NONE\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_http_logging_body"
+    },
+    {
+      "id": "AND-031",
+      "title": "Code is loaded at runtime",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Code loaded with `DexClassLoader` or `System.load` from outside your signed package isn't covered by your signature. Whoever can replace that file controls your app, and Google Play forbids downloading executable code.",
+      "fix": "Ship all code inside the signed app. If you must load a file, load it only from a read-only path inside your own package.",
+      "verify": "Check where each loaded file comes from and confirm none is downloaded or writable by other code.",
+      "effort": "days",
+      "book": "§19.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#195-dynamic-code-loading",
+      "maswe": "MASWE-0049",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "confidence": "manual",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "",
+        "regex": "\\b(?:DexClassLoader|InMemoryDexClassLoader|PathClassLoader|DelegateLastClassLoader)\\s*\\(|\\bSystem\\.load\\s*\\(",
+        "flags": "",
+        "strings": "blank",
+        "unless_file": "",
+        "message": "Code is loaded at runtime. Check that the file can't come from outside the signed app."
+      }
+    },
+    {
+      "id": "AND-032",
+      "title": "Java deserialization with ObjectInputStream",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code.",
+      "fix": "Parse into declared types instead: JSON with `kotlinx.serialization`, or Protocol Buffers. For intent extras, use the typed `IntentCompat.getParcelableExtra(intent, name, Class)`.",
+      "verify": "Feed the decoder a payload that names a class you didn't expect and confirm it's rejected.",
+      "effort": "hours",
+      "book": "§19.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#194-deserialization",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-TEST-0337"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// Only a ShareRequest can come out. Anything else returns null.\nval request: ShareRequest? =\n    IntentCompat.getParcelableExtra(intent, \"request\", ShareRequest::class.java)"
+      },
+      "confidence": "manual",
+      "pattern": {
+        "suffixes": [
+          ".kt",
+          ".java"
+        ],
+        "prefilter": "ObjectInputStream",
+        "regex": "\\bObjectInputStream\\s*\\(",
+        "flags": "",
+        "strings": "blank",
+        "unless_file": "",
+        "message": "ObjectInputStream deserializes arbitrary classes. Check where the bytes come from."
+      }
+    },
+    {
+      "id": "AND-033",
+      "title": "App requests a sensitive permission",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "P"
+      ],
+      "why": "Each sensitive permission is attack surface and a privacy promise to users. Third-party SDKs can use it too, and Play restricts some of them, such as broad photo access.",
+      "fix": "Ask only for what a feature needs, at the point of use, with a rationale. Prefer narrower options: the photo picker, approximate location, or `READ_MEDIA_VISUAL_USER_SELECTED`.",
+      "verify": "Check the merged manifest in Android Studio and confirm every sensitive permission maps to a feature.",
+      "effort": "hours",
+      "book": "§18.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why",
+      "maswe": "MASWE-0066",
+      "masvs": "MASVS-PRIVACY-1",
+      "mastg": [
+        "MASTG-TEST-0254"
+      ],
+      "confidence": "manual",
+      "detector": "android_dangerous_permissions"
+    }
+  ]
+}
