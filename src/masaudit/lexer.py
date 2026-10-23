@@ -2,7 +2,7 @@
 """Blank out comments (and optionally string contents) so code patterns don't match prose.
 
 Line numbers are preserved: every removed character becomes a space, newlines stay.
-Handles nested block comments (Kotlin, Swift), raw/triple-quoted strings, and char literals.
+Handles nested block comments (Kotlin, Swift, Dart), raw/triple-quoted strings, and char literals.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ LANG_BY_SUFFIX = {
     ".js": "js", ".ts": "js", ".tsx": "js", ".gradle": "groovy",
 }
 
-NESTED_BLOCK = {"kotlin", "swift"}
+NESTED_BLOCK = {"kotlin", "swift", "dart"}
 
 
 def strip(code: str, lang: str, keep_strings: bool = True) -> str:
@@ -54,9 +54,21 @@ def strip(code: str, lang: str, keep_strings: bool = True) -> str:
                 out.append(" ")
                 i += 1
             continue
-        # Triple-quoted / raw strings.
-        if code.startswith('"""', i):
-            end = code.find('"""', i + 3)
+        # Dart raw strings r'...', r"...", r'''...''', r"""...""": backslashes don't escape.
+        if (lang == "dart" and c == "r" and nxt in ('"', "'")
+                and (i == 0 or not (code[i - 1].isalnum() or code[i - 1] in "_$"))):
+            quote = nxt * 3 if code.startswith(nxt * 3, i + 1) else nxt
+            j = i + 1 + len(quote)
+            while j < n and not code.startswith(quote, j) and not (len(quote) == 1 and code[j] == "\n"):
+                j += 1
+            end = min(j + len(quote), n) if code.startswith(quote, j) else j
+            out.append("r" + _blank(code[i + 1:end], keep_strings, len(quote)))
+            i = end
+            continue
+        # Triple-quoted strings (''' too in Dart).
+        triple = '"""' if code.startswith('"""', i) else "'''" if lang == "dart" and code.startswith("'''", i) else ""
+        if triple:
+            end = code.find(triple, i + 3)
             end = n if end == -1 else end + 3
             out.append(_blank(code[i:end], keep_strings, 3))
             i = end

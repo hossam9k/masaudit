@@ -3,6 +3,25 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased
+
+- **Flutter (Dart) source scanning.** Until now masaudit read a Flutter app's Android and iOS
+  configuration but not its Dart code.
+  - The cross-platform rules now read `.dart` files: hardcoded secrets (XPL-001 to XPL-003), ECB and
+    CBC through package:encrypt and PointyCastle (XPL-004, XPL-005), fixed IVs such as
+    `IV.allZerosOfLength` and `IV.fromUtf8('...')` (XPL-006), MD5 and SHA-1 from package:crypto
+    (XPL-007), dart:math `Random()` in code that handles tokens or nonces (XPL-008), plain-HTTP URLs
+    and `Uri.http(...)` (XPL-009), and tokens passed to `print`, `debugPrint`, or `log` (XPL-010).
+  - New `FLT-001`: `badCertificateCallback` that returns `true` (TLS bypass, critical).
+  - New `FLT-002`: tokens or passwords written to shared_preferences; use `flutter_secure_storage`.
+  - The Android and iOS pinning checks (AND-007, IOS-007) no longer skip Flutter apps. Dart-side
+    pinning (`SecurityContext(withTrustedRoots: false)`, `setTrustedCertificatesBytes`, Dio's
+    `validateCertificate`, or a pinning package in `pubspec.yaml`) counts as pinning. Native-only
+    pinning is listed under residual risk, because Dart's HttpClient has its own TLS stack and
+    ignores it. React Native apps are still skipped.
+  - The lexer understands Dart raw strings (`r'...'`), `'''` strings, and nested block comments.
+  - Cross-platform rules now run on projects that are only Flutter (`pubspec.yaml`).
+
 ## 0.2.0 — 2026-10-23
 
 - **App types:** 13 instead of 11, so every common app has a clear choice.

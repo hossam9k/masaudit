@@ -19,8 +19,8 @@ def _load(name):
 
 SECTIONS = _load("_book_sections.json")
 MASWE = _load("_maswe.json")
-ID_FORMAT = re.compile(r"^(AND|IOS|KMP|XPL|CI)-\d{3}$")
-PREFIX = {"android": "AND", "ios": "IOS", "kmp": "KMP", "cross": "XPL", "ci": "CI"}
+ID_FORMAT = re.compile(r"^(AND|IOS|KMP|FLT|XPL|CI)-\d{3}$")
+PREFIX = {"android": "AND", "ios": "IOS", "kmp": "KMP", "flutter": "FLT", "cross": "XPL", "ci": "CI"}
 
 
 class RuleMetadata(unittest.TestCase):
@@ -84,7 +84,7 @@ class RuleFiles(unittest.TestCase):
     def test_every_detector_module_is_imported(self):
         detectors = os.path.join(os.path.dirname(RULES_DIR), "detectors")
         modules = {n[:-3] for n in os.listdir(detectors) if n.endswith(".py") and n != "__init__.py"}
-        self.assertTrue(modules <= {"android", "ios", "cross", "ci", "kmp"},
+        self.assertTrue(modules <= {"android", "ios", "cross", "ci", "kmp", "flutter"},
                         "add new detector modules to the list in engine._import_detectors")
 
 

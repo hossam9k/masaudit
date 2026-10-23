@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Cross-platform code detectors (Kotlin, Java, Swift, Objective-C): secrets, crypto misuse,
+"""Cross-platform code detectors (Kotlin, Java, Swift, Objective-C, Dart): secrets, crypto misuse,
 cleartext URLs, and sensitive logging. Book: §15.2, Chapter 0.2, §6.5, §7.1.
 
 Every detector runs on code with comments blanked, so commented-out code and prose never match.
@@ -14,9 +14,10 @@ from masaudit.detect import scope_of
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
-CODE = (".kt", ".java", ".swift", ".m", ".mm", ".h")
+CODE = (".kt", ".java", ".swift", ".m", ".mm", ".h", ".dart")
 JVM = (".kt", ".java")
 APPLE = (".swift", ".m", ".mm", ".h")
+DART = (".dart",)
 
 
 def _mask_in(snippet: str, value: str) -> str:
@@ -114,7 +115,8 @@ def google_api_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
 SECRET_ASSIGN = re.compile(
     r"\b(k?(?:client|api|app|consumer)[_\-]?secret)\b[\"']?"
     r"(?:\s*:\s*[A-Za-z_][\w.]*[?!]?)?"            # optional type annotation (Swift/Kotlin)
-    r"\s*(?:=|:|\bto\b)\s*@?\"([^\"\n]{8,})\"",
+    r"\s*(?:=|:|\bto\b)\s*@?(?:\"([^\"\n]{8,})\"|'([^'\n]{8,})')",    # Dart also quotes with '...'
+
     re.IGNORECASE,
 )
 
@@ -140,13 +142,14 @@ def secret_assignment(ctx: Context, rule: Rule) -> Iterable[Hit]:
         code = ctx.code(path, keep_strings=True) or ""
         seen: Set[int] = set()
         for m in SECRET_ASSIGN.finditer(code):
-            if not _real_secret_value(m.group(2)):
+            value = m.group(2) or m.group(3)
+            if not _real_secret_value(value):
                 continue
             line = ctx.line_of(code, m.start())
             if line in seen:
                 continue
             seen.add(line)
-            yield Hit(path, line, _mask_in(ctx.snippet(path, line), m.group(2)),
+            yield Hit(path, line, _mask_in(ctx.snippet(path, line), value),
                       f"`{m.group(1)}` is set to a literal value, so it ships inside the app.")
 
 
@@ -155,15 +158,21 @@ def secret_assignment(ctx: Context, rule: Rule) -> Iterable[Hit]:
 ECB: List[Tuple[Pattern[str], str]] = [
     (re.compile(r"Cipher\.getInstance\(\s*\"AES\"\s*[,)]"),
      "`Cipher.getInstance(\"AES\")` names no mode, and Android can silently pick ECB."),
-    (re.compile(r"\"AES/ECB[^\"]*\""), "AES in ECB mode: identical blocks give identical ciphertext."),
+    (re.compile(r"[\"']AES/ECB[^\"'\n]*[\"']"), "AES in ECB mode: identical blocks give identical ciphertext."),
     (re.compile(r"\bkCC(?:OptionECBMode|ModeECB)\b"), "CommonCrypto in ECB mode."),
     (re.compile(r"\bECB\(\)"), "A block cipher in ECB mode."),
+]
+ECB_DART: List[Tuple[Pattern[str], str]] = [
+    (re.compile(r"\bAESMode\.ecb\b"), "package:encrypt AES in ECB mode."),
+    (re.compile(r"\bECBBlockCipher\s*\("), "PointyCastle's ECB block cipher."),
 ]
 
 
 @detector("xpl_ecb")
 def ecb(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for hit in _scan(ctx, ECB, prefilter=("AES", "ECB")):
+        yield hit
+    for hit in _scan(ctx, ECB_DART, suffixes=DART, keep_strings=False, prefilter=("AESMode", "ECBBlockCipher")):
         yield hit
     # Keystore: ECB is a misnomer that RSA keys legitimately use, so flag it only for AES keys.
     for path in ctx.files(*JVM):
@@ -181,16 +190,22 @@ def ecb(ctx: Context, rule: Rule) -> Iterable[Hit]:
 # ---------------------------------------------------------------------------- XPL-005
 
 CBC: List[Tuple[Pattern[str], str]] = [
-    (re.compile(r"\"AES/CBC[^\"]*\""), "AES-CBC encrypts but doesn't detect tampering."),
+    (re.compile(r"[\"']AES/CBC[^\"'\n]*[\"']"), "AES-CBC encrypts but doesn't detect tampering."),
     (re.compile(r"\bBLOCK_MODE_CBC\b"), "A Keystore key that uses CBC mode."),
     (re.compile(r"\bkCCModeCBC\b"), "CommonCrypto in CBC mode."),
     (re.compile(r"\bCBC\(\s*iv:"), "A block cipher in CBC mode."),
+]
+CBC_DART: List[Tuple[Pattern[str], str]] = [
+    (re.compile(r"\bAESMode\.cbc\b"), "package:encrypt AES in CBC mode."),
+    (re.compile(r"\bCBCBlockCipher\s*\("), "PointyCastle's CBC block cipher."),
 ]
 
 
 @detector("xpl_cbc")
 def cbc(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for hit in _scan(ctx, CBC, prefilter=("CBC",)):
+        yield hit
+    for hit in _scan(ctx, CBC_DART, suffixes=DART, keep_strings=False, prefilter=("AESMode", "CBCBlockCipher")):
         yield hit
 
 
@@ -210,6 +225,13 @@ IV_CALL_VAR = re.compile(r"\b(?:IvParameterSpec\(\s*|GCMParameterSpec\(\s*[^,()]
 SWIFT_NONCE = re.compile(
     r"\b(?:AES\.GCM|ChaChaPoly)\.Nonce\(\s*data:\s*(?:Data\(\s*\[|Data\(\s*\"|\"[^\"\n]*\"\s*\.data\(|\[)"
     r"|\biv:\s*(?:\"[^\"\n]*\"|Array\(\s*\"|\[\s*(?:0x)?[0-9])"
+)
+# package:encrypt and PointyCastle. IV.fromLength is random in current package:encrypt, so it's not here.
+_DART_LITERAL_BYTES = r"Uint8List\s*(?:\(\s*\d|\.fromList\s*\(\s*(?:const\s*)?\[)"
+DART_IV = re.compile(
+    r"\bIV\s*\.\s*(?:allZerosOfLength\s*\(|from(?:Utf8|Base64|Base16)\s*\(\s*r?[\"'])"
+    r"|\bIV\s*\(\s*" + _DART_LITERAL_BYTES
+    + r"|\bParametersWithIV\s*(?:<[^>]*>)?\s*\((?:[^,()]|\((?:[^()]|\([^()]*\))*\))+,\s*" + _DART_LITERAL_BYTES
 )
 
 
@@ -248,6 +270,8 @@ def static_iv(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield Hit(path, line, ctx.snippet(path, line), msg)
     for hit in _scan(ctx, [(SWIFT_NONCE, msg)], suffixes=(".swift",), prefilter=("Nonce(", "iv:")):
         yield hit
+    for hit in _scan(ctx, [(DART_IV, msg)], suffixes=DART, prefilter=("IV",)):
+        yield hit
 
 
 # ---------------------------------------------------------------------------- XPL-007
@@ -259,11 +283,19 @@ WEAK_HASH: List[Tuple[Pattern[str], str]] = [
     (re.compile(r"\bDigestUtils\.(?:md5|sha1)\w*\s*\("), "MD5 or SHA-1 through DigestUtils."),
     (re.compile(r"\bHashing\.(?:md5|sha1)\s*\("), "MD5 or SHA-1 through Guava."),
 ]
+WEAK_HASH_DART: List[Tuple[Pattern[str], str]] = [
+    (re.compile(r"(?<![\w.])(?:md5|sha1)\s*\.\s*(?:convert|startChunkedConversion|bind)\s*\("),
+     "MD5 or SHA-1 from package:crypto."),
+    (re.compile(r"\b(?:MD5|SHA1)Digest\s*\(|\bDigest\s*\(\s*[\"'](?:MD5|SHA-1)[\"']"),
+     "MD5 or SHA-1 through PointyCastle."),
+]
 
 
 @detector("xpl_weak_hash")
 def weak_hash(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for hit in _scan(ctx, WEAK_HASH, prefilter=("MD5", "SHA1", "SHA-1", "md5", "sha1")):
+    for hit in _scan(ctx, WEAK_HASH, suffixes=JVM + APPLE, prefilter=("MD5", "SHA1", "SHA-1", "md5", "sha1")):
+        yield hit
+    for hit in _scan(ctx, WEAK_HASH_DART, suffixes=DART, prefilter=("MD5", "SHA1", "SHA-1", "md5", "sha1")):
         yield hit
 
 
@@ -289,6 +321,19 @@ RNG_APPLE: List[Tuple[Pattern[str], str]] = [
     "`rand()`/`random()` are predictable C generators."),
     (re.compile(r"(?<![\w.])(?:srand|srandom|srand48)\s*\("), "A C generator seeded by the caller."),
 ]
+# dart:math `Random()` is fine for games and animations, so it counts only in code that also
+# handles tokens, nonces, keys, or passwords. `Random.secure()` is the safe one.
+DART_RANDOM = re.compile(r"(?<![\w.])Random\s*\(")
+DART_SECURITY_WORDS = {"token", "nonce", "salt", "secret", "password", "passcode", "otp", "iv", "cipher",
+                       "encrypt", "encrypted", "encryption", "csrf", "verifier", "jwt", "session"}
+
+
+def _identifier_words(code: str) -> Set[str]:
+    words: Set[str] = set()
+    for ident in set(re.findall(r"[A-Za-z_]\w*", code)):
+        for part in re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+", ident):
+            words.add(part.lower())
+    return words
 
 
 @detector("xpl_insecure_random")
@@ -314,11 +359,28 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     yield Hit(path, line, ctx.snippet(path, line), message)
     for hit in _scan(ctx, RNG_APPLE, suffixes=APPLE, keep_strings=False, prefilter=("rand",)):
         yield hit
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if "Random" not in raw:
+            continue
+        code = ctx.code(path, keep_strings=False) or ""
+        uses = list(DART_RANDOM.finditer(code))
+        context = sorted(_identifier_words(code) & DART_SECURITY_WORDS) if uses else []
+        if not context:
+            continue
+        seen: Set[int] = set()
+        for m in uses:
+            line = ctx.line_of(code, m.start())
+            if line not in seen:
+                seen.add(line)
+                yield Hit(path, line, ctx.snippet(path, line),
+                          f"dart:math `Random()` is predictable, and this file handles `{context[0]}` values.")
 
 
 # ---------------------------------------------------------------------------- XPL-009
 
-HTTP_URL = re.compile(r"\"http://([^\"\s/?#]*)")
+HTTP_URL = re.compile(r"[\"']http://([^\"'\s/?#]*)")
+DART_URI_HTTP = re.compile(r"\bUri\s*\.\s*http\s*\(\s*[\"']([^\"'\s/?#]*)")
 SAFE_HOSTS = re.compile(
     r"^(?:localhost|127\.0\.0\.1|10\.0\.2\.2|10\.0\.3\.2|0\.0\.0\.0|\[::1\]|"
     r"(?:[\w-]+\.)*example\.(?:com|org|net)|schemas\.android\.com|schemas\.xmlsoap\.org|"
@@ -334,11 +396,15 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if scope_of(path) == "test":
             continue
         raw = ctx.text(path)
-        if raw is None or "http://" not in raw:
+        is_dart = path.endswith(".dart")
+        if raw is None or not ("http://" in raw or (is_dart and "Uri.http" in raw)):
             continue
         code = ctx.code(path, keep_strings=True) or ""
         seen: Set[int] = set()
-        for m in HTTP_URL.finditer(code):
+        matches = list(HTTP_URL.finditer(code))
+        if is_dart:
+            matches += list(DART_URI_HTTP.finditer(code))     # Uri.http('host', '/path') is plain HTTP
+        for m in sorted(matches, key=lambda m: m.start()):
             host = m.group(1)
             if not host or host.startswith(("%", "$", "\\(")) or SAFE_HOSTS.match(host):
                 continue                     # a bare scheme prefix, a placeholder, or a safe host
@@ -357,6 +423,7 @@ LOG_CALL = re.compile(
     r"(?<![\w.])(?:Log\.(?:v|d|i|w|e|wtf)|Timber\.(?:v|d|i|w|e|wtf)|System\.(?:out|err)\.print(?:ln|f)?|"
     r"println|print|debugPrint|NSLog|os_log)\s*\("
 )
+DART_LOG_CALL = re.compile(r"(?<![\w.])(?:print|debugPrint|debugPrintSynchronously|log|developer\.log)\s*\(")
 SENSITIVE_WORD = re.compile(r"(?i)token|passw(?:or)?d|passwd|secret|authorization|bearer")
 SENSITIVE_IDENT = re.compile(r"\b[A-Za-z_]\w*\b")
 INTERP = re.compile(r"\$\{([^}]*)\}|\$([A-Za-z_]\w*)|\\\(([^)]*)\)")
@@ -384,7 +451,8 @@ def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
         bare = ctx.code(path, keep_strings=False) or ""     # string contents blanked
         full = ctx.code(path, keep_strings=True) or ""      # same offsets, strings kept
         seen: Set[int] = set()
-        for m in LOG_CALL.finditer(bare):
+        log_call = DART_LOG_CALL if path.endswith(".dart") else LOG_CALL
+        for m in log_call.finditer(bare):
             open_at = m.end() - 1
             close = _close_paren(bare, open_at)
             if m.group(0).startswith("os_log") and "{public}" not in full[open_at:close]:

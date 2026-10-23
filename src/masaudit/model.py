@@ -19,7 +19,7 @@ class Rule:
 
     id: str
     title: str
-    platform: str                      # android | ios | kmp | cross | ci
+    platform: str                      # android | ios | kmp | flutter | cross | ci
     severity: str                      # base severity for the profiles in `profiles`
     profiles: List[str]                # MAS profiles this weakness belongs to: L1, L2, R, P
     why: str                           # one or two sentences: why this matters
