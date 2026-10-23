@@ -37,7 +37,7 @@ A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a decla
 | `platform` | `android`, `ios`, `kmp`, `cross`, `ci`. The rule runs only if the project has that platform. |
 | `severity` | `critical`, `high`, `medium`, `low`, `info`: the severity for an app whose profile includes this weakness. |
 | `profiles` | The MAS profiles the weakness belongs to (book §3.2): `L1` baseline, `L2` high-risk data and untrusted OS, `R` resilience, `P` privacy. If the app's profile shares none of them, the finding goes to "Not needed for your app". |
-| `app_types` | Optional allowlist of app types that need this (e.g. pinning: `["banking","fintech","health","ecommerce-cards"]`, from §8.8). Requires `not_needed_reason`. |
+| `app_types` | Optional allowlist of app types that need this (e.g. pinning: `["banking","identity","health","ecommerce-cards"]`, from §8.8). Requires `not_needed_reason`. |
 | `why`, `fix`, `verify` | Plain language for someone new to security. Short sentences, no idioms, American spelling, no "simply/just/easy". |
 | `book`, `book_url` | A real `§x.y` or `Chapter N` and its URL from `rules/_book_sections.json` (the test checks they match). |
 | `maswe`, `masvs` | Only if the book gives one. MASWE v1.0.0 IDs; `masvs` must match the MASWE's control (`rules/_maswe.json`). |

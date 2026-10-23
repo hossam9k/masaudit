@@ -10,11 +10,11 @@ inputs:
     description: Project directory to scan.
     default: "."
   app-type:
-    description: "banking, fintech, health, ecommerce-cards, ecommerce, marketplace, social, content, enterprise, game, or general."
-    default: "general"
+    description: "banking, identity, health, ecommerce-cards, ecommerce, loyalty, marketplace, social, content, device-control, enterprise, game, or general. Default: the app type saved in .masaudit.ini, else general."
+    default: ""
   fail-on:
-    description: "Fail the job on findings at or above: critical, high, medium, low, or none."
-    default: "high"
+    description: "Fail the job on findings at or above: critical, high, medium, low, or none. Default: fail_on in .masaudit.ini, else high."
+    default: ""
   upload-sarif:
     description: "Upload results to GitHub code scanning (needs `security-events: write`)."
     default: "true"
@@ -32,11 +32,17 @@ runs:
         PYTHONPATH: ${{ github.action_path }}/src
       run: |
         set +e
+        # Empty inputs defer to the repository's .masaudit.ini (the command line would override it).
+        type_args=()
+        if [ -n "$MASAUDIT_APP_TYPE" ]; then type_args=(--app-type "$MASAUDIT_APP_TYPE"); fi
         fail_args=()
-        if [ "$MASAUDIT_FAIL_ON" != "none" ]; then fail_args=(--fail-on "$MASAUDIT_FAIL_ON"); fi
-        python3 -m masaudit "$MASAUDIT_PATH" --app-type "$MASAUDIT_APP_TYPE" --format sarif --output masaudit.sarif "${fail_args[@]}"
+        if [ -z "$MASAUDIT_FAIL_ON" ] && ! grep -qsE '^[[:space:]]*fail_on[[:space:]]*=' "$MASAUDIT_PATH/.masaudit.ini"; then
+          MASAUDIT_FAIL_ON=high
+        fi
+        if [ -n "$MASAUDIT_FAIL_ON" ] && [ "$MASAUDIT_FAIL_ON" != "none" ]; then fail_args=(--fail-on "$MASAUDIT_FAIL_ON"); fi
+        python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" --format sarif --output masaudit.sarif "${fail_args[@]}"
         echo "MASAUDIT_EXIT=$?" >> "$GITHUB_ENV"
-        python3 -m masaudit "$MASAUDIT_PATH" --app-type "$MASAUDIT_APP_TYPE" --format md --output SECURITY-AUDIT.md > /dev/null
+        python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" --format md --output SECURITY-AUDIT.md > /dev/null
         exit 0
     - name: Upload to code scanning
       if: inputs.upload-sarif == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)

@@ -233,6 +233,25 @@ class ImportSarif(unittest.TestCase):
         self.assertEqual([f.rule.id for f in findings], ["CI-101", "CI-102", "CI-103", "zizmor:zizmor/obfuscation"])
         self.assertEqual(findings[0].scope, "ci")
 
+    def test_path_after_import_sarif_is_still_the_scan_root(self):
+        parser = cli.build_parser()
+        args = parser.parse_args(["--import-sarif", "lint.sarif", FIXTURES])
+        self.assertEqual(args.import_sarif, ["lint.sarif", FIXTURES])     # argparse alone gets it wrong
+        with mock.patch.object(cli, "_main", side_effect=lambda a: (a.path, a.import_sarif)):
+            self.assertEqual(cli.main(["--import-sarif", "lint.sarif", FIXTURES]), (FIXTURES, ["lint.sarif"]))
+
+    def test_every_mapping_lands_on_the_rule_it_names(self):
+        from masaudit import engine, importers
+
+        rules = engine.load_rules()
+        for ext_id, (_platform, rule_id, _title) in importers.MAPPING.items():
+            with self.subTest(ext_id=ext_id):
+                found = importers._find_rule(ext_id, rules)
+                self.assertIsNotNone(found)
+                self.assertEqual(found.id, rule_id)
+        # Lint's SetJavaScriptEnabled has no masaudit equivalent; it must not borrow AND-012's title.
+        self.assertIsNone(importers._find_rule("SetJavaScriptEnabled", rules))
+
     def test_bad_sarif_exits_2(self):
         bad = os.path.join(self.dir, "bad.sarif")
         with open(bad, "w") as fh:

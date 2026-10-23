@@ -7,7 +7,7 @@ import helpers  # noqa: F401  (sets sys.path)
 from masaudit import engine, profile
 from masaudit.model import Finding, Location, Rule
 
-PINNING_TYPES = ["banking", "fintech", "health", "ecommerce-cards"]
+PINNING_TYPES = ["banking", "identity", "health", "ecommerce-cards"]
 
 
 def make_rule(**kw):
@@ -35,6 +35,27 @@ class Profiles(unittest.TestCase):
         with self.assertRaises(ValueError):
             profile.normalize("spaceship")
 
+    def test_every_alias_names_a_real_type(self):
+        for alias, target in profile.ALIASES.items():
+            with self.subTest(alias=alias):
+                self.assertIn(target, profile.APP_TYPES)
+                self.assertNotIn(alias, profile.APP_TYPES, "an alias must not shadow a type")
+
+    def test_old_and_common_names_still_work(self):
+        # fintech was merged into banking; a saved .masaudit.ini with it keeps working.
+        for name, expected in (("fintech", "banking"), ("rewards", "loyalty"), ("coupons", "loyalty"),
+                               ("restaurant", "ecommerce"), ("password-manager", "identity"),
+                               ("smart-home", "device-control"), ("dating", "social")):
+            with self.subTest(name=name):
+                self.assertEqual(profile.normalize(name), expected)
+
+    def test_every_type_gets_privacy(self):
+        # §3.2: MAS-P is for every app that handles user-sensitive data, "general" included.
+        for key, (profiles, _desc) in profile.APP_TYPES.items():
+            with self.subTest(app_type=key):
+                self.assertIn("L1", profiles)
+                self.assertIn("P", profiles)
+
     def test_describe_states_the_source(self):
         p = profile.make("banking", "flag")
         self.assertIn("from --app-type", profile.describe(p))
@@ -47,6 +68,18 @@ class Profiles(unittest.TestCase):
         self.assertIn("payment SDK", clues[0])
         self.assertIn("app/build.gradle", clues[0])
         self.assertIn("may fit", clues[0])
+
+    def test_loyalty_and_wallet_pass_clues(self):
+        clues = profile.infer_clues({
+            "feature/loyalty/Points.kt": "class LoyaltyWallet(val pointsBalance: Int)",
+            "app/build.gradle.kts": 'implementation("com.google.android.gms:play-services-pay:16.5.0")',
+        })
+        self.assertEqual(len(clues), 2)
+        self.assertTrue(all("loyalty may fit" in c for c in clues))
+
+    def test_ordinary_words_are_not_clues(self):
+        # "pan" (gestures) and "others" (not ethers.js) used to look like card or crypto code.
+        self.assertEqual(profile.infer_clues({"a.kt": "val panGesture = 1 // pan the map; others"}), [])
 
 
 class Calibration(unittest.TestCase):

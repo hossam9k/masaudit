@@ -94,7 +94,7 @@ Rules version 1.0.0, 75 rules. Severity applies when the app's profile includes 
 
 **Verify:** Build a release APK, open an `http://` URL your app uses, and confirm the request fails with a cleartext error.
 
-**IDs:** MASWE-0026 · MASVS-NETWORK-1
+**IDs:** MASWE-0026 · MASVS-NETWORK-1 · MASTG-TEST-0235
 
 **Read more:** [book §7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
 
@@ -170,7 +170,7 @@ Rules version 1.0.0, 75 rules. Severity applies when the app's profile includes 
 
 ### AND-007: No certificate pinning (needed for high-risk apps)
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, fintech, health, ecommerce-cards
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, identity, health, ecommerce-cards
 
 **Why it matters:** Without pinning, any CA in the system trust store can issue a certificate for your server, so a rogue or hacked CA can intercept the app's traffic. Apps that move money or hold health data are worth that extra protection.
 
@@ -178,7 +178,7 @@ Rules version 1.0.0, 75 rules. Severity applies when the app's profile includes 
 
 **Verify:** Configure a wrong pin on a test build and confirm connections fail with a pin error. Then restore the real pins.
 
-**Other apps:** Pinning is for apps that handle money, health data, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8).
+**Other apps:** Pinning is for apps that handle money, health data, identity credentials, or card numbers. For other apps the book recommends strict TLS plus Certificate Transparency monitoring: pinning adds outage risk for little gain, and if you can't update the pins securely, don't pin (§8.8). Enterprise apps: trust your private CA explicitly instead (§8.8).
 
 **IDs:** MASWE-0028 · MASVS-NETWORK-2 · MASTG-TEST-0242
 
@@ -628,7 +628,7 @@ Rules version 1.0.0, 75 rules. Severity applies when the app's profile includes 
 
 ### IOS-007: No certificate pinning (needed for high-risk apps)
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, fintech, health, ecommerce-cards
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, identity, health, ecommerce-cards
 
 **Why it matters:** Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.
 
@@ -636,7 +636,7 @@ Rules version 1.0.0, 75 rules. Severity applies when the app's profile includes 
 
 **Verify:** Make the device trust a proxy CA, then confirm requests to pinned hosts fail while an unpinned host still loads through the proxy (§8.10, step 1).
 
-**Other apps:** Book §8.8: outside banking, fintech, health, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8).
+**Other apps:** Book §8.8: outside banking, health, identity, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk. Enterprise apps: trust your private CA explicitly instead (§8.8).
 
 **IDs:** MASWE-0028 · MASVS-NETWORK-2 · MASTG-TEST-0385
 

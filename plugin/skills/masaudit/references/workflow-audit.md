@@ -55,8 +55,8 @@ Reviewed by an AI assistant using the masaudit skill on <date>. Profile: <type>.
 
 | Finding | Verdict | Note |
 |---|---|---|
-| AND-005 app/src/main/AndroidManifest.xml:12 | Confirmed | Exported without a permission; handles payment intents. |
-| XPL-004 core/Crypto.kt:40 | False positive | MD5 is used for a cache key, not for security. |
+| AND-015 app/src/main/AndroidManifest.xml:12 | Confirmed | Exported without a permission; handles payment intents. |
+| XPL-007 core/Crypto.kt:40 | False positive | MD5 is used for a cache key, not for security. |
 
 ### Additional findings (not detected by the scanner)
 ...

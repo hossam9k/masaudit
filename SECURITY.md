@@ -32,4 +32,5 @@ To check that a file you downloaded came from this repository's release workflow
 gh attestation verify masaudit.pyz --repo hossam9k/masaudit
 ```
 
-Each release also includes `SHA256SUMS` and the signed provenance bundle, `masaudit.sigstore.json`.
+Each release includes `SHA256SUMS`. Releases after 0.1.1 also include the signed provenance bundle,
+`masaudit.sigstore.json`.

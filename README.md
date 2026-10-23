@@ -19,7 +19,7 @@ both the same list.
 
 | **Scan, no AI needed** | **Fix it with an AI assistant** | **Learn why** |
 |---|---|---|
-| `pipx run masaudit .` | Claude Code: `/plugin marketplace add hossam9k/masaudit` | Every rule links to the free book |
+| `uvx masaudit .` | Claude Code: `/plugin marketplace add hossam9k/masaudit` | Every rule links to the free book |
 | Offline, Python 3.9+, zero dependencies. Writes `SECURITY-AUDIT.md`. | Audits, triages, fixes one finding at a time, reviews PRs. Works in any [Agent Skills](#use-it-with-an-ai-assistant) tool. | [*Mobile Application Security: A Study Book for Engineers*](https://github.com/hossam9k/mobile-app-security) |
 
 ## See it on a real report
@@ -35,56 +35,106 @@ scanned under two profiles:
 | Full report | [sample-report-banking.md](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-banking.md) | [sample-report-news.md](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-news.md) |
 
 Each finding says **why it matters**, **how to fix it** (with paste-ready code), **how to verify the
-fix**, how long it takes, its OWASP MASWE/MASVS IDs, and the book section that explains it.
+fix**, how long it takes, its OWASP IDs (MASWE, the catalog of mobile weaknesses, and MASVS, the
+standard's controls), and the book section that explains it.
 
 ## Scan without AI
 
-```bash
-pipx run masaudit .            # or: uvx masaudit .   or: pip install masaudit
-```
-
-No pip? Download `masaudit.pyz` from the [latest release](https://github.com/hossam9k/masaudit/releases/latest)
-and run `python3 masaudit.pyz .`. It's one file, works offline, and needs nothing else.
-
-The first run asks one question, **"What kind of app is this?"**, and offers to save your answer
-in `.masaudit.ini`. In CI, or without an answer, it assumes a general app and says so.
+You need Python 3.9 or later (check with `python3 --version`). Run the scan from your project's root
+folder, or pass the folder's path. Pick one way to run it:
 
 ```bash
-masaudit . --app-type banking                  # banking, fintech, health, ecommerce-cards, ecommerce,
-                                               # marketplace, social, content (or news), enterprise, game
-masaudit . --format sarif --output masaudit.sarif
-masaudit . --fail-on high                      # exit 1 on high or critical findings
-masaudit --explain AND-004                     # what a rule checks and how to fix it, offline
-masaudit . --fix-safe                          # preview vetted safe fixes as a diff; changes nothing
+uvx masaudit .              # if you have uv: https://docs.astral.sh/uv/
+pipx run masaudit .         # if you have pipx: https://pipx.pypa.io/
+python3 masaudit.pyz .      # no installer: download masaudit.pyz from the latest release
 ```
+
+`masaudit.pyz` is one file from the [latest release](https://github.com/hossam9k/masaudit/releases/latest):
+it works offline and needs nothing else. To install the command for good, use `pipx install masaudit`.
+Plain `pip install masaudit` works inside a virtual environment.
+
+The first run asks one question, **"What kind of app is this?"**, and offers to save your answer in
+`.masaudit.ini`. If two types fit, pick the riskier one. The answer maps to OWASP's MAS profiles,
+shown in the report: **L1** is the baseline, **L2** adds protection for sensitive data, **R** resists
+tampering, and **P** covers privacy.
+
+Without an answer (in CI, for example), it assumes `general` and lists higher-risk checks as
+*Not needed*. Set `--app-type` in CI.
+
+The report, `SECURITY-AUDIT.md`, starts with a verdict and the top 3 fixes. Fix those, scan again,
+then add masaudit to CI.
+
+### Options
+
+These examples use `masaudit`. If you run it another way, type `uvx masaudit` or
+`python3 masaudit.pyz` instead.
+
+```bash
+masaudit . --app-type loyalty     # banking, identity, health, ecommerce-cards, ecommerce, loyalty,
+                                  # marketplace, social, content, device-control, enterprise, game, general
+masaudit . --format sarif --output masaudit.sarif   # SARIF: the format GitHub code scanning reads
+masaudit . --fail-on high         # exit 1 on open high or critical findings (exit 2: tool error)
+masaudit --explain AND-004        # what a rule checks and how to fix it, offline
+masaudit . --fix-safe             # preview automatic fixes as a diff; changes nothing
+```
+
+`--fix-safe` applies only fixes that can't change how a correct app behaves. Today that's one:
+removing `android:debuggable="true"` from the main manifest. Every other finding has a paste-ready
+fix in the report.
 
 ### In CI
 
+Add this file as `.github/workflows/masaudit.yml`:
+
 ```yaml
-permissions:
-  contents: read
-  security-events: write          # to show results in GitHub code scanning
-steps:
-  - uses: actions/checkout@<commit-sha>  # pin every action to a full commit SHA
-    with:
-      persist-credentials: false
-  - uses: hossam9k/masaudit@<commit-sha> # v0.1.1
-    with:
-      app-type: banking
-      fail-on: high
+name: masaudit
+on: [push, pull_request]
+permissions: {}
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write          # to show results in GitHub code scanning
+    steps:
+      - uses: actions/checkout@<commit-sha>
+        with:
+          persist-credentials: false
+      - uses: hossam9k/masaudit@<commit-sha> # v0.2.0
+        with:
+          app-type: banking
+          fail-on: high
 ```
 
-The Action runs from its own pinned source: no download, no network. Results appear in the
-Security tab. A [pre-commit hook](https://github.com/hossam9k/masaudit/blob/main/.pre-commit-hooks.yaml) is available too.
+Replace each `<commit-sha>` with the full 40-character commit ID of the release you want: open the
+action's Releases page, click the tag, and copy the commit ID. A tag can be moved to other code; a
+commit ID can't. Dependabot keeps the IDs current.
+
+The Action runs from its own pinned source, with no download and no network. Results appear in the
+repository's Security tab. Pull requests from forks skip the upload.
+
+To scan before every commit, add this to `.pre-commit-config.yaml` ([pre-commit](https://pre-commit.com/)):
+
+```yaml
+repos:
+  - repo: https://github.com/hossam9k/masaudit
+    rev: v0.2.0
+    hooks:
+      - id: masaudit
+        args: [--app-type, banking]
+```
 
 ### Team features
 
-- **Suppress with a reason:** `// masaudit:ignore AND-015 internal activity, reachable only via signature permission`
-  on the line or the line above. A suppression without a reason is ignored and reported.
-- **Baselines for older apps:** `masaudit . --update-baseline`, then `--baseline .masaudit-baseline.json`
-  fails CI only on *new* findings.
-- **Bring your other tools:** `--import-sarif lint.sarif mobsfscan.sarif` calibrates Android Lint,
-  mobsfscan, Semgrep, and zizmor results by the same profile.
+- **Suppress a finding, with a reason.** Put a comment on the line or the line above. In Kotlin, Java,
+  or Swift: `// masaudit:ignore AND-004 test server only, never in release`. In XML:
+  `<!-- masaudit:ignore AND-015 reachable only with our signature permission -->`. A suppression
+  without a reason is ignored and reported.
+- **Accept today's findings in an older app.** `masaudit . --update-baseline` saves the current
+  findings to `.masaudit-baseline.json`. Later runs with `--baseline .masaudit-baseline.json` show
+  them as *Accepted* and fail only on new ones.
+- **Bring your other tools.** `--import-sarif lint.sarif mobsfscan.sarif` sorts Android Lint,
+  mobsfscan, Semgrep, and zizmor results by the same app type.
 
 ## Use it with an AI assistant
 

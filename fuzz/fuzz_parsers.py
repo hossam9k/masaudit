@@ -75,7 +75,7 @@ def _mutate(rng: random.Random, data: bytes, pool) -> bytes:
     return bytes(b[:200_000])
 
 
-def smoke(runs: int, seed: int = 0) -> int:
+def smoke(runs: int, seed: int = 0, quiet: bool = False) -> int:
     """Mutate the test fixtures `runs` times. Returns 1 on the first failing input."""
     rng = random.Random(seed)
     pool = list(_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fixtures")))
@@ -93,7 +93,8 @@ def smoke(runs: int, seed: int = 0) -> int:
         if time.monotonic() - start > 2:
             print(f"Slow input {n} ({len(data)} bytes)", file=sys.stderr)
             return 1
-    print(f"{runs} inputs, no crashes")
+    if not quiet:
+        print(f"{runs} inputs, no crashes")
     return 0
 
 

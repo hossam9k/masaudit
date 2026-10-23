@@ -28,25 +28,27 @@ class SarifImportError(Exception):
     pass
 
 
-# external id (lowercase) -> (platform, explicit masaudit id or None, title regex fallback)
+# external id (lowercase) -> (platform, masaudit id, title regex fallback)
+# Every entry names its rule explicitly: a title regex alone once matched "backup" to the backup-pin
+# rule. Tool checks with no masaudit equivalent (e.g. Lint's SetJavaScriptEnabled) stay unmapped and
+# are imported as the tool's own finding.
 MAPPING: Dict[str, Tuple[str, Optional[str], str]] = {
     # Android Lint
-    "trustallx509trustmanager": ("android", None, r"trust ?manager|trusts? (all|every|any)|certificate (check|validation)"),
-    "badhostnameverifier": ("android", None, r"hostname"),
-    "setjavascriptenabled": ("android", None, r"javascript"),
+    "trustallx509trustmanager": ("android", "AND-005", r"trust ?manager"),
+    "badhostnameverifier": ("android", "AND-005", r"hostname"),
     "hardcodeddebugmode": ("android", "AND-002", r"debuggable"),
-    "mutableimplicitpendingintent": ("android", None, r"pending ?intent"),
-    "exportedcontentprovider": ("android", None, r"content provider|provider.*export|export.*provider"),
-    "exportedservice": ("android", None, r"service.*export|export.*service"),
-    "allowbackup": ("android", None, r"backup"),
+    "mutableimplicitpendingintent": ("android", "AND-018", r"pending ?intent"),
+    "exportedcontentprovider": ("android", "AND-015", r"exported component"),
+    "exportedservice": ("android", "AND-015", r"exported component"),
+    "allowbackup": ("android", "AND-021", r"^backup is on"),
     "insecurebaseconfiguration": ("android", "AND-001", r"cleartext|plain http"),
-    "unsafeintentlaunch": ("android", None, r"intent (redirect|launch|forward)|unsafe intent"),
+    "unsafeintentlaunch": ("android", "AND-017", r"intent it received"),
     # zizmor
-    "unpinned-uses": ("ci", None, r"pinned|commit sha"),
-    "excessive-permissions": ("ci", None, r"permission"),
-    "artipacked": ("ci", None, r"persist-credentials|credentials? (left|persist)|checkout.*token|token on disk"),
-    "template-injection": ("ci", None, r"inject|pasted into|run script"),
-    "dangerous-triggers": ("ci", None, r"pull_request_target|workflow_run|dangerous trigger"),
+    "unpinned-uses": ("ci", "CI-001", r"commit sha"),
+    "excessive-permissions": ("ci", "CI-002", r"token permissions"),
+    "artipacked": ("ci", "CI-005", r"token on disk"),
+    "template-injection": ("ci", "CI-004", r"pasted into a run script"),
+    "dangerous-triggers": ("ci", "CI-003", r"pull_request_target"),
 }
 
 LEVEL_SEVERITY = {"error": "high", "warning": "medium", "note": "low", "none": "info"}

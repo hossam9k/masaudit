@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
 from typing import List, Optional
 
@@ -72,16 +73,50 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
     for n in notes:
         lines.append(f"Note: {n}")
     if result.project.unknowns:
-        lines.append(f"Couldn't decide {len(result.project.unknowns)} thing(s); see Residual risk in the report.")
+        n = len(result.project.unknowns)
+        lines.append(f"Couldn't decide {n} {'thing' if n == 1 else 'things'}; see Residual risk in the report.")
     lines.append("")
     if report_path:
         lines.append(f"Report: {report_path}")
-        lines.append(f"Next: open {os.path.basename(report_path)}, or run `masaudit --fix-safe` "
-                     "to preview safe fixes (changes nothing).")
+        lines.append(_next_step(result, report_path))
     else:
-        lines.append("Next: run `masaudit` to write SECURITY-AUDIT.md, or `masaudit --fix-safe` "
-                     "to preview safe fixes (changes nothing).")
+        lines.append(_next_step(result, None))
     return asciify("\n".join(lines)) + "\n"
+
+
+def invocation() -> str:
+    """The command that runs masaudit again the way the user just did (uvx, pipx, a .pyz, or installed)."""
+    argv0 = sys.argv[0] if sys.argv else ""
+    base = os.path.basename(argv0)
+    if base.endswith(".pyz"):
+        return f'python3 "{argv0}"' if " " in argv0 else f"python3 {argv0}"
+    if base == "__main__.py":
+        return "python3 -m masaudit"
+    on_path = shutil.which("masaudit")
+    if on_path and argv0 and os.path.realpath(on_path) == os.path.realpath(argv0):
+        return "masaudit"
+    where = argv0.replace("\\", "/").lower()
+    if "pipx" in where:
+        return "pipx run masaudit"
+    if "/uv/" in where or "archive-v0" in where:
+        return "uvx masaudit"
+    return "masaudit"
+
+
+def _next_step(result, report_path: Optional[str]) -> str:
+    cmd = invocation()
+    root = getattr(result, "root", None) or "."
+    try:
+        root = os.path.relpath(root)
+    except ValueError:              # Windows: the scan root is on another drive
+        pass
+    target = "" if root == "." else (f' "{root}"' if " " in root else f" {root}")
+    safe = any(f.rule.safe_fix and f.bucket in ("fix-before-release", "fix-soon") for f in result.findings)
+    preview = f"`{cmd}{target} --fix-safe` previews the safe fixes (changes nothing)" if safe else ""
+    if report_path:
+        start = "start with Top fixes" if top_fixes(result.findings) else "read Residual risk"
+        return f"Next: open {os.path.basename(report_path)} and {start}." + (f" {preview[0].upper()}{preview[1:]}." if preview else "")
+    return f"Next: run `{cmd}{target}` to write SECURITY-AUDIT.md." + (f" {preview[0].upper()}{preview[1:]}." if preview else "")
 
 
 def explain(rule: Rule) -> str:
@@ -103,7 +138,7 @@ def explain(rule: Rule) -> str:
         lines.append(f"IDs: {', '.join(ids)}")
     lines.append(f"Book: {rule.book} {rule.book_url}".rstrip())
     if rule.safe_fix:
-        lines.append("Safe fix: yes (masaudit --fix-safe)")
+        lines.append(f"Safe fix: yes ({invocation()} --fix-safe)")
     if rule.retired:
         lines.append("This rule is retired.")
     return asciify("\n".join(lines)) + "\n"
