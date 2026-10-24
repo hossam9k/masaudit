@@ -18,7 +18,7 @@ These numbers are for masaudit 0.4.0, measured in October 2026.
 3. **Independent review:** reviewers who didn't write the rules opened every open finding in shipping
    code in its real source file and judged it: a real weakness, real but rated too high, or false.
    "Not found anywhere" rules count only when a search confirms the protection is absent.
-   CI rules were sampled (145 findings across all 8 rules).
+   CI rules were sampled (145 findings across the 7 CI rules that fired).
 4. **Fix, then re-check:** every false positive was fixed in the detector, with a test fixture that must
    stay quiet, and the corpus was scanned again to confirm it was gone and no real finding was lost.
 

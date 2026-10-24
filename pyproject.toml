@@ -32,6 +32,10 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/hossam9k/masaudit"
+Documentation = "https://github.com/hossam9k/masaudit/blob/main/docs/README.md"
+Source = "https://github.com/hossam9k/masaudit"
+Issues = "https://github.com/hossam9k/masaudit/issues"
+Changelog = "https://github.com/hossam9k/masaudit/blob/main/CHANGELOG.md"
 Book = "https://github.com/hossam9k/mobile-app-security"
 Sponsor = "https://github.com/sponsors/hossam9k"
 

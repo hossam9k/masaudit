@@ -15,8 +15,8 @@ way, type `uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in plac
 | Option | What it does |
 |---|---|
 | `--app-type TYPE` | The app type. See [Choose your app type](app-type.md) for the list. |
-| `--format md\|json\|sarif\|text` | Output format. Without it, masaudit prints a summary and writes `SECURITY-AUDIT.md`. |
-| `--output FILE` | Write the report to this file instead of the default. |
+| `--format md\|json\|sarif\|text` | Output format. Without it, masaudit prints a summary and writes `SECURITY-AUDIT.md` in the scanned folder. |
+| `--output FILE` | Write the report to this file instead of the default. A relative path is relative to the current folder. |
 | `--fail-on critical\|high\|medium\|low` | Exit with code 1 if an open finding to fix is at or above this severity. Default: `fail_on` in `.masaudit.ini`; if neither is set, findings never change the exit code. |
 | `--import-sarif FILE [FILE ...]` | Add results from Android Lint, mobsfscan, Semgrep, or zizmor SARIF files. |
 | `--sarif-include-not-needed` | With `--format sarif`: include *Not needed* findings, as notes. |
@@ -26,8 +26,8 @@ way, type `uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in plac
 
 | Option | What it does |
 |---|---|
-| `--update-baseline` | Write the current findings to the baseline file (default `.masaudit-baseline.json`). |
-| `--baseline FILE` | Treat findings listed in this baseline as accepted. A relative path is relative to the current folder. |
+| `--update-baseline` | Write the current findings to the baseline file: the `--baseline` file if you give one, else `.masaudit-baseline.json` in the scanned folder. |
+| `--baseline FILE` | Treat findings listed in this baseline as accepted. A relative path is relative to the current folder, not the scanned folder. A missing file is an error (exit code 2). |
 
 ## Safe fixes
 
@@ -35,7 +35,7 @@ way, type `uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in plac
 |---|---|
 | `--fix-safe` | Print a diff of the safe fixes. Changes nothing, and exits 0. |
 | `--write-patch [FILE]` | With `--fix-safe`: also save the diff (default `masaudit-fixes.patch`). |
-| `--yes` | With `--fix-safe`: apply the fixes in place. Needs a clean git tree. |
+| `--yes` | With `--fix-safe`: apply the fixes in place. Needs a clean git tree; untracked files, including `SECURITY-AUDIT.md`, count as changes. Refuses if the repository's own `.git/config` sets a filter or diff command, because `git status` would run it. |
 
 ## Rules and version
 
@@ -64,6 +64,6 @@ the [config file reference](config.md).
 | Variable | Effect |
 |---|---|
 | `NO_COLOR`, or `TERM=dumb` | No colors in terminal output, like `--no-color`. |
-| `CI` | Never ask the first-run question. Without an app type, masaudit uses `general` and says so. |
+| `CI` | Set to any value, even `false`: never ask the first-run question. masaudit also skips the question when standard input isn't a terminal. Without an app type, it uses `general` and says so. |
 | `GITHUB_ACTIONS=true` | Also print "Check your app type" as a GitHub Actions annotation. |
 | `SOURCE_DATE_EPOCH` | Use this date, in seconds since 1970, as the report date, for reproducible reports. |

@@ -7,13 +7,13 @@ branding:
 
 inputs:
   path:
-    description: Project directory to scan.
+    description: Project folder to scan.
     default: "."
   app-type:
     description: "banking, identity, health, ecommerce-cards, ecommerce, loyalty, marketplace, social, content, device-control, enterprise, game, or general. Default: the app type saved in .masaudit.ini, else general."
     default: ""
   fail-on:
-    description: "Fail the job on findings at or above: critical, high, medium, low, or none. Default: fail_on in .masaudit.ini, else high."
+    description: "Fail the job on findings at or above: critical, high, medium, low, or none. Default: fail_on in .masaudit.ini, else high. none never fails on findings."
     default: ""
   baseline:
     description: "Baseline file from `masaudit --update-baseline`, relative to the repository root. Findings in it are accepted and don't fail the job."
@@ -21,12 +21,16 @@ inputs:
   upload-sarif:
     description: "Upload results to GitHub code scanning (needs `security-events: write`)."
     default: "true"
+  category:
+    description: "Code-scanning category. Use a different one for each `path` you scan in the same repository."
+    default: "masaudit"
 
 runs:
   using: composite
   steps:
     # The scanner runs from this action's own pinned source: no download, no network.
     - name: Scan
+      id: scan
       shell: bash
       env:
         MASAUDIT_PATH: ${{ inputs.path }}
@@ -41,22 +45,53 @@ runs:
         if [ -n "$MASAUDIT_APP_TYPE" ]; then type_args=(--app-type "$MASAUDIT_APP_TYPE"); fi
         baseline_args=()
         if [ -n "$MASAUDIT_BASELINE" ]; then baseline_args=(--baseline "$MASAUDIT_BASELINE"); fi
-        fail_args=()
-        if [ -z "$MASAUDIT_FAIL_ON" ] && ! grep -qsE '^[[:space:]]*fail_on[[:space:]]*=' "$MASAUDIT_PATH/.masaudit.ini"; then
-          MASAUDIT_FAIL_ON=high
+        if [ -z "$MASAUDIT_FAIL_ON" ]; then
+          # Read fail_on the way masaudit does; an invalid file fails the scan below with a clear message.
+          MASAUDIT_FAIL_ON=$(python3 -c 'import sys; from masaudit import config; print(config.load(sys.argv[1])["fail_on"] or "high")' "$MASAUDIT_PATH" 2>/dev/null || echo high)
         fi
-        if [ -n "$MASAUDIT_FAIL_ON" ] && [ "$MASAUDIT_FAIL_ON" != "none" ]; then fail_args=(--fail-on "$MASAUDIT_FAIL_ON"); fi
-        python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" --format sarif --output masaudit.sarif "${baseline_args[@]}" "${fail_args[@]}"
-        echo "MASAUDIT_EXIT=$?" >> "$GITHUB_ENV"
+        fail_args=()
+        if [ "$MASAUDIT_FAIL_ON" != "none" ]; then fail_args=(--fail-on "$MASAUDIT_FAIL_ON"); fi
+        python3 -m masaudit "${type_args[@]}" "${baseline_args[@]}" "${fail_args[@]}" \
+          --format sarif --output masaudit.sarif -- "$MASAUDIT_PATH"
+        rc=$?
+        # `none` never fails on findings, even when .masaudit.ini sets fail_on.
+        if [ "$MASAUDIT_FAIL_ON" = "none" ] && [ "$rc" = "1" ]; then rc=0; fi
+        if [ "$rc" -ge 2 ]; then
+          echo "::error title=masaudit::The scan failed (exit code $rc). See the message above."
+          exit "$rc"
+        fi
+        # SARIF paths are relative to the scanned folder; code scanning resolves them from the checkout.
+        python3 - "$MASAUDIT_PATH" masaudit.sarif <<'PY'
+        import json, os, sys
+        prefix = os.path.relpath(os.path.abspath(sys.argv[1]), os.getcwd()).replace(os.sep, "/")
+        if prefix != "." and not prefix.startswith(".."):
+            with open(sys.argv[2], encoding="utf-8") as fh:
+                doc = json.load(fh)
+            for run in doc["runs"]:
+                locations = [loc for res in run.get("results", []) for loc in res.get("locations", [])]
+                locations += [loc for inv in run.get("invocations", [])
+                              for note in inv.get("toolConfigurationNotifications", [])
+                              for loc in note.get("locations", [])]
+                for loc in locations:
+                    art = loc.get("physicalLocation", {}).get("artifactLocation", {})
+                    if "uri" in art:
+                        art["uri"] = prefix + "/" + art["uri"]
+            with open(sys.argv[2], "w", encoding="utf-8") as fh:
+                json.dump(doc, fh, indent=2)
+        PY
+        echo "exit-code=$rc" >> "$GITHUB_OUTPUT"
         # The first run already posted any annotations; this one only writes the Markdown report.
-        GITHUB_ACTIONS=false python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" "${baseline_args[@]}" --format md --output SECURITY-AUDIT.md > /dev/null 2>&1
+        GITHUB_ACTIONS=false python3 -m masaudit "${type_args[@]}" "${baseline_args[@]}" \
+          --format md --output SECURITY-AUDIT.md -- "$MASAUDIT_PATH" > /dev/null 2>&1
         exit 0
     - name: Upload to code scanning
       if: inputs.upload-sarif == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
       uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
       with:
         sarif_file: masaudit.sarif
-        category: masaudit
+        category: ${{ inputs.category }}
     - name: Fail on findings
       shell: bash
+      env:
+        MASAUDIT_EXIT: ${{ steps.scan.outputs.exit-code }}
       run: exit "${MASAUDIT_EXIT:-0}"

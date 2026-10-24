@@ -35,7 +35,8 @@ only to listed app types.
 1. **Does your app need it?** If none of the rule's profiles is in your app type, or the rule is
    limited to other app types, the finding goes to **Not needed for your app**, with the reason. It is
    never dropped, so you can disagree.
-2. **How severe is it here?** The rule's severity is the starting point. A finding in code that
+2. **How severe is it here?** The rule's severity is the starting point (a detector can rate one hit
+   higher or lower, and the finding says why). A finding in code that
    usually doesn't ship is lowered: two levels in debug code, four in tests. A finding your team
    already marked as intentional for another tool, such as Android Lint's `tools:ignore`, is lowered
    one level and shows that decision.
@@ -65,9 +66,11 @@ Code rules run after comments are removed, so a comment never triggers a finding
   `Carthage`, `node_modules`, `.dart_tool`, `.build`, `.swiftpm`, `xcuserdata`, version-control and
   IDE folders, and Python virtual environments. A source folder with one of these names is skipped
   too. To skip more, use `exclude` in the [config file](config.md).
-- **Skipped files:** files over 2 MiB (16 MiB for `project.pbxproj`), hard links, and symbolic links
-  that point outside the folder.
-- **Where it runs:** CI tests it on Linux, macOS, and Windows, with Python 3.9 to 3.14.
+- **Skipped files:** files over 2 MiB (16 MiB for `project.pbxproj`), hard links, symbolic links to
+  folders, symbolic links to files outside the folder, and anything that isn't a regular file, such
+  as a FIFO. A scan reads at most 200,000 files; in a
+  larger repository, scan each app's folder separately.
+- **Where it runs:** see [Install and upgrade](install.md).
 
 It can't see your server, how the app behaves at runtime, or your business logic, which is where many
 breaches happen. Every report has a *Residual risk* section for that reason.

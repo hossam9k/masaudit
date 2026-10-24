@@ -14,8 +14,10 @@ masaudit . --app-type TYPE --format md --output SECURITY-AUDIT.md
 
 (or `python3 <skill-folder>/scripts/masaudit.pyz ...` with the same arguments)
 
-Read `masaudit.json`: each finding has `rule_id`, `path`, `line`, `severity`, `bucket`
-(`fix-before-release`, `fix-soon`, `notes`, `not-needed`), `confidence`, and the rule's `why`/`fix`.
+Read `masaudit.json`: each finding has `rule_id`, `path`, `line`, `effective_severity` (for this app
+type and file; `severity` is the rule's default), `bucket` (`fix-before-release`, `fix-soon`,
+`notes`, `not-needed`), `status` (`open`, `suppressed`, `baselined`), `confidence`, and the rule's
+`why`/`fix`.
 `unknowns` lists things the scanner couldn't decide.
 
 If other tools already ran (Android Lint, mobsfscan, Semgrep, zizmor), pass their SARIF with
@@ -23,7 +25,8 @@ If other tools already ran (Android Lint, mobsfscan, Semgrep, zizmor), pass thei
 
 ## 2. Triage, most severe first
 
-For each finding in `fix-before-release` and `fix-soon`:
+For each finding with `status: open` in `fix-before-release` and `fix-soon`, most severe
+`effective_severity` first:
 
 1. Open the file at the line. Read enough around it to understand the context.
 2. Decide: **confirmed** (the risk is real here), **false positive** (explain why in one line), or

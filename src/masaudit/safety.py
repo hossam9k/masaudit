@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 from typing import Iterator, List, Optional
 
 MAX_FILE_BYTES = 2 * 1024 * 1024        # 2 MiB: source and config files are far smaller
@@ -61,6 +62,8 @@ def walk(root: str) -> List[str]:
                 continue
             if _is_hard_link(full):
                 continue        # a hard link can point at any file on the same disk
+            if not _is_regular(full):
+                continue        # a FIFO or device would hang the scan
             suffix = os.path.splitext(name)[1]
             if suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES:
                 continue
@@ -80,14 +83,21 @@ def _is_hard_link(full: str) -> bool:
         st = os.stat(full, follow_symlinks=False)
     except OSError:
         return True
-    import stat as _stat
-    return _stat.S_ISREG(st.st_mode) and st.st_nlink > 1
+    return stat.S_ISREG(st.st_mode) and st.st_nlink > 1
+
+
+def _is_regular(full: str) -> bool:
+    """A regular file (after following a symlink). A FIFO or device would block or never end a read."""
+    try:
+        return stat.S_ISREG(os.stat(full).st_mode)
+    except OSError:
+        return False
 
 
 def read_text(root: str, rel: str) -> Optional[str]:
     """Read a text file, tolerating BOMs and UTF-16 (.strings files). None if binary/unreadable."""
     full = os.path.join(root, rel)
-    if not is_within(root, full) or _is_hard_link(full):
+    if not is_within(root, full) or _is_hard_link(full) or not _is_regular(full):
         return None
     try:
         with open(full, "rb") as fh:
@@ -113,7 +123,7 @@ def read_text(root: str, rel: str) -> Optional[str]:
 
 def read_bytes(root: str, rel: str) -> Optional[bytes]:
     full = os.path.join(root, rel)
-    if not is_within(root, full) or _is_hard_link(full):
+    if not is_within(root, full) or _is_hard_link(full) or not _is_regular(full):
         return None
     try:
         if os.path.getsize(full) > max_bytes(full):

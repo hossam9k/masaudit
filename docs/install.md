@@ -13,7 +13,7 @@ it on Linux, macOS, and Windows with Python 3.9 to 3.14.
 | pipx, no install | `pipx run masaudit .` | `pipx run --no-cache masaudit .` | Needs [pipx](https://pipx.pypa.io/). Reuses a cached copy for a few days. |
 | pipx, installed | `pipx install masaudit`, then `masaudit .` | `pipx upgrade masaudit` | Keeps the `masaudit` command on your PATH. |
 | pip | `pip install masaudit` | `pip install --upgrade masaudit` | Use it inside a virtual environment. |
-| Single file | `python3 ~/Downloads/masaudit.pyz .` | Download the new file | Works offline. On Windows, run `py masaudit.pyz .`. |
+| Single file | `python3 ~/Downloads/masaudit.pyz .` | Download the new file | Works offline. On Windows (PowerShell): `py $HOME\Downloads\masaudit.pyz .` |
 
 The single file, `masaudit.pyz`, is on the
 [latest release](https://github.com/hossam9k/masaudit/releases/latest) page. Keep it outside your

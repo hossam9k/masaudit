@@ -3,6 +3,37 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.4.3 — 2026-10-24
+
+From an independent audit before launch (newcomer walkthrough, docs against code, production
+readiness).
+
+- **GitHub Action:**
+  - Paths in code scanning and annotations are now relative to the repository root when `path` is a
+    subfolder. Before, alerts in a monorepo pointed at files that don't exist.
+  - New `category` input (default `masaudit`). SARIF no longer sets `automationDetails`, whose ID
+    changed with the detected platforms and overrode the upload category. Alerts from 0.4.2 and
+    earlier were filed under `masaudit/<platforms>`; close them once, after your first 0.4.3 scan.
+  - `fail-on: none` never fails on findings, even when `.masaudit.ini` sets `fail_on`.
+  - `fail_on` is read by masaudit itself, so `FAIL_ON = low` or an empty value behaves as it does
+    locally.
+  - A tool error (exit code 2) fails the scan step with an error annotation, instead of a later,
+    unrelated upload error.
+- **Safety:**
+  - A FIFO or device file in the scanned folder can no longer hang the scan.
+  - `--fix-safe --yes` refuses to run `git status` when the folder's own `.git/config` sets a filter
+    or diff command, which git would run.
+- **Fixes:** `--explain AND-002` says the safe fix applies to `AndroidManifest.xml` only; the `.pyz`
+  hint says `py` on Windows; `--help` says baselined findings are accepted, not ignored.
+- **Docs:** the README and the tutorial show the paths without AI and with AI side by side; the
+  tutorial explains the clue and what to do when the question doesn't appear; Windows `.pyz`
+  commands use the full path; many corrections from checking every claim against the code.
+- **Release:** the release fails if the tag doesn't match the version; the GitHub release waits for
+  the approved PyPI upload; the release `.pyz` is byte-identical to the skill's bundled copy;
+  setuptools 84.1.0 for the build (GHSA-xmj3-9gf7-h52w); Dependabot watches the pinned Python tools.
+- **Packaging:** the full CC BY-SA 4.0 legal text, the license expression in the plugin and
+  citation, and documentation, source, issue, and changelog links on PyPI.
+
 ## 0.4.2 — 2026-10-24
 
 - **Documentation reorganized** by what you need: a tutorial on the demo app, how-to guides (app

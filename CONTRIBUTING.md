@@ -3,7 +3,7 @@
 Thanks for helping. The most useful contributions, in order:
 
 1. **False-positive reports.** Use the [false-positive form](https://github.com/hossam9k/masaudit/issues/new?template=false-positive.yml).
-   A rule that cries wolf gets ignored, so precision matters more than coverage.
+   A rule that raises false alarms gets ignored, so precision matters more than coverage.
 2. **New rules.** Each rule is a JSON entry, a detector or pattern, and a fixture. It takes about 30 minutes.
 3. **Better wording.** Every message is read by people new to security. Clearer is better.
 

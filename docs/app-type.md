@@ -78,3 +78,8 @@ The warning appears only when the suggested type would run more checks. A paymen
 stays a quiet clue, because both types run the same checks. You see the warning in the terminal, at
 the top of the report, in JSON and SARIF, as an annotation on GitHub Actions runs, and during the
 first-run question, which offers to switch.
+
+## Next steps
+
+- **Read the results for your app type:** [Read and fix the report](fixing.md).
+- **Use the same type everywhere:** [Use masaudit in CI](ci.md).

@@ -185,6 +185,16 @@ class Outputs(unittest.TestCase):
         self.assertIn("::warning file=app/src/main/java/a/Checkout.kt,title=masaudit - check your app type::",
                       err.getvalue())
 
+    def test_annotation_paths_are_relative_to_the_checkout(self):
+        # The Action may scan a subfolder; GitHub resolves annotation paths from the checkout root.
+        err = io.StringIO()
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_WORKSPACE": os.path.dirname(self.root)}
+        with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(err):
+            cli.main([self.root, "--app-type", "news", "--format", "json"])
+        self.assertIn(f"::warning file={os.path.basename(self.root)}/app/src/main/java/a/Checkout.kt,",
+                      err.getvalue())
+
     def test_annotation_properties_are_escaped(self):
         self.assertEqual(cli._gh_escape("a:b,c%\nd", True), "a%3Ab%2Cc%25%0Ad")
 

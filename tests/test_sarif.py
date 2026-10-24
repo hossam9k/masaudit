@@ -34,7 +34,9 @@ def validate(test, doc):
         test.assertTrue(r["help"]["text"] and r["help"]["markdown"])
         test.assertIn("security", r["properties"]["tags"])
         test.assertGreater(float(r["properties"]["security-severity"]), 0)
-    test.assertTrue(run["automationDetails"]["id"].startswith("masaudit/"))
+    # No automationDetails: the category comes from the upload (the Action's `category` input), so it
+    # doesn't change when a new platform folder appears and strand the old alerts.
+    test.assertNotIn("automationDetails", run)
     for res in run["results"]:
         test.assertIn(res["ruleId"], ids)
         test.assertEqual(ids[res["ruleIndex"]], res["ruleId"])
@@ -78,7 +80,6 @@ class Sarif(unittest.TestCase):
         hits = [r for r in run["results"] if r["ruleId"] == "AND-001"]
         self.assertEqual(len(hits), 2)
         self.assertTrue(all(r["level"] == "error" for r in hits))
-        self.assertEqual(run["automationDetails"]["id"], "masaudit/android")
         uris = {r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in hits}
         self.assertIn("app/src/main/AndroidManifest.xml", uris)
 

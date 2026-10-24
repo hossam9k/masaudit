@@ -151,7 +151,7 @@ case ([§8.8]). Card-number fields mean the app handles cards itself, which is t
 **When a clue matters, masaudit says so.** If the suggested type needs checks the chosen type skips,
 the report opens with "Check your app type", naming the evidence, the type, how many checks it adds,
 and which findings it hid under *Not needed*. The same warning goes to the terminal, JSON
-(`profile.warnings`), SARIF (`toolExecutionNotifications`), and a GitHub Actions annotation. Evidence
+(`profile.warnings`), SARIF (`toolConfigurationNotifications`), and a GitHub Actions annotation. Evidence
 that changes nothing stays a quiet clue: a payment SDK in a news app runs the same checks.
 
 ## When the user's answer conflicts with the code

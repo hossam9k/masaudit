@@ -53,6 +53,15 @@ class Safety(unittest.TestCase):
         self.assertIsNone(xmlsafe.parse(late))
         self.assertIsNotNone(xmlsafe.parse("<manifest><application/></manifest>"))
 
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs FIFOs")
+    def test_fifo_is_not_read(self):
+        # Reading a FIFO blocks forever; a tarball or shared folder can contain one.
+        os.mkfifo(os.path.join(self.root, "pipe.kt"))
+        os.symlink("pipe.kt", os.path.join(self.root, "Link.kt"))
+        self.assertEqual(safety.walk(self.root), [])
+        self.assertIsNone(safety.read_text(self.root, "pipe.kt"))
+        self.assertIsNone(safety.read_bytes(self.root, "Link.kt"))
+
     def test_large_file_is_skipped(self):
         big = os.path.join(self.root, "big.xml")
         with open(big, "wb") as fh:

@@ -15,6 +15,8 @@ Install the plugin once:
 /plugin install masaudit@masaudit
 ```
 
+If the `/masaudit:` commands don't appear, restart Claude Code.
+
 Then use a command, or ask in your own words, for example *"Is my app ready for a pentest?"*
 
 | Command | What it does |
@@ -26,9 +28,17 @@ Then use a command, or ask in your own words, for example *"Is my app ready for 
 
 ## Codex, GitHub Copilot, Cursor, Gemini CLI, and other tools
 
-Any tool that reads [Agent Skills](https://agentskills.io) can use masaudit. Copy
-[`plugin/skills/masaudit/`](https://github.com/hossam9k/masaudit/tree/main/plugin/skills/masaudit)
-into your tool's skills folder. The skill bundles the scanner, so it works offline.
+Any tool that reads [Agent Skills](https://agentskills.io) can use masaudit. Copy the
+[skill folder](https://github.com/hossam9k/masaudit/tree/main/plugin/skills/masaudit) into your
+tool's skills folder (your tool's documentation says where that is):
+
+```bash
+git clone --depth 1 https://github.com/hossam9k/masaudit
+cp -R masaudit/plugin/skills/masaudit <your tool's skills folder>/
+```
+
+The skill bundles the scanner (`scripts/masaudit.pyz`), so it works offline. It needs Python 3.9 or
+later.
 
 ## Any chat assistant
 
@@ -47,3 +57,8 @@ by text in your code. Review every change it suggests before you apply it.
 - **Never commits** and never pushes. You review every change.
 - **Respects your app type.** If the code suggests a riskier one, it says why and asks; it doesn't
   switch on its own.
+
+## Next steps
+
+- **Read the report yourself:** [Read and fix the report](fixing.md).
+- **What a scanner can't see:** [How masaudit works](how-it-works.md#what-masaudit-reads-and-what-it-doesnt).

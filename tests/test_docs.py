@@ -58,7 +58,12 @@ class ReadmeNumbers(unittest.TestCase):
         self.assertEqual([t[1] for t in table.values()], rows["news"])
 
     def test_versions(self):
-        for rel in ("README.md", "docs/ci.md"):
+        for rel, pattern in (("plugin/.claude-plugin/plugin.json", r'"version": "([^"]+)"'),
+                             ("plugin/skills/masaudit/SKILL.md", r'version: "([^"]+)"'),
+                             ("CITATION.cff", r"^version: (\S+)")):
+            with self.subTest(file=rel):
+                self.assertEqual(re.search(pattern, read(rel), re.M).group(1), __version__)
+        for rel in ("README.md", "docs/ci.md", "docs/team.md"):
             text = read(rel)
             for found in re.findall(r"(?:# v|rev: v|masaudit )(\d+\.\d+\.\d+)", text):
                 with self.subTest(file=rel):

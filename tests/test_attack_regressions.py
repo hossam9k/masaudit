@@ -85,6 +85,21 @@ class AttackRegressions(unittest.TestCase):
         cli._git_clean(self.tmp)
         self.assertFalse(os.path.exists(marker), "git status ran a hook from the scanned repo")
 
+    @unittest.skipUnless(shutil.which("git") and sys.platform != "win32", "needs git and a POSIX shell")
+    def test_git_status_does_not_run_repo_filters(self):
+        # A folder that ships its own .git/config could run a clean filter on `git status`.
+        git = shutil.which("git")
+        env = {**os.environ, "GIT_CONFIG_NOSYSTEM": "1"}
+        subprocess.run([git, "init", "-q"], cwd=self.tmp, check=True, env=env)
+        marker = os.path.join(self.tmp, "PWNED")
+        subprocess.run([git, "config", "filter.evil.clean", f"sh -c 'touch {marker}; cat'"],
+                       cwd=self.tmp, check=True, env=env)
+        with open(os.path.join(self.tmp, ".gitattributes"), "w") as fh:
+            fh.write("* filter=evil\n")
+        reason = cli._git_clean(self.tmp)
+        self.assertIn("filter.evil.clean", reason or "")
+        self.assertFalse(os.path.exists(marker), "git status ran a filter from the scanned repo")
+
     def test_stray_closer_in_flow_yaml_does_not_hang(self):
         # Found by fuzzing: a `}` inside `[...]` made the flow parser loop forever.
         for crafted in ("x: [}]", "x: [a, }, b]", "x: {a: ]}", "x: [[}}]]", "on: [" + "}" * 10_000 + "]"):

@@ -52,7 +52,7 @@ class ScanResult:
 
 EPILOG = f"""\
 examples:
-  masaudit                          scan the current directory, write SECURITY-AUDIT.md
+  masaudit                          scan the current folder, write SECURITY-AUDIT.md
   masaudit app --app-type banking   scan ./app as a banking app
   masaudit --format sarif --output masaudit.sarif --fail-on high
   masaudit --fix-safe               preview safe fixes as a diff (changes nothing)
@@ -77,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", metavar="FILE", help="write the report here instead of the default")
     p.add_argument("--fail-on", choices=list(config.FAIL_ON),
                    help="exit 1 if an open finding to fix is at or above this severity")
-    p.add_argument("--baseline", metavar="FILE", help="ignore findings listed in this baseline file")
+    p.add_argument("--baseline", metavar="FILE", help="accept findings listed in this baseline file (still listed, not counted)")
     p.add_argument("--update-baseline", action="store_true",
                    help=f"write current findings to the baseline (default file: {DEFAULT_BASELINE})")
     p.add_argument("--fix-safe", action="store_true",
@@ -181,15 +181,21 @@ def _gh_escape(value: str, prop: bool = False) -> str:
     return value.replace(":", "%3A").replace(",", "%2C") if prop else value
 
 
-def _annotate_github(warnings: Sequence[AppTypeWarning]) -> None:
+def _annotate_github(warnings: Sequence[AppTypeWarning], root: str = ".") -> None:
     """On GitHub Actions, show app-type warnings as annotations on the evidence file.
 
     Written to stderr: the runner reads both streams, and stdout may be a JSON or SARIF report.
     """
     if os.environ.get("GITHUB_ACTIONS") != "true":
         return
+    # Annotation paths are relative to the checkout, not to the scanned folder.
+    try:
+        prefix = os.path.relpath(os.path.abspath(root), os.environ.get("GITHUB_WORKSPACE") or os.getcwd())
+    except ValueError:      # Windows: a different drive
+        prefix = ".."
+    prefix = "" if prefix == "." or prefix.startswith("..") else prefix.replace(os.sep, "/") + "/"
     for w in warnings:
-        sys.stderr.write(f"::warning file={_gh_escape(w.path, True)},title=masaudit - check your app type::"
+        sys.stderr.write(f"::warning file={_gh_escape(prefix + w.path, True)},title=masaudit - check your app type::"
                          f"{_gh_escape(w.summary())}\n")
 
 
@@ -385,12 +391,24 @@ def _find_rule(rules: List[Rule], rule_id: str) -> Optional[Rule]:
 # ---------------------------------------------------------------------------- fix-safe
 
 
+_GIT_COMMAND_KEY = re.compile(r"^(filter\..*\.(clean|smudge|process)|diff\..*\.(textconv|command)|diff\.external)=",
+                              re.I)
+
+
 def _git_clean(root: str) -> Optional[str]:
     """None if the git tree at root is clean; otherwise the reason it isn't usable."""
     git = shutil.which("git")
     if not git:
         return "git is not installed, so masaudit can't confirm your changes are safe to overwrite."
     try:
+        # Content filters and diff drivers in the repo's own config would run on `git status`.
+        # Reading the config runs nothing; refuse instead of overriding every driver name.
+        conf = subprocess.run([git, "config", "--local", "--list", "--includes"],
+                              cwd=root, capture_output=True, text=True, timeout=60)
+        for line in conf.stdout.splitlines():
+            if _GIT_COMMAND_KEY.match(line):
+                return (f"this repository's .git/config runs a command ({line.split('=', 1)[0]}), so masaudit "
+                        "won't run git here. Apply the fix by hand, or remove that setting first.")
         # A hostile repo config must not run a command on `git status`: no fsmonitor, no hooks
         # (post-index-change), and no optional index writes that would trigger them.
         env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
@@ -506,7 +524,7 @@ def _main(args) -> int:
             for w in result.profile.warnings:
                 lines = w.lines()
                 sys.stderr.write(asciify("WARNING: " + "\n  ".join(lines)) + "\n")
-    _annotate_github(result.profile.warnings)
+    _annotate_github(result.profile.warnings, result.root)
     if fails(result.findings, fail_on):
         n = sum(1 for f in result.findings if f.status == "open" and f.bucket in ("fix-before-release", "fix-soon")
                 and SEVERITY_RANK.get(f.effective_severity, 9) <= SEVERITY_RANK[fail_on])
