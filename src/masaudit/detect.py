@@ -43,7 +43,8 @@ _TEST_TARGET = re.compile(r"(?:^|/)[\w-]*(?:Tests|UITests|Mocks)/")
 # Case-sensitive file names: FooTest.kt, FooTests.swift, FooSpec.kt, FooIT.java, foo_test.dart. A lowercase
 # letter or digit must come before "Test", so ABTest.kt, Latest.kt, and KeyAttest.kt stay main.
 _TEST_FILE = re.compile(r"(?:[a-z0-9_](?:Test|Tests|Spec|IT)(?:_\w+)?\.(?:kt|java|swift|m|mm)|_test\.dart)$")
-_DEBUG_DIRS = {"sample", "samples", "example", "examples", "demo", "demos", "catalog", "showcase"}
+_DEBUG_DIRS = {"sample", "samples", "example", "examples", "demo", "demos", "catalog", "showcase",
+               "preview content"}
 _PREVIEW_FILE = re.compile(r"(?:Preview|Previews|PreviewParam\w*|PreviewProvider|StateProvider)\.kt$")
 _TOOLING_TOP = {"build-logic", "buildsrc", "scripts", "tools", "fastlane"}
 

@@ -1,0 +1,12 @@
+platform :ios, '15.0'
+
+target 'Bank' do
+  use_frameworks!
+  pod 'Alamofire'
+  pod 'FLEX'                                        # every configuration
+  pod 'netfox', :configurations => ['Debug', 'Release']
+
+  target 'BankTests' do
+    pod 'Wormholy'
+  end
+end

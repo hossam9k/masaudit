@@ -12,6 +12,13 @@ import re
 from typing import Iterator, List, Optional
 
 MAX_FILE_BYTES = 2 * 1024 * 1024        # 2 MiB: source and config files are far smaller
+# Large apps have big Xcode project files (Signal's is 2.5 MB); every project-level iOS check needs it.
+MAX_PBXPROJ_BYTES = 16 * 1024 * 1024
+
+
+def max_bytes(rel: str) -> int:
+    """Size limit for one file: Xcode project files get more room than everything else."""
+    return MAX_PBXPROJ_BYTES if rel.endswith("project.pbxproj") else MAX_FILE_BYTES
 MAX_FILES = 200_000
 
 SKIP_DIRS = {
@@ -57,7 +64,7 @@ def walk(root: str) -> List[str]:
             if suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES:
                 continue
             try:
-                if os.path.getsize(full) > MAX_FILE_BYTES:
+                if os.path.getsize(full) > max_bytes(full):
                     continue
             except OSError:
                 continue
@@ -83,10 +90,10 @@ def read_text(root: str, rel: str) -> Optional[str]:
         return None
     try:
         with open(full, "rb") as fh:
-            data = fh.read(MAX_FILE_BYTES + 1)
+            data = fh.read(max_bytes(rel) + 1)
     except OSError:
         return None
-    if len(data) > MAX_FILE_BYTES:
+    if len(data) > max_bytes(rel):
         return None
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
@@ -108,7 +115,7 @@ def read_bytes(root: str, rel: str) -> Optional[bytes]:
     if not is_within(root, full) or _is_hard_link(full):
         return None
     try:
-        if os.path.getsize(full) > MAX_FILE_BYTES:
+        if os.path.getsize(full) > max_bytes(full):
             return None
         with open(full, "rb") as fh:
             return fh.read()

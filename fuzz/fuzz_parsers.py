@@ -18,7 +18,8 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
 from masaudit import lexer, safety, suppress  # noqa: E402
-from masaudit.parsers import gradle, manifest, pbxproj, plist, workflows, xcconfig, xmlsafe  # noqa: E402
+from masaudit.detectors import ios  # noqa: E402
+from masaudit.parsers import gradle, manifest, pbxproj, plist, workflows, xcconfig, xcscheme, xmlsafe  # noqa: E402
 
 LANGS = sorted(set(lexer.LANG_BY_SUFFIX.values()))
 
@@ -31,6 +32,11 @@ def check(data: bytes) -> None:
     manifest.parse(text)
     pbxproj.parse(text)
     xcconfig.parse(text)
+    xcscheme.parse(text)
+    if len(ios._blank_debug(text)) != len(text):
+        raise AssertionError("#if blanking changed the length of the text")
+    for line in text.splitlines()[:20]:
+        ios._eval_cond(line[:300], ios.CondEnv(known={"A", "DEBUG"}, defined={"B": "1"}))
     workflows.parse_workflow(text)
     workflows.parse_action(text)
     workflows.unpinned_uses_policies(text)

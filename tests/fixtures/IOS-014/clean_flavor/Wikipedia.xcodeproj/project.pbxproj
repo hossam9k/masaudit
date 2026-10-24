@@ -1,0 +1,162 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+		AA0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_SWIFT_FLAGS = "-DDEBUG";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_SWIFT_FLAGS = "-DNDEBUG";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA0000000000000000000004 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000002,
+				AA0000000000000000000003,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000005 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA0000000000000000000001 /* Wikipedia */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000004;
+			buildPhases = (
+				AA0000000000000000000005,
+			);
+			name = "Wikipedia";
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_SWIFT_FLAGS = "-DDEBUG -DWMF_ALPHA";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_SWIFT_FLAGS = "-DNDEBUG -DWMF_ALPHA";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA0000000000000000000009 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000007,
+				AA0000000000000000000008,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000000000A = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA0000000000000000000006 /* Alpha */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000009;
+			buildPhases = (
+				AA000000000000000000000A,
+			);
+			name = "Alpha";
+			productType = "com.apple.product-type.application";
+		};
+		AA000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_SWIFT_FLAGS = "-DDEBUG -DWMF_EXPERIMENTAL";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_SWIFT_FLAGS = "-DNDEBUG -DWMF_EXPERIMENTAL";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA000000000000000000000E = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000000C,
+				AA000000000000000000000D,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000000000F = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA000000000000000000000B /* Experimental */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000000000000000000000E;
+			buildPhases = (
+				AA000000000000000000000F,
+			);
+			name = "Experimental";
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000010 = {
+			isa = PBXGroup;
+			children = (
+			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Release";
+		};
+		AA0000000000000000000013 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000011,
+				AA0000000000000000000012,
+			);
+		};
+		AA0000000000000000000014 /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = AA0000000000000000000013;
+			mainGroup = AA0000000000000000000010;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0000000000000000000001,
+				AA0000000000000000000006,
+				AA000000000000000000000B,
+			);
+		};
+	};
+	rootObject = AA0000000000000000000014 /* Project object */;
+}
