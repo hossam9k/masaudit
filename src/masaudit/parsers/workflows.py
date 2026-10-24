@@ -224,11 +224,16 @@ class _Parser:
                     return self._seq(cur)
             return Scalar("", lineno)
         if rest[0] in "[{":
-            text = rest
-            while _depth(text) > 0 and self.i < len(self.raw):
-                text += " " + _strip_comment(self.raw[self.i]).strip()
+            # Count brackets line by line: rescanning the joined text for every new line was
+            # quadratic, so an unclosed `{` in a large file could stall the scan.
+            parts = [rest]
+            depth, quote = _depth_state(rest)
+            while depth > 0 and self.i < len(self.raw):
+                line = _strip_comment(self.raw[self.i]).strip()
+                parts.append(line)
+                depth, quote = _depth_state(" " + line, depth, quote)
                 self.i += 1
-            node, _ = _flow(text, 0, lineno)
+            node, _ = _flow(" ".join(parts), 0, lineno)
             return node
         if rest.startswith("*"):
             return Scalar(rest, lineno)
@@ -266,8 +271,12 @@ class _Parser:
         return Scalar(text, lineno, line_map)
 
 
-def _depth(text: str) -> int:
-    depth, quote = 0, ""
+def _depth(text: str, depth: int = 0, quote: str = "") -> int:
+    return _depth_state(text, depth, quote)[0]
+
+
+def _depth_state(text: str, depth: int = 0, quote: str = "") -> Tuple[int, str]:
+    """Bracket depth and open quote after `text`, continuing from a previous state."""
     for ch in text:
         if quote:
             if ch == quote:
@@ -278,7 +287,7 @@ def _depth(text: str) -> int:
             depth += 1
         elif ch in "]}":
             depth -= 1
-    return depth
+    return depth, quote
 
 
 def _flow(text: str, i: int, lineno: int) -> Tuple[Node, int]:

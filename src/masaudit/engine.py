@@ -70,7 +70,12 @@ class Context:
 
     def text(self, path: str) -> Optional[str]:
         if path not in self._text:
-            self._text[path] = safety.read_text(self.root, path)
+            text = safety.read_text(self.root, path)
+            # Detectors see one line ending. Files committed with CRLF (common from Windows) would
+            # otherwise leave a `\r` before every `$` in a pattern.
+            if text is not None and "\r" in text:
+                text = text.replace("\r\n", "\n").replace("\r", "\n")
+            self._text[path] = text
         return self._text[path]
 
     def code(self, path: str, keep_strings: bool = True) -> Optional[str]:

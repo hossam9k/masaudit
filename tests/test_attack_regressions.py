@@ -92,6 +92,15 @@ class AttackRegressions(unittest.TestCase):
             self.assertLess(time.monotonic() - start, 2.0, crafted[:20])
 
 
+    def test_unclosed_flow_collection_in_a_large_workflow_is_fast(self):
+        # Found by the fuzz test on a slow CI runner: an unclosed `{` made the parser rescan the
+        # growing text for every following line, which was quadratic in the file size.
+        crafted = "jobs: {\n" + "x: \n" * 200_000
+        start = time.monotonic()
+        workflows.load(crafted)
+        self.assertLess(time.monotonic() - start, 2.0)
+
+
 class FuzzSmoke(unittest.TestCase):
     def test_parsers_survive_mutated_fixtures(self):
         # A short run of fuzz/fuzz_parsers.py on every CI job; the long run uses atheris.

@@ -1,0 +1,7 @@
+# Test fixtures, the demo app, and skill evals are deliberately insecure: they exist to prove
+# masaudit's rules fire. Scanning them would report masaudit's own test data as vulnerabilities.
+name: masaudit
+paths-ignore:
+  - tests/fixtures
+  - examples
+  - plugin/skills/masaudit/evals
