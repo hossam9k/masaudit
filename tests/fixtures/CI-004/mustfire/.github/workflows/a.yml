@@ -1,0 +1,22 @@
+on:
+  pull_request_target:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: free text
+      variant:
+        type: choice
+        options: [a, b]
+  workflow_call:
+    inputs:
+      variant:
+        type: string
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.event.pull_request.title }}"
+      - run: git checkout ${{ github.event.pull_request.head.ref }}
+      - run: fastlane notes text:"${{ github.event.inputs.notes }}"
+      - run: ./gradlew assemble${{ github.event.inputs.variant }}
+      - run: echo "${{ github.event.merge_group.head_commit.message }}"

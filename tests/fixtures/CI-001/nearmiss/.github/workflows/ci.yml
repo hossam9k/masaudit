@@ -1,0 +1,12 @@
+on: push
+permissions: {}
+jobs:
+  version:
+    uses: acme/app/.github/workflows/_version.yml@main
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: $/.github/actions/setup
+      - uses: acme/app/.github/actions/log-inputs@main
+      - uses: acme/gh-actions/azure-login@main
+      - uses: acme/gh-actions/get-keyvault-secrets@main

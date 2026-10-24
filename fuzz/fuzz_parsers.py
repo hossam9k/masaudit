@@ -32,6 +32,9 @@ def check(data: bytes) -> None:
     pbxproj.parse(text)
     xcconfig.parse(text)
     workflows.parse_workflow(text)
+    workflows.parse_action(text)
+    workflows.unpinned_uses_policies(text)
+    workflows.github_origin(text)
     gradle.toml_versions(text)
     for lang in LANGS:
         code = lexer.strip(text, lang)

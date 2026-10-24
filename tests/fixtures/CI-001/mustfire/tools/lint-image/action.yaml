@@ -1,0 +1,4 @@
+name: lint
+runs:
+  using: docker
+  image: docker://ghcr.io/acme-tools/lint:1.4

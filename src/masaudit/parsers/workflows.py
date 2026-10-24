@@ -12,6 +12,10 @@ Every value carries the 1-based line it came from:
     `.line_map[i]` is the file line of content line `i`).
   * Map is a `dict` with `.line` and `.key_lines[key]`.
   * Seq is a `list` with `.line`.
+
+On top of the reader: the workflow model (parse_workflow), composite and docker action
+metadata (parse_action), zizmor's unpinned-uses policies, and the github.com identity of a
+repository's `origin` remote (github_origin).
 """
 
 from __future__ import annotations
@@ -355,6 +359,7 @@ class Step:
     run: Optional[Scalar] = None
     env: Map = field(default_factory=Map)
     name: str = ""
+    if_: Optional[Scalar] = None         # the step's `if:` condition
 
 
 @dataclass
@@ -364,6 +369,7 @@ class Job:
     permissions: Optional[Node] = None
     uses: Optional[Scalar] = None        # reusable workflow call
     steps: List[Step] = field(default_factory=list)
+    if_: Optional[Scalar] = None         # the job's `if:` condition
 
 
 @dataclass
@@ -374,6 +380,9 @@ class Workflow:
     permissions_line: int
     jobs: List[Job]
     jobs_line: int
+    # Declared `type:` of each workflow_dispatch / workflow_call input, one entry per declaration
+    # ("string" when untyped). An input declared under both triggers has two entries.
+    input_types: Dict[str, List[str]] = field(default_factory=dict)
 
 
 def _get(m: Map, *names: str) -> Tuple[Optional[Node], int]:
@@ -406,23 +415,43 @@ def parse_workflow(text: str) -> Optional[Workflow]:
             job = Job(id=job_id, line=jobs_node.key_lines.get(job_id, 0))
             if isinstance(body, Map):
                 job.permissions = body.get("permissions") if "permissions" in body else None
-                uses = body.get("uses")
-                job.uses = uses if isinstance(uses, Scalar) and uses else None
-                steps = body.get("steps")
-                if isinstance(steps, Seq):
-                    for raw in steps:
-                        if isinstance(raw, Map):
-                            job.steps.append(_step(raw))
+                job.uses = _scalar(body.get("uses"))
+                job.if_ = _scalar(body.get("if"))
+                job.steps = _steps(body.get("steps"))
             jobs.append(job)
     return Workflow(doc=doc, triggers=triggers, permissions=perms, permissions_line=perms_line,
-                    jobs=jobs, jobs_line=jobs_line)
+                    jobs=jobs, jobs_line=jobs_line, input_types=_input_types(on))
+
+
+def _scalar(node: Optional[Node]) -> Optional[Scalar]:
+    return node if isinstance(node, Scalar) and node.strip() else None
+
+
+def _input_types(on: Optional[Node]) -> Dict[str, List[str]]:
+    out: Dict[str, List[str]] = {}
+    if not isinstance(on, Map):
+        return out
+    for trigger in ("workflow_dispatch", "workflow_call"):
+        spec = on.get(trigger)
+        inputs = spec.get("inputs") if isinstance(spec, Map) else None
+        if not isinstance(inputs, Map):
+            continue
+        for name, decl in inputs.items():
+            typ = _scalar(decl.get("type")) if isinstance(decl, Map) else None
+            out.setdefault(name, []).append(typ.strip().lower() if typ else "string")
+    return out
+
+
+def _steps(node: Optional[Node]) -> List[Step]:
+    if not isinstance(node, Seq):
+        return []
+    return [_step(raw) for raw in node if isinstance(raw, Map)]
 
 
 def _step(raw: Map) -> Step:
     step = Step(line=raw.line)
-    uses = raw.get("uses")
-    if isinstance(uses, Scalar) and uses:
-        step.uses = uses
+    step.uses = _scalar(raw.get("uses"))
+    step.if_ = _scalar(raw.get("if"))
     run = raw.get("run")
     if isinstance(run, Scalar):
         step.run = run
@@ -435,3 +464,77 @@ def _step(raw: Map) -> Step:
     name = raw.get("name")
     step.name = str(name) if isinstance(name, Scalar) else ""
     return step
+
+
+# ---------------------------------------------------------------------------- action metadata
+
+
+@dataclass
+class Action:
+    """An `action.yml`: how it runs and, for a composite action, its steps."""
+    using: str                           # "composite", "docker", "node24", ... (lower-case)
+    steps: List[Step] = field(default_factory=list)
+    image: Optional[Scalar] = None       # a docker action's `runs.image`
+
+
+def parse_action(text: str) -> Optional[Action]:
+    """Parse action metadata. None unless it has a `runs:` mapping with `using:`."""
+    doc = load(text)
+    runs = doc.get("runs") if isinstance(doc, Map) else None
+    if not isinstance(runs, Map):
+        return None
+    using = _scalar(runs.get("using"))
+    if using is None:
+        return None
+    return Action(using=using.strip().lower(), steps=_steps(runs.get("steps")),
+                  image=_scalar(runs.get("image")))
+
+
+# ---------------------------------------------------------------------------- repository settings
+
+
+def unpinned_uses_policies(text: str) -> Dict[str, str]:
+    """zizmor.yml `rules.unpinned-uses.config.policies`: pattern -> policy, both lower-case."""
+    node = load(text)
+    for key in ("rules", "unpinned-uses", "config", "policies"):
+        node = node.get(key) if isinstance(node, Map) else None
+    if not isinstance(node, Map):
+        return {}
+    return {k.strip().lower(): v.strip().lower() for k, v in node.items()
+            if isinstance(v, Scalar) and k.strip()}
+
+
+_CONFIG_SECTION = re.compile(r'^\[\s*([A-Za-z0-9.-]{1,64})(?:\s+"([^"]{0,256})")?\s*\]')
+_CONFIG_URL = re.compile(r"^url\s*=\s*(\S{1,512})$", re.IGNORECASE)
+# github.com only: https://[user@]github.com/o/r[.git], git@github.com:o/r.git, ssh://git@github.com[:22]/o/r.
+_GITHUB_REMOTE = re.compile(
+    r"^(?:(?:https?|ssh|git)://(?:[^@/\s]{1,256}@)?|[A-Za-z0-9._-]{1,64}@)?github\.com(?::\d{1,5})?[:/]"
+    r"([A-Za-z0-9][A-Za-z0-9-]{0,38})/([A-Za-z0-9._-]{1,100}?)(?:\.git)?/?$",
+    re.IGNORECASE,
+)
+
+
+def github_origin(config_text: str) -> Optional[Tuple[str, str]]:
+    """(owner, repo), lower-case, of the `origin` remote in a repository config, if it is on github.com.
+
+    The text is untrusted: lines are only matched against fixed patterns, and no path in it is used.
+    """
+    section: Tuple[str, str] = ("", "")
+    for raw in config_text.splitlines()[:2000]:
+        line = raw.strip()
+        if not line or len(line) > 1024 or line[0] in "#;":
+            continue
+        m = _CONFIG_SECTION.match(line)
+        if m:
+            name, sub = m.group(1).lower(), m.group(2)
+            if sub is None and "." in name:          # legacy [remote.origin]
+                name, _, sub = name.partition(".")
+            section = (name, sub or "")
+            continue
+        if section != ("remote", "origin"):
+            continue
+        url = _CONFIG_URL.match(line)
+        if url:
+            remote = _GITHUB_REMOTE.match(url.group(1).strip('"'))
+            return (remote.group(1).lower(), remote.group(2).lower()) if remote else None
+    return None

@@ -278,4 +278,8 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
         elif f.acknowledged:
             f.bucket_reason = (f"Lowered one level: the source marks this as intentional ({f.acknowledged}). "
                                "Confirm the reason is written down.")
+        elif base != rule.severity:
+            higher = SEVERITY_RANK[base] < SEVERITY_RANK[rule.severity]
+            f.bucket_reason = (f"Rated {base} for this case ({'above' if higher else 'below'} the rule's usual "
+                               f"{rule.severity}); the finding says why.")
     return findings

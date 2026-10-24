@@ -1,0 +1,9 @@
+on:
+  workflow_call:
+    inputs:
+      flavor: { type: string, required: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./gradlew assemble

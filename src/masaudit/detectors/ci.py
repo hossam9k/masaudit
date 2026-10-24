@@ -2,19 +2,25 @@
 """CI and build-input detectors: GitHub Actions workflows, signing material, wrapper and lockfiles.
 
 Workflows are read with the stdlib-only reader in parsers/workflows.py. Book: §15.3–15.6.
+
+Severity is tiered per hit (Hit.severity) where the rule's own severity would overstate the
+risk, for example a GitHub-owned action on a tag, or a debug keystore. A setting the repository
+wrote down on purpose (a zizmor.yml policy, `persist-credentials: true`) sets Hit.acknowledged,
+which lowers the finding one level but never hides it.
 """
 
 from __future__ import annotations
 
 import os
 import re
-from typing import Iterable, List, Tuple
+import stat
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from masaudit import safety
 from masaudit.engine import Context, Hit, detector
-from masaudit.model import Rule
+from masaudit.model import SEVERITY_RANK, Rule
 from masaudit.parsers import workflows
-from masaudit.parsers.workflows import Scalar, Workflow
+from masaudit.parsers.workflows import Scalar, Step, Workflow
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
@@ -35,32 +41,164 @@ def _workflows(ctx: Context) -> Iterable[Tuple[str, Workflow]]:
         yield path, wf
 
 
-def _hit(ctx: Context, path: str, line: int, message: str) -> Hit:
-    return Hit(path, line, ctx.snippet(path, line), message)
+def _hit(ctx: Context, path: str, line: int, message: str, severity: str = "", acknowledged: str = "") -> Hit:
+    return Hit(path, line, ctx.snippet(path, line), message, severity=severity, acknowledged=acknowledged)
+
+
+def _action_name(uses: Optional[Scalar]) -> str:
+    return str(uses).split("@")[0].strip().lower() if uses else ""
+
+
+def _read_head(ctx: Context, rel: str, limit: int, max_size: Optional[int] = None) -> Optional[str]:
+    """First `limit` bytes of a regular file under the root (no symlinks, no hard links), as text."""
+    root = os.path.abspath(ctx.root)
+    full = os.path.join(root, rel)
+    try:
+        st = os.lstat(full)
+        if (not stat.S_ISREG(st.st_mode) or st.st_nlink > 1 or not safety.is_within(root, full)
+                or (max_size is not None and st.st_size > max_size)):
+            return None
+        # O_NOFOLLOW and a second check on the open file close the gap between lstat and open.
+        fd = os.open(full, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(fd, "rb") as fh:
+            opened = os.fstat(fh.fileno())
+            if not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != (st.st_dev, st.st_ino):
+                return None
+            data = fh.read(limit)
+    except OSError:
+        return None
+    return data.decode("utf-8", "replace")
+
+
+# ---------------------------------------------------------------------------- repository identity
+
+
+def _self_repo(ctx: Context) -> Optional[Tuple[str, str]]:
+    """(owner, repo) of the scanned repository, lower-case, or None when it can't be told.
+
+    Read from the `origin` remote in <root>/.git/config (plain text, never followed). On a GitHub
+    runner, GITHUB_REPOSITORY is used only when the scan root is the workspace itself.
+    """
+    cached = getattr(ctx, "_ci_self_repo", False)
+    if cached is not False:
+        return cached
+    found = None
+    root = os.path.abspath(ctx.root)
+    git_dir = os.path.join(root, ".git")
+    if os.path.isdir(git_dir) and not os.path.islink(git_dir):
+        text = _read_head(ctx, ".git/config", 65536, max_size=65536)
+        if text is not None:
+            found = workflows.github_origin(text)
+    workspace = os.environ.get("GITHUB_WORKSPACE", "")
+    if found is None and workspace and os.path.realpath(workspace) == os.path.realpath(root):
+        env = os.environ.get("GITHUB_REPOSITORY", "")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}", env):
+            owner, repo = env.lower().split("/", 1)
+            found = (owner, repo)
+    ctx._ci_self_repo = found  # type: ignore[attr-defined]
+    return found
 
 
 # ---------------------------------------------------------------------------- CI-001
+
+ZIZMOR_FILES = (".github/zizmor.yml", ".github/zizmor.yaml", "zizmor.yml", "zizmor.yaml", ".zizmor.yml")
+GITHUB_OWNED = ("actions", "github")        # OpenSSF Scorecard's IsGitHubOwnedAction
+VERSIONISH = re.compile(r"^v?\d{1,9}(?:\.\d{1,9}){0,3}(?:[-+][0-9A-Za-z.-]{1,64})?$")
+
+
+def _zizmor_policies(ctx: Context) -> Dict[str, str]:
+    cached = getattr(ctx, "_ci_zizmor", None)
+    if cached is not None:
+        return cached
+    policies: Dict[str, str] = {}
+    for path in ZIZMOR_FILES:
+        text = ctx.text(path)
+        if text is not None:
+            policies = workflows.unpinned_uses_policies(text)
+            break
+    ctx._ci_zizmor = policies  # type: ignore[attr-defined]
+    return policies
+
+
+def _policy_for(name: str, policies: Dict[str, str]) -> Optional[Tuple[str, str]]:
+    """zizmor's order, most specific first: exact path or repo, then owner/repo/*, owner/*, *."""
+    if not policies:
+        return None
+    parts = name.lower().split("/")
+    owner, repo = parts[0], parts[1] if len(parts) > 1 else ""
+    for pattern in (name.lower(), f"{owner}/{repo}/*", f"{owner}/*", "*"):
+        if pattern in policies:
+            return pattern, policies[pattern]
+    return None
+
+
+def _uses_hits(ctx: Context, path: str, refs: Sequence[Scalar]) -> Iterable[Hit]:
+    me = _self_repo(ctx)
+    policies = _zizmor_policies(ctx)
+    for uses in refs:
+        value = str(uses).strip()
+        if value.startswith(("./", "$/")) or "${{" in value:     # local, or $/ self-repository syntax
+            continue
+        if value.startswith("docker://"):
+            if "@sha256:" not in value:
+                yield _hit(ctx, path, uses.line,
+                           f"`{value}` uses a container tag, which can be moved. Pin it with @sha256:<digest>.")
+            continue
+        name, _, ref = value.rpartition("@")
+        if not name:
+            name, ref = value, ""
+        elif SHA40.match(ref):
+            continue
+        parts = name.lower().split("/")
+        owner, repo = parts[0], parts[1] if len(parts) > 1 else ""
+        kind = "tag" if VERSIONISH.match(ref) else "branch"
+        if ref and me is not None and (owner, repo) == me:
+            local = "./" + "/".join(parts[2:])
+            yield _hit(ctx, path, uses.line,
+                       f"`{name}` is this repository's own code, referenced by the {kind} `{ref}`. Whoever can "
+                       f"move it can already edit this workflow, so it adds no new trust. Write it as `{local}` "
+                       "(or `$/…`) so GitHub's SHA-pinning policy accepts it.", severity="info")
+            continue
+        severity = ""
+        if not ref:
+            message = f"`{value}` has no version at all, so it runs whatever is newest."
+        elif me is not None and owner == me[0]:
+            severity = "medium"
+            message = (f"`{name}` comes from your own organization but is pinned to the {kind} `{ref}`: whoever "
+                       "can push there can change what this workflow runs.")
+        elif owner in GITHUB_OWNED:
+            severity = "medium"
+            message = (f"`{name}` is GitHub-owned but pinned to the {kind} `{ref}`, which GitHub can move. Lower "
+                       "risk than a third-party action, but pin it too.")
+        else:
+            message = f"`{name}` is pinned to `{ref}`, a {kind} its owner can move to different code."
+        acknowledged = ""
+        policy = _policy_for(name, policies)
+        if policy and (policy[1] == "any" or (policy[1] == "ref-pin" and ref)):
+            acknowledged = f"zizmor.yml unpinned-uses policy `{policy[0]}: {policy[1]}`"
+        yield _hit(ctx, path, uses.line, message, severity=severity, acknowledged=acknowledged)
+
+
+def _action_files(ctx: Context) -> List[str]:
+    return [f for f in ctx.files(name="action.yml") + ctx.files(name="action.yaml")
+            if not f.startswith(".github/workflows/")]
 
 
 @detector("ci_unpinned_action")
 def unpinned_action(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, wf in _workflows(ctx):
         refs = [j.uses for j in wf.jobs if j.uses] + [s.uses for j in wf.jobs for s in j.steps if s.uses]
-        for uses in refs:
-            value = str(uses).strip()
-            if value.startswith("./") or "${{" in value:
-                continue
-            if value.startswith("docker://"):
-                if "@sha256:" not in value:
-                    yield _hit(ctx, path, uses.line,
-                               f"`{value}` uses a container tag, which can be moved. Pin it with @sha256:<digest>.")
-                continue
-            name, _, ref = value.rpartition("@")
-            if not name:
-                yield _hit(ctx, path, uses.line, f"`{value}` has no version at all, so it runs whatever is newest.")
-            elif not SHA40.match(ref):
-                yield _hit(ctx, path, uses.line,
-                           f"`{name}` is pinned to `{ref}`, a tag or branch its owner can move to different code.")
+        yield from _uses_hits(ctx, path, refs)
+    # Composite actions run their own `uses:` steps inside every workflow that calls them.
+    for path in _action_files(ctx):
+        text = ctx.text(path)
+        action = workflows.parse_action(text) if text is not None else None
+        if action is None:
+            continue
+        if action.using == "composite":
+            yield from _uses_hits(ctx, path, [s.uses for s in action.steps if s.uses])
+        elif action.using == "docker" and action.image and str(action.image).strip().startswith("docker://"):
+            yield from _uses_hits(ctx, path, [action.image])
 
 
 # ---------------------------------------------------------------------------- CI-002
@@ -85,6 +223,11 @@ def token_permissions(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if all(j.permissions is not None for j in wf.jobs):
                 continue
             line = wf.jobs_line or 1
+            if set(wf.triggers) == {"workflow_call"}:
+                yield _hit(ctx, path, line,
+                           "This reusable workflow sets no `permissions:`, so it runs with whatever its callers "
+                           "grant. Check the callers; `permissions: {}` here would cap it.", severity="info")
+                continue
             yield _hit(ctx, path, line,
                        "No top-level `permissions:`, so jobs get the repository's default token, "
                        "which is read-write on many older organizations.")
@@ -92,7 +235,25 @@ def token_permissions(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 # ---------------------------------------------------------------------------- CI-003
 
-PR_HEAD = re.compile(r"github\.event\.pull_request\.head\.(?:sha|ref|repo\.full_name)|github\.head_ref")
+PR_HEAD = re.compile(r"github\.event\.pull_request\.head\.(?:sha|ref|repo\.full_name)|github\.head_ref|"
+                     r"github\.event\.pull_request\.merge_commit_sha|refs/pull/")
+# A job condition that keeps fork pull requests out.
+SAME_REPO_GATE = re.compile(
+    r"github\.event\.pull_request\.head\.repo\.full_name\s*==\s*(?:github\.repository\b|'[^']+')|"
+    r"(?:github\.repository\b|'[^']+')\s*==\s*github\.event\.pull_request\.head\.repo\.full_name|"
+    r"!\s*github\.event\.pull_request\.head\.repo\.fork\b|"
+    r"github\.event\.pull_request\.head\.repo\.fork\s*==\s*false"
+)
+# A step condition that is true for forks (paired with `exit 1`, it stops the job for them).
+FORK_TEST = re.compile(r"github\.event\.pull_request\.head\.repo\.full_name\s*!=\s*github\.repository\b|"
+                       r"github\.event\.pull_request\.head\.repo\.fork\s*(?:==\s*true\s*)?(?:\}\}|$)")
+FAILS_JOB = re.compile(r"\bexit\s+[1-9]")
+GATED = (" The job only runs for branches of this repository, so outsiders can't reach it; a collaborator's "
+         "branch still runs with the write token.")
+
+
+def _stops_forks(step: Step) -> bool:
+    return bool(step.if_ and FORK_TEST.search(step.if_) and step.run is not None and FAILS_JOB.search(step.run))
 
 
 @detector("ci_prt_checkout")
@@ -101,15 +262,19 @@ def prt_checkout(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if "pull_request_target" not in wf.triggers:
             continue
         for job in wf.jobs:
+            gated = bool(job.if_ and SAME_REPO_GATE.search(job.if_))
             for step in job.steps:
-                if step.uses and str(step.uses).split("@")[0].lower() == "actions/checkout":
+                gated = gated or _stops_forks(step)
+                severity, extra = ("high", GATED) if gated else ("", "")
+                if _action_name(step.uses) == "actions/checkout":
                     for key in ("ref", "repository"):
                         val = step.with_.get(key)
                         if isinstance(val, Scalar) and PR_HEAD.search(val):
                             line = step.with_.key_lines.get(key, step.line)
                             yield _hit(ctx, path, line,
                                        "This `pull_request_target` job checks out the pull request's own code, "
-                                       "which then runs with your secrets and a write token.")
+                                       "which then runs with your secrets and a write token." + extra,
+                                       severity=severity)
                             break
                 if step.run is not None:
                     for idx, text in enumerate(str(step.run).split("\n")):
@@ -117,18 +282,44 @@ def prt_checkout(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                 re.search(r"\bgit\s+(?:fetch|checkout|switch)\b", text) and PR_HEAD.search(text)):
                             line = step.run.line_map[min(idx, len(step.run.line_map) - 1)]
                             yield _hit(ctx, path, line,
-                                       "This `pull_request_target` job fetches the pull request's code in a script.")
+                                       "This `pull_request_target` job fetches the pull request's code in a script."
+                                       + extra, severity=severity)
 
 
 # ---------------------------------------------------------------------------- CI-004
 
 EXPR = re.compile(r"\$\{\{(.*?)\}\}")
 UNTRUSTED = re.compile(r"github\.event\.[A-Za-z0-9_.\-*\[\]'\"]+|github\.head_ref")
-# Fields an outsider can't fill with text: numbers, IDs, SHAs, timestamps, booleans.
+# Fields an outsider can't fill with text: numbers, IDs, SHAs, timestamps, booleans, GitHub-built URLs.
 SAFE_TAIL = re.compile(
-    r"\.(?:number|id|node_id|sha|before|after|run_id|run_number|run_attempt|size|additions|deletions|"
-    r"changed_files|commits|comments|draft|merged|locked|forced|created|deleted|[a-z_]+_at|[a-z_]+_count)$"
+    r"\.(?:number|id|node_id|sha|[a-z_]+_sha|before|after|run_id|run_number|run_attempt|size|additions|"
+    r"deletions|changed_files|commits|comments|draft|merged|locked|forced|created|deleted|[a-z_]+_at|"
+    r"[a-z_]+_count|html_url)$"
 )
+# Values GitHub picks from a fixed set, or that only repository admins can set.
+SAFE_EXACT = {"github.event.action", "github.event.repository.default_branch"}
+SAFE_LINK = re.compile(r"\._links\.[a-z_]+\.href$")
+# GitHub limits logins to [A-Za-z0-9-] and repository names to [A-Za-z0-9._-]: no shell syntax fits.
+STRUCTURED = re.compile(r"\.(?:full_name|login)$|\.repo\.name$")
+DISPATCH_INPUT = re.compile(r"^github\.event\.inputs(?:\.([A-Za-z0-9_-]+)|\[['\"]([A-Za-z0-9_-]+)['\"]\])$")
+FIXED_INPUT_TYPES = {"choice", "boolean", "number", "environment"}
+
+
+def _classify(wf: Workflow, expr: str) -> Optional[Tuple[str, str]]:
+    """None when the value can't carry shell syntax; else (severity, reason). "" = the rule's severity."""
+    if expr in SAFE_EXACT or SAFE_TAIL.search(expr) or SAFE_LINK.search(expr):
+        return None
+    m = DISPATCH_INPUT.match(expr)
+    if m:
+        types = wf.input_types.get(m.group(1) or m.group(2), [])
+        if types and all(t in FIXED_INPUT_TYPES for t in types):
+            return None
+        return ("medium", "only people with write access can start this workflow, but any of them (or a stolen "
+                          "token) can turn this input into commands that run with its secrets")
+    if STRUCTURED.search(expr):
+        return ("info", "GitHub restricts this value to letters, digits, `-`, `_` and `.`, so it can't carry "
+                        "shell syntax; pass it through `env:` anyway")
+    return ("", "text an outsider controls can become shell commands")
 
 
 @detector("ci_script_injection")
@@ -139,35 +330,119 @@ def script_injection(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 if step.run is None:
                     continue
                 for idx, text in enumerate(str(step.run).split("\n")):
+                    worst: Optional[Tuple[int, str, str, str]] = None
                     for expr in EXPR.finditer(text):
-                        bad = [m.group(0) for m in UNTRUSTED.finditer(expr.group(1))
-                               if not SAFE_TAIL.search(m.group(0))]
-                        if bad:
-                            line = step.run.line_map[min(idx, len(step.run.line_map) - 1)]
-                            yield _hit(ctx, path, line,
-                                       f"`{bad[0]}` is pasted into the script before it runs, so text an outsider "
-                                       "controls can become shell commands.")
-                            break
+                        for m in UNTRUSTED.finditer(expr.group(1)):
+                            found = _classify(wf, m.group(0))
+                            if found is None:
+                                continue
+                            rank = SEVERITY_RANK[found[0] or rule.severity]
+                            if worst is None or rank < worst[0]:
+                                worst = (rank, found[0], m.group(0), found[1])
+                    if worst:
+                        line = step.run.line_map[min(idx, len(step.run.line_map) - 1)]
+                        yield _hit(ctx, path, line, f"`{worst[2]}` is pasted into the script before it runs: "
+                                                    f"{worst[3]}.", severity=worst[1])
 
 
 # ---------------------------------------------------------------------------- CI-005
+
+PUSHING_ACTIONS = {
+    "stefanzweifel/git-auto-commit-action", "endbug/add-and-commit", "ad-m/github-push-action",
+    "korthout/backport-action", "tibdex/backport", "sqren/backport-github-action",
+    "devops-infra/action-commit-push", "peter-evans/create-pull-request",
+}
+# `git push`, with global options such as `-c key=value` or `-C dir` before the subcommand.
+GIT_PUSH = re.compile(r"\bgit(?:\s+-{1,2}[\w.=/:-]+(?:\s+[^\s-]\S*)?)*\s+push\b")
+GIT_TAG = re.compile(r"\bgit\s+tag\b")
+PUSH_WORD = re.compile(r"\bpush\b")
+DEFAULT_TOKEN = re.compile(r"^\$\{\{\s*(?:github\.token|secrets\.GITHUB_TOKEN)\s*\}\}$")
+# zizmor's artipacked "dangerous" upload paths: the workspace itself.
+WORKSPACE_UPLOAD = re.compile(r"^(?:\.|\./|\.\.|\.\./)$|github\.workspace")
+VERSION_COMMENT = re.compile(r"#\s*v?(\d{1,4})(?:\.\d{1,9}){0,3}\b")
+MAX_SCRIPT_LINE = 8192
+
+
+def _pushes(text: str) -> bool:
+    for line in text.split("\n"):
+        if len(line) > MAX_SCRIPT_LINE:
+            continue
+        if GIT_PUSH.search(line):
+            return True
+        tag = GIT_TAG.search(line)
+        rest = line[tag.end():] if tag else ""
+        if "&&" in rest and PUSH_WORD.search(rest, rest.index("&&")):
+            return True
+    return False
+
+
+def _job_pushes(steps: Sequence[Step]) -> bool:
+    return any(_action_name(s.uses) in PUSHING_ACTIONS or (s.run is not None and _pushes(s.run)) for s in steps)
+
+
+def _uploads_workspace(steps: Sequence[Step]) -> bool:
+    for s in steps:
+        if _action_name(s.uses) == "actions/upload-artifact":
+            p = s.with_.get("path")
+            if isinstance(p, Scalar) and any(WORKSPACE_UPLOAD.search(x.strip()) for x in p.split("\n")):
+                return True
+    return False
+
+
+def _checkout_major(ctx: Context, path: str, uses: Scalar) -> Optional[int]:
+    """The checkout's major version: from the tag, or from a SHA pin's `# vN` comment (unverified)."""
+    ref = str(uses).rpartition("@")[2].strip()
+    if SHA40.match(ref):
+        lines = (ctx.text(path) or "").split("\n")
+        raw = lines[uses.line - 1] if 0 < uses.line <= len(lines) else ""
+        m = VERSION_COMMENT.search(raw)
+    else:
+        m = re.match(r"^v?(\d{1,4})(?:\.|$)", ref)
+    return int(m.group(1)) if m else None
 
 
 @detector("ci_persist_credentials")
 def persist_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, wf in _workflows(ctx):
         for job in wf.jobs:
-            for step in job.steps:
-                if not step.uses or str(step.uses).split("@")[0].lower() != "actions/checkout":
+            for i, step in enumerate(job.steps):
+                if _action_name(step.uses) != "actions/checkout":
                     continue
                 val = step.with_.get("persist-credentials")
-                if isinstance(val, Scalar) and str(val).strip().lower() == "false":
+                setting = str(val).strip().lower() if isinstance(val, Scalar) else None
+                if setting == "false":
                     continue
                 if isinstance(val, Scalar) and "${{" in val:
                     ctx.note_unknown(f"{path}:{val.line}: persist-credentials is set by an expression.")
                     continue
-                yield _hit(ctx, path, step.uses.line,
-                           "`actions/checkout` leaves the job token in .git/config for every later step.")
+                later = job.steps[i + 1:]
+                pushes = _job_pushes(later)
+                token = step.with_.get("token")
+                custom = isinstance(token, Scalar) and bool(token.strip()) and not DEFAULT_TOKEN.match(token.strip())
+                line = step.uses.line
+                if setting == "true" and pushes:
+                    yield _hit(ctx, path, line, "`persist-credentials: true` is set on purpose and this job pushes. "
+                                                "Every later step can still read the token.", severity="info")
+                elif setting == "true":
+                    yield _hit(ctx, path, line,
+                               "`persist-credentials: true` keeps the token on disk, but nothing in this job pushes. "
+                               "Set it to false unless a later step needs git credentials.",
+                               severity="high" if custom else "", acknowledged="persist-credentials: true")
+                elif pushes:
+                    yield _hit(ctx, path, line, "This job pushes, so it needs the token: say so with "
+                                                "`persist-credentials: true`, or set it to false and pass the token "
+                                                "only to the push.", severity="low")
+                elif custom:
+                    yield _hit(ctx, path, line,
+                               "`actions/checkout` stores the `token:` you passed (a PAT or app token, usually broader "
+                               "than GITHUB_TOKEN) on disk for every later step, and nothing in this job pushes.",
+                               severity="high")
+                elif (_checkout_major(ctx, path, step.uses) or 0) >= 6 and not _uploads_workspace(later):
+                    yield _hit(ctx, path, line, "`actions/checkout` v6+ keeps the job token in a file under "
+                                                "$RUNNER_TEMP that every later step can read.", severity="low")
+                else:
+                    yield _hit(ctx, path, line,
+                               "`actions/checkout` leaves the job token in .git/config for every later step.")
 
 
 # ---------------------------------------------------------------------------- tree inventory
@@ -204,16 +479,65 @@ HARMLESS_KEYS = {"debug.keystore"}
 PASSWORD_LINE = re.compile(
     r"^[ \t]*(storePassword|keyPassword|[A-Z_]*(?:KEYSTORE|STORE|KEY)_PASSWORD)[ \t]*[=:][ \t]*(\S.*)$", re.MULTILINE
 )
+TEST_DIR = re.compile(r"^(?:tests?|testing|testdata|test-data|test-resources|fixtures|testfixtures|androidtest|"
+                      r"unittests?|[a-z0-9_-]*tests)$", re.IGNORECASE)
+DEBUG_WORD = re.compile(r"(?:^|[^a-z])debug(?:[^a-z]|$)", re.IGNORECASE)
+NON_RELEASE_WORD = re.compile(r"(?:^|[^a-z])(?:nightly|qa|alpha|beta|staging|dev|internal|ci)(?:[^a-z]|$)",
+                              re.IGNORECASE)
+# The nearest enclosing signing block: getByName("debug") / create("release") / debug { ... }.
+SIGNING_BLOCK = re.compile(r"""(?:getByName|create|register|maybeCreate)\(\s*["'](\w+)["']\s*\)|^[ \t]*(\w+)[ \t]*\{""")
+# Android's public debug password, in a .properties file that names the keystore.
+ANDROID_PASSWORD = re.compile(r"^[ \t]*[\w.]*(?:store|key)[._]?pass(?:word)?[ \t]*[=:][ \t]*[\"']?android[\"']?[ \t]*$",
+                              re.IGNORECASE | re.MULTILINE)
+BLOCK_LOOKBACK = 15
+
+
+def _in_debug_signing_block(text: str, base: str) -> bool:
+    lines = text.split("\n")
+    for n, line in enumerate(lines):
+        if base not in line:
+            continue
+        for back in range(n, max(-1, n - BLOCK_LOOKBACK), -1):
+            m = SIGNING_BLOCK.search(lines[back])
+            if m:
+                if (m.group(1) or m.group(2)).lower() == "debug":
+                    return True
+                break
+    return False
+
+
+def _debug_keystore(ctx: Context, base: str) -> bool:
+    if DEBUG_WORD.search(base):
+        return True
+    for p in ctx.files(".gradle", ".gradle.kts"):
+        text = ctx.text(p) or ""
+        if base in text and _in_debug_signing_block(text, base):
+            return True
+    for p in ctx.files(".properties"):
+        text = ctx.text(p) or ""
+        if base in text and ANDROID_PASSWORD.search(text):
+            return True
+    return False
 
 
 @detector("ci_signing_material")
 def signing_material(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in _all_names(ctx):
         base = path.rsplit("/", 1)[-1]
-        if base.lower().endswith(KEY_FILE_SUFFIXES) and base.lower() not in HARMLESS_KEYS:
-            if "/test/" in "/" + path.lower() or "/fixtures/" in "/" + path.lower():
-                continue
-            yield Hit(path, 0, base, f"`{base}` looks like a signing key or certificate with its private key.")
+        if not base.lower().endswith(KEY_FILE_SUFFIXES) or base.lower() in HARMLESS_KEYS:
+            continue
+        if any(TEST_DIR.match(seg) for seg in path.split("/")[:-1]):
+            continue
+        if _debug_keystore(ctx, base):
+            yield Hit(path, 0, base, f"`{base}` is a debug keystore (a debug signing config or Android's public "
+                                     "`android` password). It signs nothing that ships.", severity="info")
+            continue
+        if NON_RELEASE_WORD.search(base.rsplit(".", 1)[0]):
+            yield Hit(path, 0, base, f"`{base}` looks like a signing key for a non-release build (nightly, QA, "
+                                     "beta). Anyone who has it can sign builds your testers install as you.",
+                      severity="high")
+            continue
+        yield Hit(path, 0, base, f"`{base}` looks like a signing key or certificate with its private key.")
     for path in ctx.files(".properties"):
         base = path.rsplit("/", 1)[-1]
         if base not in ("key.properties", "keystore.properties", "signing.properties", "gradle.properties"):
@@ -247,9 +571,25 @@ def wrapper_checksum(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 # ---------------------------------------------------------------------------- CI-008
 
+VERIFY_METADATA = re.compile(r"<verify-metadata>\s{0,64}true\s{0,64}</verify-metadata>")
+
 
 def _is_gradle_root(path: str) -> bool:
     return path.rsplit("/", 1)[-1] in ("settings.gradle", "settings.gradle.kts")
+
+
+def _gradle_verified(ctx: Context) -> bool:
+    """Gradle dependency verification with `<verify-metadata>true`: an unlisted version fails the build.
+
+    The file is often over safety.MAX_FILE_BYTES, so it is found by name and only its first 16 KiB,
+    where <configuration> sits, are read.
+    """
+    for p in _all_names(ctx):
+        if p == "gradle/verification-metadata.xml" or p.endswith("/gradle/verification-metadata.xml"):
+            head = _read_head(ctx, p, 16384)
+            if head and VERIFY_METADATA.search(head):
+                return True
+    return False
 
 
 @detector("ci_missing_lockfile")
@@ -260,7 +600,7 @@ def missing_lockfile(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if gradle_roots and not any(b.endswith(".lockfile") for b in bases):
         uses_locking = any("dependencyLocking" in (ctx.text(p) or "")
                            for p in ctx.files(".gradle", ".gradle.kts"))
-        if not uses_locking:
+        if not uses_locking and not _gradle_verified(ctx):
             yield Hit(gradle_roots[0], 0, "", "No `gradle.lockfile` was found, so builds can resolve "
                                               "different dependency versions over time.")
     spm = [p for p in ctx.files(name="Package.swift")]
