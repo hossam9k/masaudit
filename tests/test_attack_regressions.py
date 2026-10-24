@@ -73,7 +73,7 @@ class AttackRegressions(unittest.TestCase):
             path = os.path.join(hooks, hook)
             with open(path, "w") as fh:
                 fh.write(f"#!/bin/sh\ntouch '{marker}'\n")
-            os.chmod(path, 0o755)
+            os.chmod(path, 0o700)
         subprocess.run([git, "config", "core.hooksPath", hooks], cwd=self.tmp, check=True, env=env)
         with open(os.path.join(self.tmp, "a.txt"), "w") as fh:
             fh.write("x")
