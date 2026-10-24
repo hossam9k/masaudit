@@ -1,3 +1,5 @@
+[masaudit documentation](README.md) ›
+
 # Running masaudit in CI
 
 ## GitHub Action

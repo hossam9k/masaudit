@@ -74,5 +74,46 @@ class UsageGuide(unittest.TestCase):
                 self.assertIn(f"| `{key}` | {description} |", usage)
 
 
+
+REPO_URL = "https://github.com/hossam9k/masaudit/"
+
+
+def _slug(heading):
+    """GitHub's anchor for a heading: lower case, punctuation dropped, spaces to hyphens."""
+    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+def _anchors(rel):
+    text = read(rel)
+    text = re.sub(r"```.*?```", "", text, flags=re.S)          # headings in code blocks don't count
+    return {_slug(h) for h in re.findall(r"^#{1,6} (.+)$", text, re.M)}
+
+
+class Links(unittest.TestCase):
+    """Every link from the README and docs/ to this repository points to a file and heading that exist."""
+
+    def test_links_resolve(self):
+        sources = ["README.md"] + ["docs/" + n for n in sorted(os.listdir(os.path.join(ROOT, "docs")))
+                                   if n.endswith(".md") and not n.startswith("sample-report")]
+        for src in sources:
+            for target in re.findall(r"\]\(([^)\s]+)\)", read(src)):
+                if target.startswith(REPO_URL):
+                    rest = target[len(REPO_URL):]
+                    if rest.startswith("#"):
+                        path, anchor = "README.md", rest[1:]
+                    elif rest.startswith(("blob/main/", "tree/main/")):
+                        path, _, anchor = rest[len("blob/main/"):].partition("#")
+                    else:
+                        continue                                  # releases, issues, sponsors
+                elif target.startswith(("http:", "https:", "mailto:")):
+                    continue
+                else:
+                    base, _, anchor = target.partition("#")
+                    path = os.path.normpath(os.path.join(os.path.dirname(src), base)) if base else src
+                with self.subTest(source=src, link=target):
+                    self.assertTrue(os.path.exists(os.path.join(ROOT, path)), f"missing file {path}")
+                    if anchor and path.endswith(".md"):
+                        self.assertIn(anchor, _anchors(path), f"no heading #{anchor} in {path}")
+
 if __name__ == "__main__":
     unittest.main()

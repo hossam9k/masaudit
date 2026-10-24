@@ -1,3 +1,5 @@
+[masaudit documentation](README.md) ›
+
 # How accurate masaudit is
 
 A scanner that cries wolf gets ignored, so every rule is measured on real apps before release.
