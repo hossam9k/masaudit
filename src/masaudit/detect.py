@@ -42,7 +42,8 @@ _TEST_SOURCE_SET = re.compile(r"/src/(?:\w*test\w*|benchmark\w*)/", re.IGNORECAS
 _TEST_TARGET = re.compile(r"(?:^|/)[\w-]*(?:Tests|UITests|Mocks)/")
 # Case-sensitive file names: FooTest.kt, FooTests.swift, FooSpec.kt, FooIT.java, foo_test.dart. A lowercase
 # letter or digit must come before "Test", so ABTest.kt, Latest.kt, and KeyAttest.kt stay main.
-_TEST_FILE = re.compile(r"(?:[a-z0-9_](?:Test|Tests|Spec|IT)(?:_\w+)?\.(?:kt|java|swift|m|mm)|_test\.dart)$")
+_TEST_FILE = re.compile(r"(?:[a-z0-9_](?:Test|Spec|IT)(?:_\w+)?\.(?:kt|java|swift|m|mm)|[A-Za-z0-9_]Tests\.(?:kt|java|swift|m|mm)"
+                        r"|_test\.dart)$")
 _DEBUG_DIRS = {"sample", "samples", "example", "examples", "demo", "demos", "catalog", "showcase",
                "preview content"}
 _PREVIEW_FILE = re.compile(r"(?:Preview|Previews|PreviewParam\w*|PreviewProvider|StateProvider)\.kt$")
@@ -60,7 +61,7 @@ def scope_of(path: str) -> str:
     if (_TEST_SOURCE_SET.search(p) or _TEST_TARGET.search(p) or _TEST_FILE.search(base)
             or any(seg in _TEST_DIRS for seg in module.split("/"))):
         return "test"
-    if "/src/debug/" in low or "/src/mock/" in low or _PREVIEW_FILE.search(base):
+    if any(d in low for d in ("/src/debug/", "/src/mock/", "/src/internal/")) or _PREVIEW_FILE.search(base):
         return "debug"
     # Sample, demo, and catalog modules count as debug code, but only as module directories: a package
     # such as src/main/java/com/example/... is production code.

@@ -11,6 +11,7 @@ LANG_BY_SUFFIX = {
     ".kt": "kotlin", ".kts": "kotlin", ".java": "java", ".swift": "swift",
     ".m": "objc", ".mm": "objc", ".h": "objc", ".dart": "dart",
     ".js": "js", ".ts": "js", ".tsx": "js", ".gradle": "groovy",
+    ".c": "objc", ".cc": "objc", ".cpp": "objc",
 }
 
 NESTED_BLOCK = {"kotlin", "swift", "dart"}

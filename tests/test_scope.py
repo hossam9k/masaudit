@@ -30,6 +30,8 @@ CASES = {
     "app/src/main/AndroidManifest.xml": "main",
     "lib/main.dart": "main",
     ".github/workflows/ci.yml": "ci",
+    "Sources/Networking/URLTests.swift": "test",
+    "app/src/internal/java/com/acme/DevMenu.kt": "debug",
 }
 
 

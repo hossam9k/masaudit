@@ -32,8 +32,9 @@ SCANNED_SUFFIXES = {
     ".kt", ".kts", ".java", ".swift", ".m", ".mm", ".h", ".xml", ".plist", ".pbxproj",
     ".xcconfig", ".entitlements", ".gradle", ".toml", ".properties", ".yml", ".yaml",
     ".json", ".pro", ".cfg", ".txt", ".strings", ".dart", ".js", ".ts", ".tsx", ".xcprivacy",
+    ".c", ".cc", ".cpp", ".mk", ".podspec", ".storyboard", ".xib", ".sh",
 }
-SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS"}
+SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS", "Fastfile"}
 
 
 def is_within(root: str, path: str) -> bool:
