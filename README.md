@@ -213,6 +213,18 @@ See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md
 - **Build and CI:** debuggable or test-only releases, debug tools and DEBUG code in release, R8 and keep rules, signing, unpinned actions (ranked by who owns them), persisted tokens, script injection, committed signing keys.
 - **Resilience (MAS-R, only for banking, identity, loyalty, and game apps):** Play Integrity, App Attest, root, debugger, emulator, and hooking detection.
 
+## How accurate it is
+
+Every rule is measured on 19 open-source apps, including Signal, Bitwarden, Wikipedia, Nextcloud,
+DuckDuckGo, and Thunderbird. Reviewers who didn't write the rules opened every finding in shipping
+code and judged whether it was real. Every false alarm they found was fixed and re-checked.
+
+- **Every rule is at 90% precision or better on this corpus.** The one exception is marked
+  *Check by hand*.
+- **No crashes** across all 19 apps; the largest scans in under 20 seconds.
+
+The method and per-rule numbers are in [docs/precision.md](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md).
+
 ## How it compares
 
 | | masaudit | MobSF | mobsfscan | Android Lint |
@@ -223,6 +235,7 @@ See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md
 | Android + iOS + KMP + Flutter + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
 | Install | Single file, no dependencies | Docker (recommended) | pip (Semgrep) | Android SDK |
 | Imports the others' SARIF and calibrates it | **Yes** | — | — | — |
+| Published precision on real apps | **Yes** | — | — | — |
 
 MobSF also analyzes built APK and IPA files and runs the app for dynamic testing, which masaudit
 doesn't. Use both.

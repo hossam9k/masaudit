@@ -3,6 +3,40 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.4.0 — 2026-10-24
+
+**172 rules, up from 77, and every one measured on 19 real apps.**
+
+- **New rules:**
+  - 32 Android (AND-035 to AND-065, AND-072), 21 iOS (IOS-022 to IOS-042), and 32 cross-platform
+    (XPL-011 to XPL-042).
+  - 6 Flutter (FLT-003 to FLT-008), 3 KMP (KMP-004 to KMP-006), and AND-034.
+  - They cover hardcoded keys, tokens in plain preferences, broken ciphers, weak key derivation,
+    Zip Slip, Dirty Stream, debug tools and DEBUG code in release, privacy manifests and
+    required-reason APIs, IDFA without ATT, screenshot and overlay protection, and more.
+  - First MAS-R rules: Play Integrity, App Attest, R8 keep rules, and root, debugger, emulator, and
+    hooking detection. They apply only to banking, identity, loyalty, and game apps.
+- **OWASP coverage:** 52 of the 78 MASWE weaknesses (was 29), and 132 MASTG tests cited (was 55).
+- **Precision:**
+  - Two rounds of review on Signal, Bitwarden, Wikipedia, Nextcloud, Element, DuckDuckGo,
+    Thunderbird, and 12 more apps. The second round was independent of the builders.
+  - Every false positive was fixed with a test fixture. Every rule is now at 90% precision or better
+    on that corpus, or marked *Check by hand*. See docs/precision.md.
+  - Biggest fixes: exported components that must be public (share targets, media services, widgets),
+    SQL built only from app-owned values, random numbers outside security code, comments that
+    silenced the pinning check, and CI findings ranked by who owns an action.
+- **Smarter scope:**
+  - Exact test folders and case-sensitive test file names (ABTest.kt is production code).
+  - Debug-only code under `BuildConfig.DEBUG`, `#if DEBUG`, or `kDebugMode`, and non-release
+    Gradle variants and internal modules.
+  - Xcode shipping configurations read from each scheme's archive action.
+- **Acknowledged findings:** Android Lint `tools:ignore`, lint.xml, and zizmor.yml policies are
+  shown one level lower, with the reason from the source. They are never dropped.
+- **More files:** large Xcode project files (up to 16 MiB), C/C++, storyboards, xibs, podspecs, shell
+  scripts, and Fastfile.
+- **Breaking:** severities and buckets changed for many rules, so `rules_version` is 2.0.0. Baselines
+  made with 0.3.0 still load, but some findings now show as new.
+
 ## 0.3.0 — 2026-10-24
 
 - **Flutter (Dart) source scanning.** Until now masaudit read a Flutter app's Android and iOS
