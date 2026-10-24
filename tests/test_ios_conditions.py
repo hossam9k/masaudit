@@ -109,5 +109,33 @@ class ConfigSymbolTests(unittest.TestCase):
                          {"EXTENSION": "1"})
 
 
+class AuditedSeverity(unittest.TestCase):
+    """Per-hit severity and scope the final precision audit asked for (ios-code audit)."""
+
+    @staticmethod
+    def _hits(rule_id, variant):
+        return helpers.scan_dir(os.path.join(helpers.FIXTURES, rule_id, variant), {rule_id})
+
+    def test_biometric_gate_is_medium_when_repo_binds_a_key(self):
+        self.assertEqual([h.severity for h in self._hits("IOS-012", "vulnerable_binds_elsewhere")], ["medium"])
+        self.assertEqual([h.severity for h in self._hits("IOS-012", "vulnerable")], [""])
+
+    def test_internal_only_pasteboard_is_debug_scope(self):
+        self.assertEqual([h.scope for h in self._hits("IOS-020", "internal_only")], ["debug"])
+
+    def test_unarchiver_of_app_group_or_decrypted_data_is_medium(self):
+        self.assertEqual({h.severity for h in self._hits("IOS-018", "vulnerable_app_group")}, {"medium"})
+        self.assertEqual({h.severity for h in self._hits("IOS-018", "vulnerable")}, {""})
+
+    def test_delegate_only_message_handler_is_medium(self):
+        self.assertEqual([h.severity for h in self._hits("IOS-015", "vulnerable_delegate_action")], ["medium"])
+        self.assertEqual([h.severity for h in self._hits("IOS-015", "vulnerable")], [""])
+
+    def test_cookie_sync_session_is_low_and_flutter_web_auth_fires(self):
+        self.assertEqual([h.severity for h in self._hits("IOS-017", "cookie_sync")], ["low"])
+        lines = sorted(h.location.line for h in self._hits("IOS-017", "vulnerable_flutter"))
+        self.assertEqual(lines, [7, 12])
+
+
 if __name__ == "__main__":
     unittest.main()

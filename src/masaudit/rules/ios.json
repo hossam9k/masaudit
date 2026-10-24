@@ -502,18 +502,7 @@
         "code": "// Best for new code: Codable builds only the types you declared.\nlet order = try JSONDecoder().decode(Order.self, from: data)\n\n// If you must read NSKeyedArchiver data: secure coding with an explicit class.\nlet legacyOrder = try NSKeyedUnarchiver.unarchivedObject(ofClass: LegacyOrder.self, from: data)"
       },
       "confidence": "medium",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "Unarchiver",
-        "strings": "blank",
-        "regex": "\\bNSKeyedUnarchiver\\s*\\.\\s*unarchiveObject\\s*\\(\\s*(?:with|withFile)\\s*:|\\bunarchiveTopLevelObjectWithData\\b|\\[\\s*NSKeyedUnarchiver\\s+unarchiveObjectWith(?:Data|File)\\s*:|\\brequiresSecureCoding\\s*=\\s*(?:false|NO)\\b",
-        "message": "This NSKeyedUnarchiver call doesn't restrict which classes it builds."
-      }
+      "detector": "ios_insecure_unarchiver"
     },
     {
       "id": "IOS-019",

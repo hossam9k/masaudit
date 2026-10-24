@@ -54,5 +54,58 @@ class Structure(unittest.TestCase):
         self.assertTrue(cross._var_is_literal(code, "iv", code.index("IvParameterSpec"), "A.kt"))
 
 
+def _severities(rule_id, variant):
+    hits = scan_dir(os.path.join(FIXTURES, rule_id, variant), {rule_id})
+    return {f"{h.location.path}:{h.location.line}": h.severity for h in hits}
+
+
+class AuditedSeverity(unittest.TestCase):
+    """Per-hit severities the final precision audit asked for (ios-code audit)."""
+
+    def test_pbkdf2_legacy_fallback_is_low(self):
+        self.assertEqual(set(_severities("XPL-015", "vulnerable_legacy").values()), {"low"})
+        # The enum's weakest entry is reported once, at the entry, not at each call site.
+        self.assertIn("app/src/main/java/com/demo/crypto/CryptoHelper.kt:12", _severities("XPL-015", "vulnerable_legacy"))
+
+    def test_pbkdf2_100k_is_medium(self):
+        self.assertEqual(list(_severities("XPL-015", "vulnerable_medium").values()), ["medium"])
+
+    def test_cbc_auth_bound_keystore_key_is_low(self):
+        self.assertEqual(list(_severities("XPL-005", "vulnerable_auth_bound").values()), ["low"])
+
+    def test_ecb_nsae_fallback_and_legacy_rsa_are_low(self):
+        self.assertEqual(list(_severities("XPL-004", "vulnerable_fallback").values()), ["low"])
+        self.assertEqual(list(_severities("XPL-023", "vulnerable_legacy").values()), ["low"])
+        self.assertIn("", _severities("XPL-004", "vulnerable").values())
+
+    def test_mac_compare_is_low_without_remote_io(self):
+        self.assertEqual(set(_severities("XPL-025", "vulnerable").values()), {"low"})
+        self.assertEqual(list(_severities("XPL-025", "vulnerable_network").values()), [""])
+
+    def test_http_link_opened_in_browser_is_low(self):
+        sev = _severities("XPL-009", "vulnerable")
+        self.assertEqual(sev["app/src/main/java/com/demo/Help.kt:2"], "low")
+        self.assertEqual(sev["app/src/main/java/com/demo/Api.kt:2"], "")
+
+    def test_absence_anchor_skips_watch_app(self):
+        hits = scan_dir(os.path.join(FIXTURES, "XPL-021", "watch_anchor"), {"XPL-021"})
+        self.assertEqual([h.location.path for h in hits], ["ios/Bank/Application/Support/Info.plist"])
+
+
+class DebuggerEvidence(unittest.TestCase):
+    def test_watchdog_and_debug_only_checks_are_not_evidence(self):
+        text = "if (!uiRan && !Debug.isDebuggerConnected()) report()"
+        m = cross.DEBUGGER_ANDROID.search(text)
+        self.assertFalse(cross._real_debugger_check("app/src/main/java/A.kt", text, m))
+        text = "val attached = Debug.isDebuggerConnected()"
+        self.assertTrue(cross._real_debugger_check("app/src/main/java/A.kt", text, cross.DEBUGGER_ANDROID.search(text)))
+        self.assertFalse(cross._real_debugger_check("anrs/anrs-impl/src/main/java/AnrSupervisor.kt", text,
+                                                    cross.DEBUGGER_ANDROID.search(text)))
+        objc = "#ifdef DEBUG\nBOOL f(void) { return p_flag & P_TRACED; }\n#endif\nint g;\n"
+        self.assertFalse(cross._real_debugger_check("Utils.m", objc, cross.DEBUGGER_IOS.search(objc)))
+        release = "#ifndef DEBUG\nBOOL f(void) { return p_flag & P_TRACED; }\n#endif\n"
+        self.assertTrue(cross._real_debugger_check("Utils.m", release, cross.DEBUGGER_IOS.search(release)))
+
+
 if __name__ == "__main__":
     unittest.main()

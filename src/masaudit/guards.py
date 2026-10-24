@@ -83,6 +83,29 @@ def swift_debug_guarded(blank: str, idx: int) -> bool:
     return any(stack)
 
 
+_PREPROCESSOR = re.compile(r"^[ \t]*#[ \t]*(ifdef|ifndef|if|elif|elseif|else|endif)\b([^\n]*)$", re.MULTILINE)
+
+
+def preprocessor_debug_guarded(blank: str, idx: int) -> bool:
+    """Inside an `#if DEBUG`, `#if defined(DEBUG)` or `#ifdef DEBUG` branch (Swift, Objective-C, C).
+    `#else` and `#elif` leave the branch; a negated or `||` condition isn't debug-only."""
+    stack = []
+    for m in _PREPROCESSOR.finditer(blank, 0, idx):
+        directive, cond = m.group(1), m.group(2)
+        if directive == "ifdef":
+            stack.append(bool(re.match(r"\s*DEBUG\b", cond)))
+        elif directive == "ifndef":
+            stack.append(False)
+        elif directive == "if":
+            stack.append(bool(re.search(r"\bDEBUG\b", cond)) and "!" not in cond and "||" not in cond)
+        elif directive == "endif":
+            if stack:
+                stack.pop()
+        elif stack:
+            stack[-1] = False
+    return any(stack)
+
+
 def debug_guarded(path: str, blank: str, idx: int) -> bool:
     """Pick the right check from the file type."""
     if path.endswith((".kt", ".kts", ".java")):

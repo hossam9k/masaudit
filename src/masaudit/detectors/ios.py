@@ -1174,6 +1174,13 @@ _MESSAGE_HANDLER = re.compile(
 _FRAMEINFO_ANY = re.compile(r"\.\s*frameInfo\b|\bframeInfo\s*\]|\[\s*\w+\s+frameInfo\s*\]")
 
 
+# A handler that only maps the message to a typed action for its delegate, and touches nothing sensitive.
+_DELEGATE_ACTION = re.compile(r"\bdelegate\s*[?!]?\s*\.\s*\w+\s*\(\s*action\s*:")
+_HANDLER_SINK = re.compile(r"(?i)URLSession|NextcloudKit|download|upload|keychain|token|password|credential|cookie|"
+                           r"FileManager|\.write\s*\(|evaluateJavaScript|callAsyncJavaScript|\.open\s*\(|openURL|"
+                           r"\bsend\s*\(|\bpost\w*\s*\(|request|account|session")
+
+
 @detector("ios_message_handler_origin")
 def message_handler_origin(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, line, body, code, m, start in _functions(ctx, _MESSAGE_HANDLER):
@@ -1195,9 +1202,14 @@ def message_handler_origin(ctx: Context, rule: Rule) -> Iterable[Hit]:
         rest = code[:start] + code[start + len(body):]
         if passes and _FRAMEINFO_ANY.search(rest):
             continue
-        yield Hit(path, line, ctx.snippet(path, line),
-                  f"This script message handler never checks {param}.frameInfo (main frame and securityOrigin), "
-                  "so any page or iframe in the web view can call it.")
+        msg = (f"This script message handler never checks {param}.frameInfo (main frame and securityOrigin), "
+               "so any page or iframe in the web view can call it.")
+        severity = ""
+        if _DELEGATE_ACTION.search(body) and not _HANDLER_SINK.search(body):
+            severity = "medium"
+            msg += (" It only turns the message into a typed action for its delegate (navigation and UI), "
+                    "with no network, file, or credential access here.")
+        yield Hit(path, line, ctx.snippet(path, line), msg, severity=severity)
 
 
 _KVC_FILE_ACCESS = re.compile(
@@ -1368,6 +1380,20 @@ _ASWEB = re.compile(r"ASWebAuthenticationSession\s*\(")
 _CALLBACK_SCHEME = re.compile(r"callbackURLScheme\s*:\s*(?!nil\b)([^\s,)][^,)\n]*)"
                               r"|callback\s*:\s*\.customScheme\s*\(\s*([^)\n]*)\)")
 _HTTPS_CALLBACK = re.compile(r"callback\s*:\s*\.https\s*\(")
+_COOKIE_SYNC_CTX = re.compile(r"(?i)cookie|sync\w*with\w*browser|browser\w*sync")
+_CODE_FLOW_CTX = re.compile(r"(?i)oauth|authorize|code_challenge|codeVerifier|\bsso\b|login|signIn|sign_in|token")
+# flutter_web_auth / flutter_web_auth_2: ASWebAuthenticationSession on iOS.
+_FLUTTER_WEB_AUTH = re.compile(r"\bFlutterWebAuth2?\s*\.\s*authenticate\s*\(")
+
+
+def _flutter_web_auth_files(ctx: Context) -> Iterator[Tuple[str, str]]:
+    for path in ctx.files(".dart"):
+        raw = ctx.text(path)
+        if raw is None or "FlutterWebAuth" not in raw or _is_test_path(path) or path.endswith("_test.dart"):
+            continue
+        code = ctx.code(path, keep_strings=True)
+        if code:
+            yield path, code
 _AVAILABLE_174 = re.compile(r"#available\s*\(\s*iOS\s+17\.4\b")
 
 
@@ -1437,6 +1463,7 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
             files[path] = code
     groups: Dict[Any, List[Tuple[int, str, int, str]]] = {}     # key -> [(rank, path, line, message)]
     order: List[Any] = []
+    low: Set[Tuple[str, int]] = set()
 
     def add(key: Any, rank: int, path: str, line: int, message: str) -> None:
         if key not in groups:
@@ -1459,6 +1486,7 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             fstart, _fend = _enclosing_function(code, m.start())
             fhead = code[fstart:min(len(code), fstart + 200)].split("{", 1)[0]
+            _fend = max(_fend, close if close != -1 else m.end())
             url_arg = re.search(r"url\s*:\s*([^,)\n]+)", window)
             context = " ".join([fhead, url_arg.group(1) if url_arg else "", c.group(0), path])
             if _NON_AUTH_CTX.search(context) and not _AUTH_CTX.search(context):
@@ -1471,6 +1499,12 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
                        "iOS before 17.4; any app can register that scheme.")
             else:
                 msg = "The sign-in session returns through a custom URL scheme, which isn't tied to your app."
+            # A session that only shares Safari cookies (a browser sync) returns no authorization code.
+            surround = code[max(0, fstart - 600):_fend]
+            if _COOKIE_SYNC_CTX.search(surround) and not _CODE_FLOW_CTX.search(surround):
+                msg += (" This session looks like a browser cookie sync rather than an OAuth code callback, so "
+                        "less rides on the redirect.")
+                low.add((path, line))
             add(scheme or ("asweb", path, line), 0, path, line, msg)
         for m in _SCHEME_LITERAL.finditer(code):
             scheme, rest = m.group(1).lower(), m.group(2)
@@ -1482,6 +1516,26 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
             seen_lines.add(line)
             add(scheme, 1, path, line,
                 f"Auth redirect {scheme}://{rest} uses a custom URL scheme registered in CFBundleURLTypes.")
+    for path, code in _flutter_web_auth_files(ctx):
+        for m in _FLUTTER_WEB_AUTH.finditer(code):
+            close = _paren_end(code, m.end() - 1, limit=1200)
+            args = code[m.end():close if close != -1 else m.end() + 600]
+            c = re.search(r"\bcallbackUrlScheme\s*:\s*([^,)\n]+)", args)
+            if not c or re.search(r"\bhttpsHost\s*:", args):
+                continue
+            expr = c.group(1).strip()
+            lit = re.fullmatch(r"['\"]([^'\"]*)['\"]", expr)
+            if not lit:
+                name = re.search(r"(\w+)\s*$", expr)
+                d = name and re.search(r"\b" + re.escape(name.group(1)) + r"\s*=\s*['\"]([^'\"]*)['\"]", code)
+                lit = d or None
+            scheme = lit.group(1).lower() if lit else None
+            if scheme == "https":
+                continue
+            line = ctx.line_of(code, m.start())
+            add(scheme or ("flutter", path, line), 0, path, line,
+                "FlutterWebAuth2 opens ASWebAuthenticationSession on iOS and returns through the custom URL scheme "
+                f"`{scheme or expr}`, which isn't tied to your app.")
     for key in order:
         items = sorted(groups[key], key=lambda x: x[0])
         _rank, path, line, message = items[0]
@@ -1489,7 +1543,7 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if others:
             shown = ", ".join(others[:4]) + (f" and {len(others) - 4} more" if len(others) > 4 else "")
             message += f" Same scheme also at {shown}."
-        yield Hit(path, line, ctx.snippet(path, line), message)
+        yield Hit(path, line, ctx.snippet(path, line), message, severity="low" if (path, line) in low else "")
 
 
 # ============================================================================ storage
@@ -1612,16 +1666,18 @@ def pasteboard_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
             fstart, fend = _enclosing_function(code, m.start())
             note = (" This path looks internal-only (guarded by an internal or debug flag)."
                     if _INTERNAL_GUARD.search(code[fstart:fend]) else "")
+            # An internal-only path is dead code in App Store builds: report it as debug scope (lowered).
+            scope = "debug" if note else ""
             if _PB_LOCAL_ONLY.search(span):
                 if _PB_EXPIRY.search(span):
                     continue
                 yield Hit(path, line, ctx.snippet(path, line),
                           "A value that looks secret goes to the general pasteboard with .localOnly but no "
-                          ".expirationDate, so it stays there until something else is copied." + note)
+                          ".expirationDate, so it stays there until something else is copied." + note, scope=scope)
                 continue
             yield Hit(path, line, ctx.snippet(path, line),
                       "A value that looks secret goes to the general pasteboard without .localOnly, so Universal "
-                      "Clipboard can send it to the user's other devices." + note)
+                      "Clipboard can send it to the user's other devices." + note, scope=scope)
 
 
 _DOCS_WRITE_NAME = re.compile(
@@ -1701,6 +1757,65 @@ def app_group_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
             break
 
 
+_UNARCHIVE = re.compile(
+    r"\bNSKeyedUnarchiver\s*\.\s*unarchiveObject\s*\(\s*(?:with|withFile)\s*:|\bunarchiveTopLevelObjectWithData\b"
+    r"|\[\s*NSKeyedUnarchiver\s+unarchiveObjectWith(?:Data|File)\s*:|\brequiresSecureCoding\s*=\s*(?:false|NO)\b")
+_TYPE_DECL = re.compile(r"\b(?:class|struct|actor|enum)\s+([A-Z]\w*)|@interface\s+([A-Z]\w*)")
+
+
+def _group_container_types(ctx: Context) -> Tuple[Set[str], Dict[str, str]]:
+    """Files that open an App Group container, and their code (strings blanked); cached."""
+    cache = _cache(ctx)
+    if "group_container_files" not in cache:
+        files: Dict[str, str] = {}
+        for path in ctx.files(*CODE_SUFFIXES):
+            raw = ctx.text(path) or ""
+            if "ApplicationGroupIdentifier" not in raw or _is_test_path(path):
+                continue
+            code = ctx.code(path, keep_strings=False) or ""
+            if _GROUP_CONTAINER.search(code):
+                files[path] = code
+        cache["group_container_files"] = files
+    files = cache["group_container_files"]
+    return set(files), files
+
+
+def _trusted_archive(ctx: Context, path: str, code: str, idx: int) -> bool:
+    """Does the archive come from the app's own App Group container, or is it decrypted first? Then only
+    apps signed by the same team can have written it."""
+    fstart, _fend = _enclosing_function(code, idx)
+    if re.search(r"\bdecrypt\w*\s*\(", code[fstart:idx], re.IGNORECASE):
+        return True
+    paths, files = _group_container_types(ctx)
+    if path in paths:
+        return True
+    names = {a or b for a, b in _TYPE_DECL.findall(code)}
+    for other_code in files.values():
+        if any(re.search(r"\b" + re.escape(n) + r"\s*\(", other_code) for n in names):
+            return True
+    return False
+
+
+@detector("ios_insecure_unarchiver")
+def insecure_unarchiver(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        raw = ctx.text(path)
+        if raw is None or "Unarchiver" not in raw:
+            continue
+        code = ctx.code(path, keep_strings=False)
+        if code is None:
+            continue
+        for m in _UNARCHIVE.finditer(code):
+            line = ctx.line_of(code, m.start())
+            msg = "This NSKeyedUnarchiver call doesn't restrict which classes it builds."
+            severity = ""
+            if _trusted_archive(ctx, path, code, m.start()):
+                severity = "medium"
+                msg += (" The archive comes from the app's own App Group container or is decrypted first, so only "
+                        "apps signed by the same team can write it; still move to secure coding.")
+            yield Hit(path, line, ctx.snippet(path, line), msg, severity=severity)
+
+
 # ============================================================================ authentication
 
 
@@ -1731,9 +1846,11 @@ def biometric_boolean(ctx: Context, rule: Rule) -> Iterable[Hit]:
             line = ctx.line_of(code, m.start())
             msg = "evaluatePolicy is used, and this file never touches a key protected by SecAccessControl."
             if binds_elsewhere:
-                msg += (" This repo binds a key to biometrics elsewhere (SecAccessControl); confirm this call "
-                        "isn't the unlock path.")
-            yield Hit(path, line, ctx.snippet(path, line), msg)
+                # The real unlock most likely reads the biometry-bound item; this call is a confirmation
+                # or user-verification gate, which is weaker but not the whole vault.
+                msg += (" This repo binds a key to biometrics elsewhere (SecAccessControl), so this is likely a "
+                        "confirmation gate; confirm it isn't the unlock path.")
+            yield Hit(path, line, ctx.snippet(path, line), msg, severity="medium" if binds_elsewhere else "")
 
 
 _REUSE_DURATION = re.compile(

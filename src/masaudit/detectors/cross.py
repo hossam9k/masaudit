@@ -10,7 +10,7 @@ imports a test framework is reported with that scope, so it is lowered rather th
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Optional, Pattern, Sequence, Set, Tuple
+from typing import Callable, Iterable, List, Optional, Pattern, Sequence, Set, Tuple
 
 from masaudit import guards
 from masaudit.detect import scope_of
@@ -335,15 +335,52 @@ ECB_DART: List[Tuple[Pattern[str], str]] = [
 _OPTION_DEFINITION = re.compile(r"\b(?:static\s+)?(?:let|var)\s+\w+\s*=\s*\w*\(\s*rawValue:\s*(?:CCOptions\()?\s*$")
 
 
+_LEGACY_NAME = re.compile(r"(?i)legacy|migrat")
+_NSAE_CATCH = re.compile(r"\bcatch\s*\(\s*(?:\w+\s*:\s*)?(?:[\w.]*\.)?(?:NoSuchAlgorithmException|"
+                         r"NoSuchPaddingException|GeneralSecurityException)(?:\s+\w+)?\s*\)\s*\{[^{}]*$")
+
+
+def _line_offset(code: str, line: int) -> int:
+    idx = 0
+    for _ in range(line - 1):
+        idx = code.find("\n", idx) + 1
+        if idx == 0:
+            return len(code)
+    return idx
+
+
+def _legacy_reason(ctx: Context, path: str, line: int) -> str:
+    """Why this crypto looks like it only reads old data: legacy or migration code, or the fallback in a
+    `catch (NoSuchAlgorithmException)` when the modern mode is missing. '' if neither."""
+    blank = ctx.code(path, keep_strings=False) or ""
+    idx = _line_offset(blank, line)
+    owner = [m.group(1) for m in re.finditer(r"\b(?:class|object|struct|interface|enum)\s+(\w+)", blank[:idx])]
+    fn = _function_name(_enclosing_function(blank, idx, path)[2]) if path.endswith(CODE) else ""
+    if _LEGACY_NAME.search(path) or (owner and _LEGACY_NAME.search(owner[-1])) or _LEGACY_NAME.search(fn):
+        return " This looks like legacy or migration code kept for data from older versions; remove it once migrated."
+    line_end = blank.find("\n", idx)
+    if _NSAE_CATCH.search(blank[max(0, idx - 300):line_end if line_end >= 0 else len(blank)]):
+        return " It's only the fallback when the modern mode is missing on the device."
+    return ""
+
+
+def _lower_if_legacy(ctx: Context, hit: Hit) -> Hit:
+    reason = _legacy_reason(ctx, hit.path, hit.line)
+    if reason:
+        hit.severity = "low"
+        hit.message += reason
+    return hit
+
+
 @detector("xpl_ecb")
 def ecb(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for hit in _scan(ctx, ECB, prefilter=("AES", "ECB")):
         before = hit.snippet.split("kCCOptionECBMode")[0] if "kCCOptionECBMode" in hit.snippet else ""
         if before and _OPTION_DEFINITION.search(before):
             continue
-        yield hit
+        yield _lower_if_legacy(ctx, hit)
     for hit in _scan(ctx, ECB_DART, suffixes=DART, keep_strings=False, prefilter=("AESMode", "ECBBlockCipher")):
-        yield hit
+        yield _lower_if_legacy(ctx, hit)
     # Keystore: ECB is a misnomer that RSA keys legitimately use, so flag it only for AES keys.
     for path in ctx.files(*JVM):
         raw = ctx.text(path) or ""
@@ -354,8 +391,9 @@ def ecb(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         for m in re.finditer(r"\bBLOCK_MODE_ECB\b", code):
             line = ctx.line_of(code, m.start())
-            yield Hit(path, line, ctx.snippet(path, line), "A Keystore AES key that allows ECB mode.",
-                      _hit_scope(ctx, path, m.start(), code))
+            yield _lower_if_legacy(ctx, Hit(path, line, ctx.snippet(path, line),
+                                            "A Keystore AES key that allows ECB mode.",
+                                            _hit_scope(ctx, path, m.start(), code)))
 
 
 # ---------------------------------------------------------------------------- XPL-005
@@ -372,7 +410,24 @@ CBC_DART: List[Tuple[Pattern[str], str]] = [
 ]
 # A file that also computes an HMAC is following the rule's own fix (encrypt-then-MAC).
 _MAC_IN_FILE = re.compile(r"\bMac\.getInstance\s*\(|\bHMAC\s*<|\bCCHmac\w*\s*\(|\bHMac\s*\(|\bHmac\s*\(|"
-                          r"\bHMAC\s*\(|\bKEY_ALGORITHM_HMAC_SHA\d+\b|\bHmacSHA\d+\b")
+                          r"\bHMAC\s*\(|\bKEY_ALGORITHM_HMAC_SHA\d+\b|\bHmacSHA\d+\b|"
+                          r"\bMAC_SIZE\b|\bMacInputStream\b|\bverifyMac\w*\s*\(")
+# A Keystore key that needs user authentication for every use never leaves the Keystore; CBC there only
+# binds a biometric or credential prompt, so tampering with its output gains an attacker nothing.
+_KEYSPEC_CHAIN = re.compile(r"\bKeyGenParameterSpec\s*\.\s*Builder\s*\(")
+
+
+def _auth_bound_cbc_keys(blank: str) -> List[Tuple[int, int]]:
+    """Spans of `KeyGenParameterSpec.Builder(...)...build()` chains that use CBC and require user auth."""
+    out = []
+    for m in _KEYSPEC_CHAIN.finditer(blank):
+        b = re.compile(r"\.\s*build\s*\(\s*\)").search(blank, m.end(), m.end() + 1500)
+        if not b:
+            continue
+        chain = blank[m.start():b.end()]
+        if "BLOCK_MODE_CBC" in chain and re.search(r"setUserAuthenticationRequired\s*\(\s*true\s*\)", chain):
+            out.append((m.start(), b.end()))
+    return out
 
 
 @detector("xpl_cbc")
@@ -386,6 +441,15 @@ def cbc(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if _MAC_IN_FILE.search(ctx.code(hit.path, keep_strings=True) or ""):
                 continue
             seen_files.add(hit.path)
+            blank = (ctx.code(hit.path, keep_strings=False) or "") if hit.path.endswith(JVM) else ""
+            spans = _auth_bound_cbc_keys(blank)
+            in_chain = any(ctx.line_of(blank, s) <= hit.line <= ctx.line_of(blank, e) for s, e in spans)
+            # A transformation string pairs with the auth-bound key unless the file also builds a software key.
+            if in_chain or (spans and not re.search(r"\bSecretKeySpec\s*\(|\bKeyGenerator\s*\.\s*getInstance\s*\("
+                                                    r"\s*[\"']AES[\"']\s*\)", ctx.code(hit.path) or "")):
+                hit.severity = "low"
+                hit.message += (" The Keystore key requires user authentication for every use, so it only "
+                                "binds the biometric or credential prompt; prefer GCM anyway.")
             yield hit
 
 
@@ -732,6 +796,13 @@ _NOT_A_FETCH = {"ns", "nsuri", "namespace", "namespaces", "xmlns", "dtd", "licen
                 "hint", "prefix", "prefixes", "schema", "referer", "referrer", "library", "libraries", "homepage"}
 
 
+# The URL is opened in the user's browser (a help link), not fetched by the app.
+_BROWSER_OPEN = re.compile(r"\b(?:launchUri|launchUrl|launchUrlString|launchBrowser|openInBrowser|openBrowser|"
+                           r"openExternal\w*|openUri|openURL|openUrl)\s*\(|\bIntent\s*\.\s*ACTION_VIEW\b|"
+                           r"\bACTION_VIEW\b|\bCustomTabsIntent\b|\bUIApplication\s*\.\s*shared\s*\.\s*open\s*\(|"
+                           r"\bSFSafariViewController\s*\(|\buriHandler\s*\.\s*openUri\b")
+
+
 @detector("xpl_http_url")
 def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE):
@@ -763,8 +834,13 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
             line = ctx.line_of(code, m.start())
             if line not in seen:
                 seen.add(line)
-                yield Hit(path, line, ctx.snippet(path, line), f"A plain-HTTP URL to `{host}`.",
+                hit = Hit(path, line, ctx.snippet(path, line), f"A plain-HTTP URL to `{host}`.",
                           _hit_scope(ctx, path, m.start(), blank))
+                prev_start = code.rfind("\n", 0, max(0, line_start - 1)) + 1
+                if _BROWSER_OPEN.search(blank[prev_start:line_end]):
+                    hit.severity = "low"
+                    hit.message += " It's opened in the browser rather than fetched by the app; still link to https."
+                yield hit
 
 
 # ---------------------------------------------------------------------------- XPL-010
@@ -1236,21 +1312,113 @@ def _kdf_calls(ctx: Context) -> Iterable[Tuple[str, str, str, int, Optional[Tupl
                 yield path, code, blank, m.start(), it, salt, prf
 
 
+# A derivation timed to calibrate the real iteration count derives no key.
+_KDF_BENCHMARK = re.compile(r"(?i)bench|calibrat")
+_TIMER = re.compile(r"\bcurrentTimeMillis\b|\bnanoTime\b|\belapsedRealtime\w*\b|\buptimeMillis\b|"
+                    r"\bCFAbsoluteTimeGetCurrent\b|\bCACurrentMediaTime\b|\bDispatchTime\s*\.\s*now\b|"
+                    r"\bDate\s*\(\s*\)\s*\.\s*timeIntervalSince|\bStopwatch\s*\(")
+_LEGACY_KDF = re.compile(r"(?i)\b(?:old|legacy|fallback|backward)\b")
+# The "password" fed to the KDF is random bytes the app generated, not something a person chose.
+_RANDOM_PASSWORD = re.compile(r"(?i)\b\w*(?:password|passphrase)\w*\s*=\s*[\w.]*?(?:generateBytes|randomBytes|"
+                              r"nextBytes|generateRandom\w*|secureRandom\w*)\s*\(")
+
+
+def _enum_counts(code: str, blank: str, prop: str) -> List[Tuple[int, int, str]]:
+    """(entry start, count, entry text) of each Kotlin enum entry that passes an integer for the
+    constructor property `prop` (`algorithm.iterationCount` with `SHA1("PBKDF2WithHmacSHA1", 1024)`)."""
+    out: List[Tuple[int, int, str]] = []
+    for m in re.finditer(r"\benum\s+class\s+\w+\s*\(", blank):
+        params = _args_of(blank, m.end() - 1)
+        idx = next((i for i, (s, e) in enumerate(params)
+                    if re.search(r"\bva[lr]\s+" + re.escape(prop) + r"\s*:", blank[s:e])), None)
+        if idx is None:
+            continue
+        open_body = blank.find("{", guards.match(blank, m.end() - 1, "(", ")"))
+        if open_body < 0:
+            continue
+        close_body = guards.match(blank, open_body, "{", "}")
+        for e in re.finditer(r"(?m)^[ \t]*([A-Z]\w*)\s*\(", blank[open_body:close_body]):
+            paren = open_body + e.end() - 1
+            args = _args_of(blank, paren)
+            if len(args) > idx:
+                n = _int_literal(code[args[idx][0]:args[idx][1]])
+                if n is not None:
+                    out.append((open_body + e.start(1), n, code[open_body + e.start():guards.match(blank, paren, "(", ")")]))
+    return out
+
+
+def _random_password_input(ctx: Context, path: str, blank: str, idx: int) -> bool:
+    """Is the function holding this KDF call fed a password the app generated at random? Callers are
+    looked for in this file and its directory (one package)."""
+    _s, _e, head = _enclosing_function(blank, idx, path)
+    name = _function_name(head)
+    if not name:
+        return False
+    folder = path.rsplit("/", 1)[0] if "/" in path else ""
+    call = re.compile(r"\b" + re.escape(name) + r"\s*\(")
+    for other in ctx.files(*JVM):
+        if (other.rsplit("/", 1)[0] if "/" in other else "") != folder:
+            continue
+        code = ctx.code(other, keep_strings=False) or ""
+        if call.search(code) and _RANDOM_PASSWORD.search(code):
+            return True
+    return False
+
+
 @detector("xpl_pbkdf2_iterations")
 def pbkdf2_iterations(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, code, blank, start, it, _salt, prf in _kdf_calls(ctx):
-        if it is None:
-            continue
-        expr = code[it[0]:it[1]]
-        n = _int_value(code, expr)
-        if n is None:
-            continue
-        floor = _PBKDF2_MIN.get(prf, 600_000)
-        if n == 2048 and prf == "sha512" and re.search(r"(?i)mnemonic|bip-?39|seed", code):
-            continue                          # BIP-39 fixes 2,048 rounds of PBKDF2-HMAC-SHA512
-        if n < floor:
-            yield _hit_at(ctx, path, code, start,
-                          f"PBKDF2-HMAC-{prf.upper()} with {n:,} iterations; OWASP's minimum is {floor:,}.", blank)
+    by_file: dict = {}
+    for call in _kdf_calls(ctx):
+        by_file.setdefault(call[0], []).append(call)
+    for path, calls in by_file.items():
+        code, blank = calls[0][1], calls[0][2]
+        raw = ctx.text(path) or ""
+        resolved = []                         # (call start, count, prf, iterations span)
+        for _p, _c, _b, start, it, _salt, prf in calls:
+            if it is None:
+                continue
+            expr = code[it[0]:it[1]]
+            n = _int_value(code, expr)
+            if n is not None:
+                resolved.append((start, n, prf, it))
+                continue
+            prop = re.fullmatch(r"\s*\w+\s*[?!]?\s*\.\s*(\w+)\s*", expr)
+            if prop and path.endswith(".kt"):
+                # Report the enum's weakest entry once; the stronger ones still count as "strong".
+                entries = [(s, n, _prf(t) if _PRF_IN.search(t) else prf, None)
+                           for s, n, t in _enum_counts(code, blank, prop.group(1))]
+                if entries:
+                    weakest = min(entries, key=lambda e: e[1] / _PBKDF2_MIN.get(e[2], 600_000))
+                    resolved.append(weakest)
+                    resolved.extend((-1, n, p, None) for _s, n, p, _i in entries if (_s, n) != weakest[:2])
+        strong = any(n >= _PBKDF2_MIN.get(prf, 600_000) for _s, n, prf, _it in resolved)
+        seen: Set[int] = set()
+        for start, n, prf, it in resolved:
+            floor = _PBKDF2_MIN.get(prf, 600_000)
+            if n >= floor or start < 0 or start in seen:
+                continue
+            seen.add(start)
+            if n == 2048 and prf == "sha512" and re.search(r"(?i)mnemonic|bip-?39|seed", code):
+                continue                      # BIP-39 fixes 2,048 rounds of PBKDF2-HMAC-SHA512
+            if it is not None:
+                call_end = guards.match(blank, blank.find("(", start), "(", ")")
+                fn_name = _function_name(_enclosing_function(blank, start, path)[2])
+                if _KDF_BENCHMARK.search(code[it[0]:it[1]]) or _KDF_BENCHMARK.search(fn_name) \
+                        or _TIMER.search(blank[call_end:call_end + 400]):
+                    continue                  # a timing benchmark that calibrates the real count
+                if path.endswith(JVM) and _random_password_input(ctx, path, blank, start):
+                    continue                  # a random, high-entropy "password" needs no stretching
+            msg = f"PBKDF2-HMAC-{prf.upper()} with {n:,} iterations; OWASP's minimum is {floor:,}."
+            severity = ""
+            if strong or _LEGACY_KDF.search(raw[max(0, start - 300):start]):
+                severity = "low"
+                msg += (" A stronger derivation exists in this file, so this" if strong else " This") + \
+                    " looks like a legacy-decrypt fallback; drop it once old data is migrated."
+            elif n >= 100_000:
+                severity = "medium"
+            hit = _hit_at(ctx, path, code, start, msg, blank)
+            hit.severity = severity
+            yield hit
 
 
 _DART_LITERAL_SALT = re.compile(r"^\s*(?:const\s+)?(?:utf8\.encode\s*\(\s*r?[\"']|" + _DART_LITERAL_BYTES
@@ -1519,8 +1687,10 @@ _RASP_NEEDLES = ("talsec", "freerasp", "promon", "shieldsdk", "dexguard", "ixgua
 _NEEDLES: dict = {}
 
 
-def _found(ctx: Context, pattern: Pattern[str], platform: str = "") -> Optional[str]:
-    """First file holding evidence. `platform` limits it to android, ios, or shared (Dart, deps) files."""
+def _found(ctx: Context, pattern: Pattern[str], platform: str = "",
+           accept: Optional[Callable[[str, str, "re.Match[str]"], bool]] = None) -> Optional[str]:
+    """First file holding evidence. `platform` limits it to android, ios, or shared (Dart, deps) files.
+    `accept(path, text, match)` can reject a match that isn't real evidence."""
     cache = getattr(ctx, "_xpl_evidence_joined", None)
     if cache is None:
         cache = ctx._xpl_evidence_joined = {}  # type: ignore[attr-defined]
@@ -1542,9 +1712,17 @@ def _found(ctx: Context, pattern: Pattern[str], platform: str = "") -> Optional[
     if needles is not None and not any(n in joined for n in needles):
         return None                           # a cheap substring test rules most projects out
     for path, text in files:
-        if (needles is None or any(n in text.lower() for n in needles)) and pattern.search(text):
+        if needles is not None and not any(n in text.lower() for n in needles):
+            continue
+        if accept is None:
+            if pattern.search(text):
+                return path
+        elif any(accept(path, text, m) for m in pattern.finditer(text)):
             return path
     return None
+
+
+_NOT_APP_PLIST_DIR = re.compile(r"(?i)(?:^|/)[^/]*(?:watch|test|mock|harness)[^/]*/")
 
 
 def _app_anchors(ctx: Context) -> List[Tuple[str, str, int]]:
@@ -1555,6 +1733,8 @@ def _app_anchors(ctx: Context) -> List[Tuple[str, str, int]]:
         if scope_of(path) != "main":
             continue
         text = ctx.text(path) or ""
+        if re.search(r"(?i)(?:^|/)[^/]*(?:wear|watch)[^/]*/", path) or "android.hardware.type.watch" in text:
+            continue                          # a Wear OS app, not the phone app
         if "android.intent.action.MAIN" in text and "<application" in text:
             out.append(("android", path, ctx.line_of(text, text.index("<application"))))
             break
@@ -1562,28 +1742,38 @@ def _app_anchors(ctx: Context) -> List[Tuple[str, str, int]]:
         if scope_of(path) != "main":
             continue
         text = ctx.text(path) or ""
-        i = text.find("com.apple.product-type.application\"")
-        if i >= 0:
-            out.append(("ios", path, ctx.line_of(text, i)))
+        for m in re.finditer(r"com\.apple\.product-type\.application\"", text):
+            # A watchOS app is also an "application"; its target block names it (WatchApp, SDKROOT watchos).
+            block = text[max(0, text.rfind("isa = PBXNativeTarget", 0, m.start())):m.start()]
+            if re.search(r"(?im)^\s*(?:name|productName)\s*=\s*[^;\n]*watch|SDKROOT\s*=\s*watchos", block):
+                continue
+            out.append(("ios", path, ctx.line_of(text, m.start())))
+            break
+        if any(p == "ios" for p, _, _ in out):
             break
     if not any(p == "ios" for p, _, _ in out):
-        # No readable Xcode project (XcodeGen, or a project file over the size limit): an app's Info.plist.
-        plists = [p for p in ctx.files("Info.plist") if scope_of(p) == "main"]
-        for path in sorted(plists, key=lambda p: (p.count("/"), p)):
+        # No readable Xcode project (XcodeGen, or a project file over the size limit): an app's Info.plist,
+        # not a watchOS app's or an extension's. A top folder named like the repository wins a tie in depth.
+        repo = {w for w in re.split(r"[^a-z0-9]+", ctx.root.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].lower())
+                if len(w) > 2}
+        plists = [p for p in ctx.files("Info.plist") if scope_of(p) == "main" and not _NOT_APP_PLIST_DIR.search(p)]
+        for path in sorted(plists, key=lambda p: (p.count("/"), p.split("/", 1)[0].lower() not in repo, p)):
             text = ctx.text(path) or ""
             if re.search(r"CFBundlePackageType</key>\s*<string>(?:APPL|\$\(PRODUCT_BUNDLE_PACKAGE_TYPE\))", text) \
-                    and "NSExtension" not in text and "<key>CFBundleExecutable</key>" in text:
+                    and "NSExtension" not in text and "<key>CFBundleExecutable</key>" in text \
+                    and not re.search(r"<key>(?:WKApplication|WKWatchKitApp|WKCompanionAppBundleIdentifier)</key>",
+                                      text):
                 out.append(("ios", path, ctx.line_of(text, text.index("CFBundlePackageType"))))
                 break
     return out
 
 
 def _absence(ctx: Context, rule: Rule, android: Pattern[str], ios: Pattern[str], shared: Pattern[str],
-             what: str) -> Iterable[Hit]:
+             what: str, accept: Optional[Callable[[str, str, "re.Match[str]"], bool]] = None) -> Iterable[Hit]:
     if _found(ctx, shared):
         return
     for platform, path, line in _app_anchors(ctx):
-        if _found(ctx, android if platform == "android" else ios, platform):
+        if _found(ctx, android if platform == "android" else ios, platform, accept):
             continue
         name = "Android" if platform == "android" else "iOS"
         yield Hit(path, line, ctx.snippet(path, line), f"No {what} found in the {name} app.")
@@ -1616,9 +1806,26 @@ DEBUGGER_IOS = re.compile(r"\bPT_DENY_ATTACH\b|\bptrace\s*\(|\bP_TRACED\b|\bkinf
 DEBUGGER_SHARED = re.compile(_RASP + r"|\bsafe_device\b|\bdebugger_detection\b")
 
 
+# Debugger checks that aren't anti-debugging: an ANR watchdog skipping reports while a debugger is
+# attached, or a debug-build helper that traps into the debugger.
+_WATCHDOG_FILE = re.compile(r"(?i)/anrs?[-/_]|anr\w*(?:detector|supervisor|watchdog|monitor)|watchdog")
+_NEGATED_DEBUG = re.compile(r"!\s*(?:android\s*\.\s*os\s*\.\s*)?Debug\s*\.\s*$")
+
+
+def _real_debugger_check(path: str, text: str, m: "re.Match[str]") -> bool:
+    if _WATCHDOG_FILE.search("/" + path):
+        return False
+    if path.endswith((".kt", ".java")) and _NEGATED_DEBUG.search(text[max(0, m.start() - 40):m.start()]):
+        return False
+    if path.endswith(APPLE + NATIVE) and guards.preprocessor_debug_guarded(text, m.start()):
+        return False
+    return True
+
+
 @detector("xpl_no_debugger_detection")
 def no_debugger_detection(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    yield from _absence(ctx, rule, DEBUGGER_ANDROID, DEBUGGER_IOS, DEBUGGER_SHARED, "debugger detection")
+    yield from _absence(ctx, rule, DEBUGGER_ANDROID, DEBUGGER_IOS, DEBUGGER_SHARED, "debugger detection",
+                        _real_debugger_check)
 
 
 # ---------------------------------------------------------------------------- XPL-038
@@ -1743,15 +1950,17 @@ def rsa_pkcs1(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 line = ctx.line_of(code, m.start())
                 if line not in seen:
                     seen.add(line)
-                    yield _hit_at(ctx, path, code, m.start(), message, blank)
+                    yield _lower_if_legacy(ctx, _hit_at(ctx, path, code, m.start(), message, blank))
         if path.endswith(".dart") and "package:encrypt" in code:
             for m in re.finditer(r"\bRSA\s*\(", blank):
                 args = code[m.end():guards.match(blank, m.end() - 1, "(", ")")]
                 line = ctx.line_of(code, m.start())
                 if "publicKey" in args and "encoding" not in args and line not in seen:
                     seen.add(line)
-                    yield _hit_at(ctx, path, code, m.start(), "package:encrypt `RSA` defaults to PKCS #1 v1.5 "
-                                                              "padding; pass `encoding: RSAEncoding.OAEP`.", blank)
+                    yield _lower_if_legacy(ctx, _hit_at(
+                        ctx, path, code, m.start(),
+                        "package:encrypt `RSA` defaults to PKCS #1 v1.5 padding; pass `encoding: RSAEncoding.OAEP`.",
+                        blank))
 
 
 # ---------------------------------------------------------------------------- XPL-024
@@ -1803,6 +2012,14 @@ MAC_COMPARE = re.compile(
 )
 
 
+# Network or IPC input in the same file, where a remote caller could measure the comparison's timing.
+_REMOTE_IO = re.compile(r"\bHttpURLConnection\b|\bHttpsURLConnection\b|\bOkHttp\w*\b|\bokhttp3\b|\bRetrofit\b|"
+                        r"\bSocket\b|\bServerSocket\b|\bURLSession\b|\bNSURLConnection\b|\bNWConnection\b|"
+                        r"\bIntent\b|\bBinder\b|\bIBinder\b|\bMessenger\b|\bContentProvider\b|\bBroadcastReceiver\b|"
+                        r"\bWebSocket\w*\b|\bHttpClient\b|\bhttp\s*\.\s*(?:get|post)\s*\(|\bDio\s*\(|"
+                        r"\bMethodChannel\b|\bXPCConnection\b|\bNSXPCConnection\b")
+
+
 @detector("xpl_mac_compare")
 def mac_compare(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, CODE, ("Mac", "HMAC", "Hmac", "hmac")):
@@ -1823,8 +2040,13 @@ def mac_compare(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if line in seen:
                 continue
             seen.add(line)
-            yield _hit_at(ctx, path, code, m.start(), "A MAC or signature is compared with an ordinary equality "
-                                                      "check, which stops at the first differing byte.", blank)
+            hit = _hit_at(ctx, path, code, m.start(), "A MAC or signature is compared with an ordinary equality "
+                                                     "check, which stops at the first differing byte.", blank)
+            if not _REMOTE_IO.search(blank):
+                hit.severity = "low"
+                hit.message += (" This file does no network or IPC I/O, so an attacker can't time the comparison "
+                                "remotely; still use a constant-time compare.")
+            yield hit
 
 
 # ---------------------------------------------------------------------------- XPL-026
