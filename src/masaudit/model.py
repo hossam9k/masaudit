@@ -75,6 +75,7 @@ class Profile:
     mas_profiles: List[str]            # e.g. ["L1", "L2", "P", "R"]
     source: str                        # "flag", "config", "prompt", "default"
     suggestions: List[str] = field(default_factory=list)   # code clues, stated, never applied silently
+    warnings: List[str] = field(default_factory=list)      # the code suggests a riskier type than this one
 
 
 @dataclass

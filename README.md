@@ -98,6 +98,11 @@ tampering, and **P** covers privacy.
 Without an answer (in CI, for example), it assumes `general` and lists higher-risk checks as
 *Not needed*. Set `--app-type` in CI.
 
+If the code suggests a riskier type than the one you chose, masaudit warns you instead of switching
+on its own. For example, a news app with card-number fields gets "Check your app type", naming the file,
+the type that fits, and the checks your choice skipped. The warning shows in the terminal, at the top of
+the report, and as an annotation on GitHub pull requests.
+
 The report, `SECURITY-AUDIT.md`, starts with a verdict and the top 3 fixes. Fix those, scan again,
 then add masaudit to CI.
 
@@ -137,7 +142,7 @@ jobs:
       - uses: actions/checkout@<commit-sha>
         with:
           persist-credentials: false
-      - uses: hossam9k/masaudit@<commit-sha> # v0.4.0
+      - uses: hossam9k/masaudit@<commit-sha> # v0.4.1
         with:
           app-type: banking
           fail-on: high
@@ -155,7 +160,7 @@ To scan before every commit, add this to `.pre-commit-config.yaml` ([pre-commit]
 ```yaml
 repos:
   - repo: https://github.com/hossam9k/masaudit
-    rev: v0.4.0
+    rev: v0.4.1
     hooks:
       - id: masaudit
         args: [--app-type, banking]

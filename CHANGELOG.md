@@ -3,6 +3,24 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.4.1 — 2026-10-24
+
+- **Check your app type.** When the code suggests a riskier app type than the one chosen, masaudit
+  warns instead of switching silently. The warning names the evidence, the type that fits, how many
+  checks the choice skips, and which findings it hid under *Not needed*. It appears in the terminal,
+  at the top of the report, in JSON (`profile.warnings`), in SARIF (`toolExecutionNotifications`), and
+  as a GitHub Actions annotation. The first-run question offers to switch.
+  - Evidence that changes nothing stays a quiet clue: a payment SDK in a news app runs the same checks.
+- **Clues are evidence, not words.**
+  - They are read only from code that ships, never tests, demos, or comments, and matched by package,
+    import, pod, or Flutter package name.
+  - More kinds: payment SDKs worldwide, Google Pay and Apple Pay, open banking, identity verification,
+    MDM, game engines, and smart-home APIs.
+  - False clues found on 19 real apps are gone: a view controller named `cvc`, "paypal" in a list of
+    websites, Android Auto in a podcast player, and `.pkpass` attachments shown in a messenger.
+  - Biometric and attestation clues are removed; their rules already report what matters.
+- The "assumed general app" note now says MAS-L1+P, as it has been since 0.2.0.
+
 ## 0.4.0 — 2026-10-24
 
 **172 rules, up from 77, and every one measured on 19 real apps.**

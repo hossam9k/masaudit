@@ -51,7 +51,9 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
         f"Profile:   {profile_mod.describe(result.profile)}",
     ]
     if result.profile.source == "default":
-        lines.append("Assumed general app (MAS-L1). Set --app-type for accurate results.")
+        lines.append("Assumed a general app (MAS-L1+P). Set --app-type for accurate results.")
+    for w in result.profile.warnings:
+        lines.append(_c(color, "high", f"WARNING: {w}"))
     for s in result.profile.suggestions:
         lines.append(f"Clue:      {s}")
     lines += [

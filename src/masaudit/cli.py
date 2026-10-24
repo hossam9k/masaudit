@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence
 
-from masaudit import __version__, config, detect, engine, fix, importers, safety, suppress
+from masaudit import __version__, config, detect, engine, fix, importers, lexer, safety, suppress
 from masaudit import profile as profile_mod
 from masaudit.model import SEVERITY_RANK, Finding, Profile, Project, Rule
 
@@ -23,7 +24,7 @@ DEFAULT_REPORT = "SECURITY-AUDIT.md"
 DEFAULT_PATCH = "masaudit-fixes.patch"
 DEFAULT_BASELINE = ".masaudit-baseline.json"
 SPONSOR_LINE = "masaudit is free. If it helped, you can sponsor it: https://github.com/sponsors/hossam9k"
-ASSUMED_LINE = "Assumed general app (MAS-L1). Set --app-type for accurate results."
+ASSUMED_LINE = "Assumed a general app (MAS-L1+P). Set --app-type for accurate results."
 
 CLUE_SUFFIXES = (".gradle", ".kts", ".kt", ".java", ".swift", ".m", ".mm", ".dart", ".js", ".ts",
                  ".tsx", ".toml", ".plist", ".entitlements")
@@ -153,6 +154,27 @@ def prompt_app_type(root: str, suggestions: List[str]) -> Optional[str]:
     return None
 
 
+def _confirm_against_clues(chosen: str, clues: Sequence[profile_mod.Clue], rules: Sequence[Rule]) -> str:
+    """If the code suggests a riskier type than the answer, say so once and offer to switch."""
+    warnings = profile_mod.check(profile_mod.make(chosen, "prompt"), list(clues), list(rules))
+    if not warnings:
+        return chosen
+    suggested = re.search(r"--app-type ([\w-]+)", warnings[0]).group(1)  # type: ignore[union-attr]
+    sys.stderr.write(asciify("\n" + warnings[0]) + "\n")
+    answer = _ask(f"Use '{suggested}' instead? [y/N]: ")
+    return suggested if answer is not None and answer.strip().lower() in ("y", "yes") else chosen
+
+
+def _annotate_github(warnings: Sequence[str]) -> None:
+    """On GitHub Actions, show app-type warnings as annotations on the run and the pull request."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+    for w in warnings:
+        # Workflow-command escaping: % first, then line breaks.
+        msg = w.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        sys.stdout.write(f"::warning title=masaudit: check your app type::{msg}\n")
+
+
 def _offer_save(root: str, app_type: str) -> None:
     answer = _ask(f"Save '{app_type}' to {config.FILE_NAME} so you aren't asked again? [Y/n]: ")
     if answer is None or answer.strip().lower() not in ("", "y", "yes"):
@@ -165,7 +187,8 @@ def _offer_save(root: str, app_type: str) -> None:
 
 
 def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
-                    suggestions: List[str], allow_prompt: bool = True) -> Profile:
+                    suggestions: List[str], allow_prompt: bool = True,
+                    clues: Sequence[profile_mod.Clue] = (), rules: Sequence[Rule] = ()) -> Profile:
     if cli_type:
         try:
             prof = profile_mod.make(cli_type, "flag")
@@ -176,6 +199,7 @@ def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
     else:
         chosen = prompt_app_type(root, suggestions) if allow_prompt and _is_interactive() else None
         if chosen:
+            chosen = _confirm_against_clues(chosen, clues, rules)
             prof = profile_mod.make(chosen, "prompt")
             _offer_save(root, chosen)
         else:
@@ -187,18 +211,32 @@ def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
 # ---------------------------------------------------------------------------- scanning
 
 
-def collect_clues(root: str, files: List[str]) -> List[str]:
+def collect_clues(root: str, files: List[str]) -> List[profile_mod.Clue]:
+    """Evidence about the app's type from code that ships: tests, demos, and comments don't count."""
     texts: Dict[str, str] = {}
     for rel in files:
         base = rel.rsplit("/", 1)[-1]
         if not (rel.endswith(CLUE_SUFFIXES) or base in CLUE_NAMES):
             continue
+        if detect.scope_of(rel) in ("test", "debug"):
+            continue
         text = safety.read_text(root, rel)
-        if text is not None:
-            texts[rel] = text
+        if text is None:
+            continue
+        texts[rel] = text
         if len(texts) >= MAX_CLUE_FILES:
             break
-    return profile_mod.infer_clues(texts)
+    return profile_mod.find_clues(texts, strip=_without_comments)
+
+
+def _without_comments(rel: str, text: str) -> str:
+    """Comments out, strings (dependency names) kept."""
+    lang = lexer.LANG_BY_SUFFIX.get(os.path.splitext(rel)[1])
+    if lang:
+        return lexer.strip(text, lang)
+    if rel.rsplit("/", 1)[-1] in ("Podfile", "Cartfile") or rel.endswith((".yaml", ".yml", ".toml")):
+        return re.sub(r"(?m)^\s*#.*$", "", text)
+    return text
 
 
 def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, object]] = None,
@@ -214,11 +252,11 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     if excludes:
         files = [f for f in files if not config.is_excluded(f, excludes)]
     platforms = detect.platforms(files)
-    suggestions = collect_clues(root, files)
-    prof = resolve_profile(cli_type, cfg, root, suggestions, allow_prompt)
+    clues = collect_clues(root, files)
+    all_rules = rules if rules is not None else engine.load_rules()
+    prof = resolve_profile(cli_type, cfg, root, [c.describe() for c in clues], allow_prompt, clues, all_rules)
 
     project = Project(root=root, platforms=platforms, files=files)
-    all_rules = rules if rules is not None else engine.load_rules()
     findings = engine.run(project, all_rules, prof)
     notes: List[str] = []
     for sarif_path in import_sarif:
@@ -230,6 +268,7 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
         notes += extra_notes
     findings = _dedupe(findings)
     engine.calibrate(findings, prof)
+    prof.warnings = profile_mod.check(prof, clues, all_rules, findings)
     notes += suppress.apply_inline(findings, root)
     if baseline or update_baseline:
         path = baseline or os.path.join(root, DEFAULT_BASELINE)
@@ -418,6 +457,10 @@ def _main(args) -> int:
             _write_stdout(text)
         if result.profile.source == "default" and args.format != "text":
             sys.stderr.write(ASSUMED_LINE + "\n")
+        if args.format != "text":
+            for w in result.profile.warnings:
+                sys.stderr.write(asciify(f"WARNING: {w}") + "\n")
+    _annotate_github(result.profile.warnings)
     if fails(result.findings, fail_on):
         n = sum(1 for f in result.findings if f.status == "open" and f.bucket in ("fix-before-release", "fix-soon")
                 and SEVERITY_RANK.get(f.effective_severity, 9) <= SEVERITY_RANK[fail_on])

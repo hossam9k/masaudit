@@ -306,10 +306,12 @@ def render(result) -> str:
         f"- **App profile:** {text(profile_mod.describe(p))}",
     ]
     if p.source == "default":
-        out.append("- **Note:** Assumed a general app (MAS-L1). Set `--app-type` for accurate results.")
+        out.append("- **Note:** Assumed a general app (MAS-L1+P). Set `--app-type` for accurate results.")
     if p.suggestions:
         out.append("- **Code clues (suggestions only, not applied):**")
         out += [f"  - {text(s)}" for s in p.suggestions]
+    for w in p.warnings:
+        out += ["", f"> **⚠ {text(w)}**"]
     out += ["", _verdict(result), ""]
 
     top = top_fixes(result.findings)

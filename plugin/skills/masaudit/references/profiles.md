@@ -128,29 +128,38 @@ For L1-only types, phases 2–4 shrink to what the table above lists.
 
 ## How to tell the type from code
 
-masaudit looks for these clues and reports them. They only *suggest* a higher-risk type.
+masaudit looks for these clues in code that ships (never tests, demos, or comments) and reports them.
+They only *suggest* a type. Each is matched by package, import, pod, or Flutter package name, never by
+a bare word.
 
 | Clue in code | Suggests |
 |---|---|
-| `com.stripe`, `StripePaymentSheet`, Braintree, Adyen, Checkout.com, PayPal | `ecommerce` (a payment SDK handles cards) |
-| `HealthKit`, `HKHealthStore`, `androidx.health.connect`, `HealthConnectClient` | `health` |
-| Fields named `cardNumber`, `card_number`, `primaryAccountNumber`, `cvv`, `cvc` | `ecommerce-cards` (the app touches card numbers) |
-| Google Wallet or Apple Wallet passes (`play-services-pay`, `PKAddPassesViewController`, `.pkpass`) | `loyalty` |
-| Loyalty or points code (`loyalty`, `pointsBalance`, `redeemCoupon`) | `loyalty` |
-| Crypto wallet libraries (web3j, bitcoinj, ethers, WalletConnect, Trust Wallet Core) | `banking` |
-| Passport or ID-card NFC reading (`NFCTagReaderSession`, `IsoDep`, JMRTD) | `identity` |
-| Smart-home or car APIs (`HMHomeManager`, `androidx.car.app`, CarPlay, Matter) | `device-control` |
-| `BiometricPrompt`, `LAContext` | No type; check biometric binding ([Chapter 11]) |
-| Play Integrity, `DCAppAttestService` | No type; check server verification ([Chapter 9], [Chapter 10]) |
+| Payment SDKs: Stripe, Braintree, Adyen, Checkout.com, PayPal, Square, Razorpay, Paystack, Flutterwave, Mercado Pago, PayU, Paymob, Fawry, HyperPay, Klarna, Afterpay | `ecommerce` (a payment SDK handles cards) |
+| Google Pay or Apple Pay (`play-services-wallet`, `PKPaymentRequest`) | `ecommerce` |
+| Fields named `cardNumber`, `card_number`, `primaryAccountNumber`, `cvv`, `cardCvc`, `cardExpiry` | `ecommerce-cards` (the app touches card numbers) |
+| Open-banking SDKs (Plaid, TrueLayer, Tink Link, Yapily) or crypto wallet libraries | `banking` |
+| Identity verification (Onfido, Jumio, Veriff, Sumsub, IDnow, Persona) or passport NFC reading | `identity` |
+| `HealthKit`, `HKHealthStore`, Health Connect | `health` |
+| Smart-home APIs (`HMHomeManager`, Matter, Google Home) | `device-control` |
+| Intune MAM, Android `APP_RESTRICTIONS`, iOS managed app configuration | `enterprise` |
+| Game engines (Unity, Unreal, cocos2d-x, Godot) | `game` |
+| Issuing Google Wallet passes, or loyalty and points code | `loyalty` |
 
 Read clues with care. A payment SDK means cards go to the provider, which is the lower-risk e-commerce
 case ([§8.8]). Card-number fields mean the app handles cards itself, which is the higher-risk case.
+
+**When a clue matters, masaudit says so.** If the suggested type needs checks the chosen type skips,
+the report opens with "Check your app type", naming the evidence, the type, how many checks it adds,
+and which findings it hid under *Not needed*. The same warning goes to the terminal, JSON
+(`profile.warnings`), SARIF (`toolExecutionNotifications`), and a GitHub Actions annotation. Evidence
+that changes nothing stays a quiet clue: a payment SDK in a news app runs the same checks.
 
 ## When the user's answer conflicts with the code
 
 The user's answer wins until they change it. Never re-profile silently.
 
-1. **State the evidence.** "You said `content`, but `CardEntryForm.kt:40` collects a card number and CVV."
+1. **State the evidence.** Start from masaudit's "Check your app type" warning if there is one: "You said
+   `content`, but `CardEntryForm.kt:40` collects a card number and CVV."
 2. **Ask one question.** "Does the app handle card numbers itself? If so, `ecommerce-cards` fits better."
 3. **If they confirm,** suggest re-running with the right `--app-type` rather than overriding findings
    yourself.
