@@ -7,6 +7,8 @@ Handles nested block comments (Kotlin, Swift, Dart), raw/triple-quoted strings, 
 
 from __future__ import annotations
 
+import re
+
 LANG_BY_SUFFIX = {
     ".kt": "kotlin", ".kts": "kotlin", ".java": "java", ".swift": "swift",
     ".m": "objc", ".mm": "objc", ".h": "objc", ".dart": "dart",
@@ -17,43 +19,69 @@ LANG_BY_SUFFIX = {
 NESTED_BLOCK = {"kotlin", "swift", "dart"}
 
 
+# Characters that can start a comment or a string. Everything else is copied in one slice, which is
+# what keeps the lexer fast on large apps (a per-character Python loop took seconds on Signal).
+_SPECIAL = {lang: re.compile(r"[/\"'#r]" if lang == "dart" else r"[/\"'#]")
+            for lang in set(LANG_BY_SUFFIX.values())}
+_SPECIAL_DEFAULT = re.compile(r"[/\"'#]")
+_NOT_NEWLINE = re.compile(r"[^\n]")
+_BLOCK_MARK = re.compile(r"/\*|\*/")
+# A quoted string's body, up to the closing quote or an unescaped newline (a backslash escapes any
+# character, newline included).
+_STRING_BODY = {q: re.compile(r"(?:[^%s\\\n]|\\.)*" % q, re.DOTALL) for q in ('"', "'")}
+
+
+def _spaces(segment: str) -> str:
+    """Blank a segment, keeping its newlines so line numbers don't move."""
+    return _NOT_NEWLINE.sub(" ", segment)
+
+
 def strip(code: str, lang: str, keep_strings: bool = True) -> str:
     """Return `code` with comments blanked. If keep_strings is False, string contents are blanked too."""
     out = []
     i, n = 0, len(code)
-    depth = 0
+    special = _SPECIAL.get(lang, _SPECIAL_DEFAULT)
+    nested = lang in NESTED_BLOCK
     while i < n:
+        m = special.search(code, i)
+        if m is None:
+            out.append(code[i:])
+            break
+        if m.start() > i:
+            out.append(code[i:m.start()])
+            i = m.start()
         c = code[i]
         nxt = code[i + 1] if i + 1 < n else ""
         # Block comment.
         if c == "/" and nxt == "*":
-            depth = 1
-            out.append("  ")
-            i += 2
-            while i < n and depth:
-                if code[i] == "/" and i + 1 < n and code[i + 1] == "*" and lang in NESTED_BLOCK:
-                    depth += 1
-                    out.append("  ")
-                    i += 2
+            depth, j = 1, i + 2
+            while depth:
+                mark = _BLOCK_MARK.search(code, j)
+                if mark is None:
+                    j = n
+                    break
+                if mark.group() == "/*":
+                    if nested:
+                        depth += 1
+                    j = mark.start() + (2 if nested else 1)
                     continue
-                if code[i] == "*" and i + 1 < n and code[i + 1] == "/":
-                    depth -= 1
-                    out.append("  ")
-                    i += 2
-                    continue
-                out.append("\n" if code[i] == "\n" else " ")
-                i += 1
+                depth -= 1
+                j = mark.end()
+            out.append(_spaces(code[i:j]))
+            i = j
             continue
         # Line comment.
         if c == "/" and nxt == "/":
-            while i < n and code[i] != "\n":
-                out.append(" ")
-                i += 1
+            j = code.find("\n", i)
+            j = n if j == -1 else j
+            out.append(" " * (j - i))
+            i = j
             continue
         if c == "#" and lang == "groovy" and (i == 0 or code[i - 1] == "\n"):
-            while i < n and code[i] != "\n":
-                out.append(" ")
-                i += 1
+            j = code.find("\n", i)
+            j = n if j == -1 else j
+            out.append(" " * (j - i))
+            i = j
             continue
         # Dart raw strings r'...', r"...", r'''...''', r"""...""": backslashes don't escape.
         if (lang == "dart" and c == "r" and nxt in ('"', "'")
@@ -90,14 +118,11 @@ def strip(code: str, lang: str, keep_strings: bool = True) -> str:
                     out.append(segment)
                 else:
                     inner = segment[len(opener):len(segment) - len(closer)]
-                    out.append(opener + "".join("\n" if ch == "\n" else " " for ch in inner)
-                               + segment[len(segment) - len(closer):])
+                    out.append(opener + _spaces(inner) + segment[len(segment) - len(closer):])
                 i = end
                 continue
         if c in ('"', "'") and not (c == "'" and lang in ("swift",)):
-            j = i + 1
-            while j < n and code[j] != c and code[j] != "\n":
-                j += 2 if code[j] == "\\" else 1
+            j = _STRING_BODY[c].match(code, i + 1).end()
             end = min(j + 1, n)
             out.append(_blank(code[i:end], keep_strings, 1))
             i = end
@@ -112,5 +137,4 @@ def _blank(segment: str, keep: bool, quote_len: int) -> str:
         return segment
     if len(segment) <= 2 * quote_len:
         return segment
-    inner = "".join("\n" if ch == "\n" else " " for ch in segment[quote_len:-quote_len])
-    return segment[:quote_len] + inner + segment[-quote_len:]
+    return segment[:quote_len] + _spaces(segment[quote_len:-quote_len]) + segment[-quote_len:]
