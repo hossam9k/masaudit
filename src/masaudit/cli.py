@@ -8,22 +8,23 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence
 
-from masaudit import __version__, config, detect, engine, fix, importers, safety, suppress
+from masaudit import __version__, config, detect, engine, fix, importers, lexer, safety, suppress
 from masaudit import profile as profile_mod
-from masaudit.model import SEVERITY_RANK, Finding, Profile, Project, Rule
+from masaudit.model import SEVERITY_RANK, AppTypeWarning, Finding, Profile, Project, Rule
 
 EXIT_OK, EXIT_FINDINGS, EXIT_ERROR = 0, 1, 2
 DEFAULT_REPORT = "SECURITY-AUDIT.md"
 DEFAULT_PATCH = "masaudit-fixes.patch"
 DEFAULT_BASELINE = ".masaudit-baseline.json"
 SPONSOR_LINE = "masaudit is free. If it helped, you can sponsor it: https://github.com/sponsors/hossam9k"
-ASSUMED_LINE = "Assumed general app (MAS-L1). Set --app-type for accurate results."
+ASSUMED_LINE = "Assumed a general app (MAS-L1+P). Set --app-type for accurate results."
 
 CLUE_SUFFIXES = (".gradle", ".kts", ".kt", ".java", ".swift", ".m", ".mm", ".dart", ".js", ".ts",
                  ".tsx", ".toml", ".plist", ".entitlements")
@@ -153,6 +154,45 @@ def prompt_app_type(root: str, suggestions: List[str]) -> Optional[str]:
     return None
 
 
+def _confirm_against_clues(chosen: str, clues: Sequence[profile_mod.Clue], rules: Sequence[Rule],
+                           platforms: Sequence[str] = ()) -> str:
+    """If the code suggests a riskier type than the answer, say so once and offer to switch."""
+    warnings = profile_mod.check(profile_mod.make(chosen, "prompt"), list(clues), list(rules),
+                                 applies=lambda r: engine.applies_to_platforms(r, platforms))
+    if not warnings:
+        return chosen
+    w = warnings[0]
+    lines = w.lines()[:4]                       # headline, choice, evidence, suggestion
+    sys.stderr.write(asciify("\n" + "\n".join(lines[:1] + ["  " + x for x in lines[1:]])) + "\n")
+    answer = _ask(f"Use '{w.suggested}' instead? Press Enter to keep '{chosen}', or type y or another type: ")
+    if answer is None or not answer.strip():
+        return chosen
+    if answer.strip().lower() in ("y", "yes"):
+        return w.suggested
+    try:
+        return profile_mod.normalize(answer)
+    except ValueError:
+        return chosen
+
+
+def _gh_escape(value: str, prop: bool = False) -> str:
+    """GitHub workflow-command escaping; property values also escape ':' and ','."""
+    value = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    return value.replace(":", "%3A").replace(",", "%2C") if prop else value
+
+
+def _annotate_github(warnings: Sequence[AppTypeWarning]) -> None:
+    """On GitHub Actions, show app-type warnings as annotations on the evidence file.
+
+    Written to stderr: the runner reads both streams, and stdout may be a JSON or SARIF report.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+    for w in warnings:
+        sys.stderr.write(f"::warning file={_gh_escape(w.path, True)},title=masaudit - check your app type::"
+                         f"{_gh_escape(w.summary())}\n")
+
+
 def _offer_save(root: str, app_type: str) -> None:
     answer = _ask(f"Save '{app_type}' to {config.FILE_NAME} so you aren't asked again? [Y/n]: ")
     if answer is None or answer.strip().lower() not in ("", "y", "yes"):
@@ -165,7 +205,9 @@ def _offer_save(root: str, app_type: str) -> None:
 
 
 def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
-                    suggestions: List[str], allow_prompt: bool = True) -> Profile:
+                    suggestions: List[str], allow_prompt: bool = True,
+                    clues: Sequence[profile_mod.Clue] = (), rules: Sequence[Rule] = (),
+                    platforms: Sequence[str] = ()) -> Profile:
     if cli_type:
         try:
             prof = profile_mod.make(cli_type, "flag")
@@ -176,6 +218,7 @@ def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
     else:
         chosen = prompt_app_type(root, suggestions) if allow_prompt and _is_interactive() else None
         if chosen:
+            chosen = _confirm_against_clues(chosen, clues, rules, platforms)
             prof = profile_mod.make(chosen, "prompt")
             _offer_save(root, chosen)
         else:
@@ -187,18 +230,47 @@ def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
 # ---------------------------------------------------------------------------- scanning
 
 
-def collect_clues(root: str, files: List[str]) -> List[str]:
+def collect_clues(root: str, files: List[str]) -> List[profile_mod.Clue]:
+    """Evidence about the app's type from code that ships: tests, demos, and comments don't count."""
     texts: Dict[str, str] = {}
     for rel in files:
         base = rel.rsplit("/", 1)[-1]
         if not (rel.endswith(CLUE_SUFFIXES) or base in CLUE_NAMES):
             continue
+        if _not_shipping(rel):
+            continue
         text = safety.read_text(root, rel)
-        if text is not None:
-            texts[rel] = text
+        if text is None:
+            continue
+        texts[rel] = text
         if len(texts) >= MAX_CLUE_FILES:
             break
-    return profile_mod.infer_clues(texts)
+    return profile_mod.find_clues(texts, strip=_without_comments)
+
+
+_DEMO_DIRS = {"sample", "samples", "example", "examples", "demo", "demos"}
+
+
+def _not_shipping(rel: str) -> bool:
+    """Tests, debug and mock source sets, and sample apps: evidence there says nothing about the app.
+    (Other "debug" folders, such as an iOS Catalog or Internal folder, often ship.)"""
+    if detect.scope_of(rel) == "test":
+        return True
+    low = "/" + rel.lower()
+    if "/src/debug/" in low or "/src/mock/" in low:
+        return True
+    module = low.split("/src/", 1)[0] if "/src/" in low else low.rsplit("/", 1)[0]
+    return any(seg in _DEMO_DIRS for seg in module.split("/"))
+
+
+def _without_comments(rel: str, text: str) -> str:
+    """Comments out, strings (dependency names) kept."""
+    lang = lexer.LANG_BY_SUFFIX.get(os.path.splitext(rel)[1])
+    if lang:
+        return lexer.strip(text, lang)
+    if rel.rsplit("/", 1)[-1] in ("Podfile", "Cartfile") or rel.endswith((".yaml", ".yml", ".toml")):
+        return re.sub(r"(?m)^[ \t]*#.*$", "", text)       # [ \t], not \s: \s spans blank lines (quadratic)
+    return text
 
 
 def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, object]] = None,
@@ -214,11 +286,12 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     if excludes:
         files = [f for f in files if not config.is_excluded(f, excludes)]
     platforms = detect.platforms(files)
-    suggestions = collect_clues(root, files)
-    prof = resolve_profile(cli_type, cfg, root, suggestions, allow_prompt)
+    clues = collect_clues(root, files)
+    all_rules = rules if rules is not None else engine.load_rules()
+    prof = resolve_profile(cli_type, cfg, root, [c.describe() for c in clues], allow_prompt, clues, all_rules,
+                           platforms)
 
     project = Project(root=root, platforms=platforms, files=files)
-    all_rules = rules if rules is not None else engine.load_rules()
     findings = engine.run(project, all_rules, prof)
     notes: List[str] = []
     for sarif_path in import_sarif:
@@ -241,6 +314,15 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
         except suppress.BaselineError as exc:
             raise ToolError(str(exc)) from exc
         suppress.apply_baseline(findings, fps)
+    reviewed = list(cfg.get("app_type_reviewed") or [])  # type: ignore[arg-type]
+    prof.warnings = profile_mod.check(prof, clues, all_rules, findings, reviewed=reviewed,
+                                      applies=lambda r: engine.applies_to_platforms(r, platforms))
+    warned = {(w.evidence, w.path) for w in prof.warnings}
+    prof.suggestions = [c.describe() for c in clues if (c.label, c.path) not in warned]
+    for t in reviewed:
+        if any(c.app_type == t for c in clues):
+            notes.append(f"App type {prof.app_type} kept on purpose: the code suggests {t}, and .masaudit.ini "
+                         f"marks that as reviewed (app_type_reviewed).")
     return ScanResult(root=root, project=project, profile=prof, findings=findings, rules=all_rules,
                       rules_version=engine.rules_version(), notes=notes)
 
@@ -325,6 +407,8 @@ def _git_clean(root: str) -> Optional[str]:
 
 
 def run_fix_safe(result: ScanResult, args) -> int:
+    for w in result.profile.warnings:
+        sys.stderr.write(asciify("WARNING: " + "\n  ".join(w.lines())) + "\n")
     plan = fix.plan(result.root, result.findings)
     diff = fix.unified_diff(plan.fixes)
     if diff:
@@ -418,6 +502,11 @@ def _main(args) -> int:
             _write_stdout(text)
         if result.profile.source == "default" and args.format != "text":
             sys.stderr.write(ASSUMED_LINE + "\n")
+        if args.format != "text":
+            for w in result.profile.warnings:
+                lines = w.lines()
+                sys.stderr.write(asciify("WARNING: " + "\n  ".join(lines)) + "\n")
+    _annotate_github(result.profile.warnings)
     if fails(result.findings, fail_on):
         n = sum(1 for f in result.findings if f.status == "open" and f.bucket in ("fix-before-release", "fix-soon")
                 and SEVERITY_RANK.get(f.effective_severity, 9) <= SEVERITY_RANK[fail_on])

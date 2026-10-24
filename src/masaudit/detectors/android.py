@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import bisect
 import datetime
 import fnmatch
 import itertools
@@ -13,12 +14,28 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from masaudit import guards
-from masaudit.detect import scope_of
+from masaudit.detect import scope_of as _scope_of
 from masaudit.detectors import flutter
+from masaudit.guards import guarded_by
+from masaudit.textscan import bracket_match, finditer_lit, holds_all, holds_any, text_memo
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import gradle, manifest, proguard, xmlsafe
 from masaudit.parsers.xmlsafe import Element
+
+
+_SCOPES: Dict[str, str] = {}
+
+
+def scope_of(path: str) -> str:
+    """detect.scope_of, memoised: detectors ask it about the same paths many times per scan."""
+    s = _SCOPES.get(path)
+    if s is None:
+        if len(_SCOPES) >= 200_000:
+            _SCOPES.clear()
+        s = _SCOPES[path] = _scope_of(path)
+    return s
+
 
 CODE_SUFFIXES = (".kt", ".java")
 BUILD_FILES = ("build.gradle", "build.gradle.kts")
@@ -100,8 +117,20 @@ def _code_files(ctx: Context, *needles: str) -> Iterator[Tuple[str, str, str]]:
     `code` has comments blanked; `blank` also blanks string contents. Offsets are identical.
     """
     for path in ctx.files(*CODE_SUFFIXES):
-        raw = ctx.text(path)
-        if raw is None or not all(n in raw for n in needles):
+        if not holds_all(ctx, path, needles):
+            continue
+        code = ctx.code(path, keep_strings=True)
+        blank = ctx.code(path, keep_strings=False)
+        if code is not None and blank is not None:
+            yield path, code, blank
+
+
+def _code_files_any(ctx: Context, needles: Tuple[str, ...]) -> Iterator[Tuple[str, str, str]]:
+    """Like _code_files, for files whose raw text contains at least one needle. A needle without
+    whitespace that occurs in `code` or `blank` occurs at the same offset in the raw text (the lexer only
+    turns characters into spaces), so this is a sound prefilter for any search that needs a needle."""
+    for path in ctx.files(*CODE_SUFFIXES):
+        if not holds_any(ctx, path, needles):
             continue
         code = ctx.code(path, keep_strings=True)
         blank = ctx.code(path, keep_strings=False)
@@ -111,7 +140,7 @@ def _code_files(ctx: Context, *needles: str) -> Iterator[Tuple[str, str, str]]:
 
 def _match(text: str, i: int, opener: str, closer: str) -> int:
     """Index of the bracket closing the one at `i` (text must have strings blanked)."""
-    return guards.match(text, i, opener, closer)
+    return bracket_match(text, i, opener, closer)
 
 
 def _args(blank: str, open_paren: int) -> List[Tuple[int, int]]:
@@ -134,7 +163,7 @@ def _args(blank: str, open_paren: int) -> List[Tuple[int, int]]:
 
 def _debug_guarded(blank: str, idx: int) -> bool:
     """True if idx sits under `if (BuildConfig.DEBUG)` or an `if (... FLAG_DEBUGGABLE ...)` check."""
-    return guards.jvm_debug_guarded(blank, idx)
+    return guarded_by(blank, idx, guards._jvm_debug)       # guards.jvm_debug_guarded, linear per file
 
 
 def _is_import(blank: str, idx: int) -> bool:
@@ -495,11 +524,11 @@ def _sdk_entries(ctx: Context, rule_key: str) -> List[Tuple[str, int, Optional[i
                 if code is not None and blank is not None:
                     build_like.append((path, code, blank))
         for path, code, blank in build_like:
-            skip = [b for name in ("lint", "lintOptions", "testOptions")
-                    for b in gradle.named_blocks(code, blank, name)]
+            skip = _Spans([b for name in ("lint", "lintOptions", "testOptions")
+                           for b in gradle.named_blocks(code, blank, name)])
             for m in key_re.finditer(code):
                 prefix = code[max(0, m.start() - 12):m.start()]
-                if gradle.inside(m.start(), skip) or re.search(r"(?:lint|testOptions|lintOptions)\.$", prefix):
+                if skip.holds(m.start()) or re.search(r"(?:lint|testOptions|lintOptions)\.$", prefix):
                     continue
                 val = m.group("val")
                 while val.endswith(")") and val.count("(") < val.count(")"):
@@ -560,7 +589,7 @@ def _string_constants(ctx: Context) -> Dict[str, str]:
             if "\"" not in raw:
                 continue
             code = ctx.code(path, True) or ""
-            for m in rx.finditer(code):
+            for m in finditer_lit(rx, code, ("const", "val", "static", "final")):
                 out.setdefault(m.group("name"), m.group("val"))
         return out
     return _memo(ctx, "string_constants", compute)
@@ -839,8 +868,9 @@ _GET_INSECURE = re.compile(r"\bSSLCertificateSocketFactory\s*\.\s*getInsecure\s*
 
 @detector("android_trust_all")
 def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, _code, blank in _code_files(ctx):
-        if not re.search(r"checkServerTrusted|HostnameVerifier|hostnameVerifier|SSLSession|getInsecure", blank):
+    gate = ("checkServerTrusted", "HostnameVerifier", "hostnameVerifier", "SSLSession", "getInsecure")
+    for path, _code, blank in _code_files_any(ctx, gate):
+        if not any(n in blank for n in gate):
             continue
         for m in _sites(_TRUST_EMPTY.finditer(blank)):
             close = _match(blank, m.end() - 1, "(", ")")
@@ -890,7 +920,9 @@ def _has_pinning_evidence(ctx: Context) -> bool:
                 return True
         else:
             code, blank = ctx.code(path, True) or "", ctx.code(path, False) or ""
-            if _PIN_CODE.search(blank) or _PIN_VALUE.search(code):
+            # Each _PIN_CODE alternative contains one of these needles; every _PIN_VALUE match "sha256/".
+            if (holds_any(ctx, path, ("TrustKit", "inning", "Pinner")) and _PIN_CODE.search(blank)) \
+                    or (holds_any(ctx, path, ("sha256/",)) and _PIN_VALUE.search(code)):
                 return True
             if path.endswith((".kts", ".gradle")) and _PIN_DEPS.search(code):
                 return True
@@ -971,25 +1003,38 @@ _GATED_TRUST = re.compile(r"certificatePinner\s*\(|CertificatePinner|sslSocketFa
 _BUILDCONFIG_IF = re.compile(r"\bif\s*\(\s*!?\s*BuildConfig\.\w+")
 
 
+def _gated_within(gated: List[Tuple[int, int]], start: int, end: int) -> bool:
+    """`_GATED_TRUST.search(blank[start:end])`, from the file's matches (`gated`, in order). Searching each
+    if's block again was quadratic in a file of nested or unclosed blocks. No _GATED_TRUST match contains a
+    brace, and a region starts at `{` or after whitespace and ends at `}`, a newline, or the end of the file,
+    so a match in the region is a whole-file match lying inside it, and the first file match starting in
+    it has the earliest end."""
+    k = bisect.bisect_left(gated, (start, -1))
+    return k < len(gated) and gated[k][1] <= end
+
+
 @detector("android_buildconfig_trust")
 def buildconfig_trust(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, _code, blank in _code_files(ctx, "BuildConfig."):
+        gated: Optional[List[Tuple[int, int]]] = None
         for m in _BUILDCONFIG_IF.finditer(blank):
             open_paren = blank.index("(", m.start())
             close = _match(blank, open_paren, "(", ")")
             j = close + 1
             while j < len(blank) and blank[j] in " \t\r\n":
                 j += 1
+            if gated is None:
+                gated = [(g.start(), g.end()) for g in _GATED_TRUST.finditer(blank)]
             if j < len(blank) and blank[j] == "{":
                 end = _match(blank, j, "{", "}")
-                region = blank[j:end]
+                found = _gated_within(gated, j, end)
                 em = re.compile(r"\s*else\s*\{").match(blank, end + 1)
                 if em:
-                    region += blank[em.end() - 1:_match(blank, em.end() - 1, "{", "}")]
+                    found = found or _gated_within(gated, em.end() - 1, _match(blank, em.end() - 1, "{", "}"))
             else:
                 nl = blank.find("\n", j)
-                region = blank[j: nl if nl != -1 else len(blank)]
-            if _GATED_TRUST.search(region):
+                found = _gated_within(gated, j, nl if nl != -1 else len(blank))
+            if found:
                 line = ctx.line_of(blank, m.start())
                 yield _hit(ctx, path, line,
                            "Certificate pinning or trust checks depend on a BuildConfig flag that can be flipped.")
@@ -1059,6 +1104,99 @@ _KT_SUPER = re.compile(r"\bclass\s+(?P<name>[A-Z]\w*)(?:\s*<[^>{}]*>)?[^{:\n]*?(
 _JAVA_SUPER = re.compile(r"\bclass\s+(?P<name>[A-Z]\w*)(?:\s*<[^>{}]*>)?\s+extends\s+(?P<sup>[A-Z][\w.]*)")
 
 
+# _KT_SUPER in pieces, for _kt_supers.
+_KT_HEAD = re.compile(r"\bclass\s+(?P<name>[A-Z]\w*)")
+_KT_GENERIC = re.compile(r"\s*<[^>{}]*>")
+_KT_REST = re.compile(r"\s*:\s*(?P<sup>(?:[a-z]\w*\.)*[A-Z][\w.]*)")
+_NON_SPACE = re.compile(r"\S")
+
+
+class _KtSupers:
+    """The (name, sup) of every _KT_SUPER match in a text, as finditer finds them, in linear time.
+
+    The regex itself backtracks: for every `class` it tries each offset to the end of the line, and at each
+    `(` it scans to the next brace for a `)`, so a file of `class A (` lines (or one long line) took time
+    quadratic in its size. Its parts are deterministic except where it searches, so the search is done
+    here with indexes, in the order the regex tries things:
+      * the name is the longest run the regex can take (a shorter name only leaves letters for the lazy
+        part to skip), and the generic `<...>` matches in at most one way; with one, the rest is tried
+        first after it, then (as the regex backtracks) after the name;
+      * the lazy part tries offsets y = x, x+1, ... until a `{`, `:`, or newline: at y, the paren group
+        succeeds with the first `)` before the next brace that _KT_REST matches after, else _KT_REST is
+        tried at y, which equals _KT_REST at the first non-space at or after y. The outcome from y onward
+        doesn't depend on where the walk started, so it's remembered for every offset walked."""
+
+    def __init__(self, text: str):
+        self.text = text
+        self.rest: Dict[int, Optional[Tuple[int, str]]] = {}
+        self.walk: Dict[int, Optional[Tuple[int, str]]] = {}
+        self.closers: Optional[List[int]] = None      # `)` offsets that _KT_REST matches after
+        self.braces: List[int] = []
+
+    def _rest(self, z: int) -> Optional[Tuple[int, str]]:
+        if z not in self.rest:
+            m = _KT_REST.match(self.text, z)
+            self.rest[z] = (m.end(), m.group("sup")) if m else None
+        return self.rest[z]
+
+    def _group(self, y: int) -> Optional[Tuple[int, str]]:
+        """`\\([^{}]*?\\)` at the `(` at y, then _KT_REST."""
+        if self.closers is None:
+            self.closers = [m.start() for m in re.finditer(r"\)", self.text) if self._rest(m.start() + 1)]
+            self.braces = [m.start() for m in re.finditer(r"[{}]", self.text)]
+        k = bisect.bisect_right(self.closers, y)
+        if k == len(self.closers):
+            return None
+        b = bisect.bisect_right(self.braces, y)
+        if b < len(self.braces) and self.braces[b] < self.closers[k]:
+            return None
+        return self._rest(self.closers[k] + 1)
+
+    def _lazy(self, x: int) -> Optional[Tuple[int, str]]:
+        text, n = self.text, len(self.text)
+        path: List[int] = []
+        found: Optional[Tuple[int, str]] = None
+        y, space_end = x, -1
+        while True:
+            if y in self.walk:
+                found = self.walk[y]
+                break
+            path.append(y)
+            hit = self._group(y) if y < n and text[y] == "(" else None
+            if hit is None:
+                if y < n and text[y].isspace() and y >= space_end:
+                    m = _NON_SPACE.search(text, y)
+                    space_end = m.start() if m else n
+                hit = self._rest(space_end if y < space_end else y)
+            if hit is not None:
+                found = hit
+                break
+            if y >= n or text[y] in "{:\n":
+                break
+            y += 1
+        for q in path:
+            self.walk[q] = found
+        return found
+
+    def matches(self) -> List[Tuple[str, str]]:
+        out: List[Tuple[str, str]] = []
+        text = self.text
+        after = 0                                  # finditer resumes after the previous match
+        i = text.find("class")
+        while i >= 0:
+            head = _KT_HEAD.match(text, i) if i >= after else None
+            if head:
+                generic = _KT_GENERIC.match(text, head.end())
+                found = self._lazy(generic.end()) if generic else None
+                if found is None:
+                    found = self._lazy(head.end())
+                if found is not None:
+                    out.append((head.group("name"), found[1]))
+                    after = found[0]
+            i = text.find("class", max(i + 1, after))
+        return out
+
+
 def _class_index(ctx: Context) -> Tuple[Dict[str, Set[str]], Dict[str, str], Dict[str, List[str]]]:
     """(superclass -> subclasses, class -> superclass, class -> files declaring it), from Kotlin and Java."""
     def compute():
@@ -1069,13 +1207,14 @@ def _class_index(ctx: Context) -> Tuple[Dict[str, Set[str]], Dict[str, str], Dic
             if scope_of(path) == "test":
                 continue
             blank = ctx.code(path, False) or ""
-            for m in _CLASS_HEAD.finditer(blank):
+            for m in finditer_lit(_CLASS_HEAD, blank, ("class", "object", "interface")):
                 files.setdefault(m.group("name"), []).append(path)
-            for rx in (_KT_SUPER, _JAVA_SUPER):
-                for m in rx.finditer(blank):
-                    sup = m.group("sup").rsplit(".", 1)[-1]
-                    subs.setdefault(sup, set()).add(m.group("name"))
-                    sup_of.setdefault(m.group("name"), sup)
+            pairs = _KtSupers(blank).matches() + [(m.group("name"), m.group("sup"))
+                                                  for m in finditer_lit(_JAVA_SUPER, blank, ("class",))]
+            for name, sup in pairs:
+                sup = sup.rsplit(".", 1)[-1]
+                subs.setdefault(sup, set()).add(name)
+                sup_of.setdefault(name, sup)
         return subs, sup_of, files
     return _memo(ctx, "class_index", compute)
 
@@ -1410,7 +1549,6 @@ _ORIGIN_CHECK = re.compile(r"allowed(?:Domains|Hosts|Origins|Urls)|isAllowed\w*\
 
 @detector("android_js_bridge")
 def js_bridge(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    _subs, _sup, files = _class_index(ctx)
     for path, _code, blank in _code_files(ctx, "addJavascriptInterface"):
         for m in _sites(_ADD_JS.finditer(blank)):
             spans = _args(blank, m.end() - 1)
@@ -1420,7 +1558,7 @@ def js_bridge(ctx: Context, rule: Rule) -> Iterable[Hit]:
             cm = re.match(r"(?:new\s+)?([A-Z]\w*)\s*\(", obj)
             where = [path]
             if cm:
-                where += files.get(cm.group(1), [])
+                where += _class_index(ctx)[2].get(cm.group(1), [])
             checked = all(_ORIGIN_CHECK.search(ctx.code(p, False) or "") for p in where[1:]) if len(where) > 1 \
                 else bool(_ORIGIN_CHECK.search(blank))
             line = ctx.line_of(blank, m.start())
@@ -2100,7 +2238,7 @@ def _enum_typed(ctx: Context, expr: str, code: str) -> bool:
 
 @detector("android_sql_concat")
 def sql_concat(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, code, blank in _code_files(ctx):
+    for path, code, blank in _code_files_any(ctx, ("rawQuery", "execSQL")):
         if "rawQuery" not in blank and "execSQL" not in blank:
             continue
         kotlin = path.endswith(".kt")
@@ -2217,7 +2355,24 @@ def _intent_kind(ctx: Context, code: str, blank: str, open_paren: int) -> Tuple[
 
 def _intent_vars(ctx: Context, code: str, blank: str, lo: int, hi: int) -> Dict[str, Tuple[int, str, Optional[str]]]:
     """Intent variables built in [lo, hi): name -> (offset, kind, action), with setPackage/setComponent and
-    setAction applied."""
+    setAction applied. Once per file and range: every send and PendingIntent in a function asks again."""
+    return text_memo(blank, ("intent_vars", lo, hi), lambda: _intent_vars_in(ctx, code, blank, lo, hi))
+
+
+def _explicit_use(blank: str, name: str, start: int, end: int) -> bool:
+    """Does blank[start:end] (with `start` right after a `(`) hold a call that makes intent `name` explicit
+    (the _EXPLICIT_CALL pattern after `name.`)? Answered from the file's matches: the pattern has no anchor
+    at its end, its leading word boundary sees the same non-word `(` at `start` that a slice start would,
+    and two matches can't overlap (inside one, only the call word starts a word, and no `.` follows it),
+    so the slice holds a match exactly when a match of the whole text lies inside it."""
+    spans = text_memo(blank, ("explicit_use", name), lambda: [
+        (u.start(), u.end()) for u in re.finditer(r"\b" + re.escape(name) + r"\s*\.\s*(?:" + _EXPLICIT_CALL + ")",
+                                                  blank)])
+    k = bisect.bisect_left(spans, (start, -1))
+    return k < len(spans) and spans[k][1] <= end
+
+
+def _intent_vars_in(ctx: Context, code: str, blank: str, lo: int, hi: int) -> Dict[str, Tuple[int, str, Optional[str]]]:
     out: Dict[str, Tuple[int, str, Optional[str]]] = {}
     rx = re.compile(r"(?:\b(?:val|var)\s+(\w+)\s*(?::\s*Intent\??)?|\bIntent\s+(\w+))\s*=\s*(?:new\s+)?Intent\s*\(")
     for m in rx.finditer(blank, lo, hi):
@@ -2235,13 +2390,21 @@ def _intent_vars(ctx: Context, code: str, blank: str, lo: int, hi: int) -> Dict[
             # calls chained on the constructor: Intent("x").setPackage(packageName)
             chain = re.match(r"(?:\s*\.\s*\w+\s*\([^()\n]*(?:\([^()\n]*\)[^()\n]*)*\))+", after)
             body = chain.group(0) if chain else ""
-        uses = blank[m.end():hi]
-        if re.search(_EXPLICIT_CALL, body) or re.search(r"\b" + re.escape(name) + r"\s*\.\s*(?:" + _EXPLICIT_CALL + ")",
-                                                       uses):
+        if re.search(_EXPLICIT_CALL, body) or _explicit_use(blank, name, m.end(), hi):
             kind = "explicit"
         if kind == "unknown":
-            sa = re.search(r"(?:\b" + re.escape(name) + r"\s*\.\s*)?(?:setAction\s*\(\s*|\baction\s*=\s*)"
-                           r"(\"[^\"\n]*\"|[\w.]+)", code[m.end():hi] if not body else body)
+            action_rx = re.compile(r"(?:\b" + re.escape(name) + r"\s*\.\s*)?(?:setAction\s*\(\s*|\baction\s*=\s*)"
+                                   r"(\"[^\"\n]*\"|[\w.]+)")
+            if body:
+                sa = action_rx.search(body)
+            else:
+                # Searching code[m.end():hi] in place (the `\b` at m.end() sees the `(` before it, a non-word
+                # character as a slice start is); every match contains "setAction" or "action", so without one
+                # in the range there is nothing to search.
+                at = text_memo(code, ("action_at",), lambda: [(a.start(), a.end())
+                                                              for a in re.finditer("setAction|action", code)])
+                k = bisect.bisect_left(at, (m.end(), -1))
+                sa = action_rx.search(code, m.end(), hi) if k < len(at) and at[k][1] <= hi else None
             if sa:
                 v = sa.group(1)
                 kind = "implicit"
@@ -2908,7 +3071,8 @@ def backup_device_transfer(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 
 def _deprecated_dependency(ctx: Context, coords: "re.Pattern[str]", imports: "re.Pattern[str]",
-                           what: str) -> Iterator[Hit]:
+                           what: str, import_needle: str) -> Iterator[Hit]:
+    """`import_needle`: a literal every match of `imports` contains."""
     for path in ctx.files(".gradle", ".kts", ".toml"):
         if path.endswith(".toml"):
             for lineno, line in gradle.toml_lines(ctx.text(path) or ""):
@@ -2922,7 +3086,7 @@ def _deprecated_dependency(ctx: Context, coords: "re.Pattern[str]", imports: "re
             yield _hit(ctx, path, ctx.line_of(code, m.start()), f"The build depends on {what}.")
     # Imports: one finding per module, at the first file, so a migration shows up once.
     per_module: Dict[str, List[Tuple[str, int]]] = {}
-    for path, _code, blank in _code_files(ctx):
+    for path, _code, blank in _code_files(ctx, import_needle):
         m = imports.search(blank)
         if m:
             per_module.setdefault(_module_of(path) + "|" + _scope(ctx, path), []).append(
@@ -2941,6 +3105,7 @@ def security_crypto(ctx: Context, rule: Rule) -> Iterable[Hit]:
                    r"name\s*=\s*[\"']security-crypto|\bAndroidX\.security\.crypto\b"),
         re.compile(r"^[ \t]*import\s+androidx\.security\.crypto\.", re.MULTILINE),
         "the deprecated Jetpack Security library (androidx.security:security-crypto)",
+        "androidx.security.crypto.",
     )
 
 
@@ -2952,6 +3117,7 @@ def sqlcipher_legacy(ctx: Context, rule: Rule) -> Iterable[Hit]:
                    r"name\s*=\s*[\"']android-database-sqlcipher"),
         re.compile(r"^[ \t]*import\s+net\.sqlcipher\.", re.MULTILINE),
         "the end-of-life SQLCipher package (net.zetetic:android-database-sqlcipher)",
+        "net.sqlcipher.",
     )
 
 
@@ -2987,12 +3153,63 @@ def _key_name(code: str, arg: str) -> str:
     if arg.startswith('"'):
         return arg.strip('"')
     name = arg.rsplit(".", 1)[-1]
-    m = re.search(r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code)
-    return name + " " + (m.group(1) if m else "")
+    found = text_memo(code, ("key", name), lambda: re.search(
+        r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code))
+    return name + " " + (found.group(1) if found else "")
 
 
-def _is_prefs_editor(blank: str, idx: int) -> bool:
-    """Is the `.putString(` at idx called on a SharedPreferences.Editor (not a Bundle or an Intent)?"""
+class _Statements:
+    """Where _is_prefs_editor's statement starts, for many offsets in one text. Walking back to the last
+    `;`, `{`, or `}` and over the lines of a chain, and copying the text before each line to strip it, cost
+    a pass over the file per call; this indexes the same facts once."""
+
+    def __init__(self, blank: str):
+        self.marks = [m.start() for m in re.finditer(r"[;{}]", blank)]
+        self.newlines = [m.start() for m in re.finditer(r"\n", blank)]
+        # For newline k: the last non-whitespace character before it ends with `.`, `(`, or `,` (the
+        # walk's `blank[:nl].rstrip().endswith(...)`), and the walk passes it from the line below.
+        self.prev_ends: List[bool] = []
+        self.passes: List[bool] = []
+        last = ""
+        for k, nl in enumerate(self.newlines):
+            seg = blank[(self.newlines[k - 1] if k else 0):nl].rstrip()
+            if seg:
+                last = seg[-1]
+            self.prev_ends.append(last in (".", "(", ","))
+            line_end = self.newlines[k + 1] if k + 1 < len(self.newlines) else len(blank)
+            self.passes.append(blank[nl:line_end].lstrip().startswith(".") or self.prev_ends[k])
+        # For newline k: the last newline at or before it that the walk stops at, or -1.
+        self.stop: List[int] = []
+        for k, passes in enumerate(self.passes):
+            self.stop.append(self.stop[k - 1] if passes and k else (-1 if passes else k))
+
+    def start(self, blank: str, idx: int) -> int:
+        k = bisect.bisect_left(self.marks, idx) - 1
+        stmt_start = self.marks[k] if k >= 0 else -1
+        k = bisect.bisect_left(self.newlines, idx) - 1             # the newline before idx
+        if k < 0 or self.newlines[k] <= stmt_start:
+            return stmt_start
+        nl = self.newlines[k]
+        if not (blank[nl:idx].lstrip().startswith(".") or self.prev_ends[k]):
+            return max(stmt_start, nl)
+        k = self.stop[k - 1] if k else -1                           # walk on over whole lines
+        return max(stmt_start, self.newlines[k]) if k >= 0 else stmt_start
+
+
+# Recent texts _is_prefs_editor was asked about: [text, _Statements once asked twice].
+_STATEMENTS: List[list] = []
+
+
+def _statement_start(blank: str, idx: int) -> int:
+    """The offset before the statement holding the `.putString(` at idx (see _is_prefs_editor)."""
+    if 0 <= idx <= len(blank):
+        for entry in _STATEMENTS:
+            if entry[0] is blank:
+                if entry[1] is None:
+                    entry[1] = _Statements(blank)
+                return entry[1].start(blank, idx)
+        _STATEMENTS.insert(0, [blank, None])
+        del _STATEMENTS[4:]
     stmt_start = max(blank.rfind(";", 0, idx), blank.rfind("{", 0, idx), blank.rfind("}", 0, idx))
     j = idx
     while True:          # walk back over a chain split across lines (`prefs.edit()\n  .putString(`)
@@ -3005,23 +3222,54 @@ def _is_prefs_editor(blank: str, idx: int) -> bool:
             continue
         stmt_start = max(stmt_start, nl)
         break
-    chain = blank[stmt_start + 1:idx]
-    if re.search(r"\.\s*edit\s*\(\s*\)", chain):
-        return True
+    return stmt_start
+
+
+# A character no receiver expression's tail (`name`, `name!!`, `name?.`, whitespace) can contain.
+_HARD = re.compile(r"[^\w\s?.!]")
+
+
+def _chain_facts(blank: str, start: int, idx: int) -> Tuple[bool, str, bool]:
+    """For the call chain blank[start:idx] before a `.putString(`: (it calls `.edit()`, the receiver's name,
+    the chain is empty or `this`/`it` once a trailing `?.` is dropped). A chain of thousands of
+    continuation lines made each of these a pass over the whole chain per call. For a long chain they
+    are read from its tail after the last character no receiver can contain (so the receiver and the
+    dropped `?.` lie after it, and the chain isn't empty), and `.edit()` from the file's matches (the
+    pattern has no anchors, and two matches can't overlap)."""
+    if idx - start > 4096:
+        hard = next((j for j in range(idx - 1, idx - 4097, -1) if _HARD.match(blank, j)), None)
+        if hard is not None:
+            edits = text_memo(blank, ("edit_calls",), lambda: [
+                (e.start(), e.end()) for e in re.finditer(r"\.\s*edit\s*\(\s*\)", blank)])
+            k = bisect.bisect_left(edits, (start, -1))
+            tail = re.sub(r"\s*\??\s*\.\s*$", "", blank[hard:idx])
+            recv = re.search(r"(\w+)\s*(?:!!)?\s*$", tail)
+            return k < len(edits) and edits[k][1] <= idx, recv.group(1) if recv else "", False
+    chain = blank[start:idx]
+    has_edit = bool(re.search(r"\.\s*edit\s*\(\s*\)", chain))
     chain = re.sub(r"\s*\??\s*\.\s*$", "", chain)
     recv = re.search(r"(\w+)\s*(?:!!)?\s*$", chain)
-    name = recv.group(1) if recv else ""
+    return has_edit, recv.group(1) if recv else "", not chain.strip() or chain.strip() in ("this", "it")
+
+
+def _is_prefs_editor(blank: str, idx: int) -> bool:
+    """Is the `.putString(` at idx called on a SharedPreferences.Editor (not a Bundle or an Intent)?"""
+    stmt_start = _statement_start(blank, idx)
+    has_edit, name, bare = _chain_facts(blank, stmt_start + 1, idx)
+    if has_edit:
+        return True
     if name and _BUNDLE_RECEIVER.match(name):
         return False
     close = _match(blank, blank.index("(", idx), "(", ")")
     if re.match(r"\s*\.\s*(?:apply|commit)\s*\(\s*\)", blank[close + 1:close + 80]):
         return True
     if name:
-        decl = re.search(r"(?:\bEditor\s+" + re.escape(name) + r"\b|\b" + re.escape(name) +
-                         r"\s*(?::\s*(?:SharedPreferences\.)?Editor\??)?\s*=\s*[\w.()?!\s]*\.edit\s*\(\s*\))", blank)
+        decl = text_memo(blank, ("editor", name), lambda: re.search(
+            r"(?:\bEditor\s+" + re.escape(name) + r"\b|\b" + re.escape(name) +
+            r"\s*(?::\s*(?:SharedPreferences\.)?Editor\??)?\s*=\s*[\w.()?!\s]*\.edit\s*\(\s*\))", blank))
         if decl:
             return True
-    if not chain.strip() or chain.strip() in ("this", "it"):
+    if bare:
         for m in _EDIT_BLOCK.finditer(blank, max(0, idx - 3000), idx):
             if _match(blank, m.end() - 1, "{", "}") > idx:
                 prefix = blank[max(0, m.start() - 120):m.start()]
@@ -3062,6 +3310,8 @@ def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
 _PUBLIC_WRITE = re.compile(r"\bgetExternalStoragePublicDirectory\s*\(|\bEnvironment\s*\.\s*getExternalStorageDirectory"
                            r"\s*\(|\bEnvironment\s*\.\s*externalStorageDirectory\b|\bMediaStore\s*\.\s*(?:Downloads|Files)"
                            r"\s*\.\s*(?:EXTERNAL_CONTENT_URI|getContentUri)")
+_PUBLIC_WRITE_NEEDLES = ("getExternalStoragePublicDirectory", "getExternalStorageDirectory", "externalStorageDirectory",
+                         "MediaStore")
 _SENSITIVE_FILE = re.compile(r"(?i)\"[^\"\n]*(?:token|backup|export|\.db|database|statement|report|logs?|secret|"
                              r"\.key|keystore)[^\"\n]*\"")
 _SHARED_WRITE = re.compile(r"\bFileOutputStream\s*\(|\.writeBytes\s*\(|\.writeText\s*\(|\.outputStream\s*\(|\.copyTo\s*\("
@@ -3087,7 +3337,7 @@ def external_storage(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 broad = broad or f"requestLegacyExternalStorage in {path}"
     if broad is None:
         return
-    for path, code, blank in _code_files(ctx):
+    for path, code, blank in _code_files_any(ctx, _PUBLIC_WRITE_NEEDLES):
         seen: Set[int] = set()
         for m in _sites(_PUBLIC_WRITE.finditer(blank)):
             if _is_import(blank, m.start()):
@@ -3118,7 +3368,7 @@ _WORLD_MODE = re.compile(r"\bMODE_WORLD_(?:READABLE|WRITEABLE)\b|\bset(?:Readabl
 
 @detector("android_world_readable")
 def world_readable(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, _code, blank in _code_files(ctx):
+    for path, _code, blank in _code_files_any(ctx, ("MODE_WORLD_", "setReadable", "setWritable", "setExecutable")):
         if "MODE_WORLD" not in blank and "true" not in blank:
             continue
         for m in _WORLD_MODE.finditer(blank):
@@ -3291,11 +3541,10 @@ _HW_ID = re.compile(
 
 @detector("android_hardware_id")
 def hardware_id(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, code, blank in _code_files(ctx):
+    for path, code, blank in _code_files_any(ctx, ("ANDROID_ID", "android_id", "Telephony", "getSerial", "SERIAL",
+                                                   "MacAddress", "macAddress", "HardwareAddress", "hardwareAddress",
+                                                   "BluetoothAdapter")):
         raw = ctx.text(path) or ""
-        if not re.search(r"ANDROID_ID|android_id|Telephony|getSerial|SERIAL|MacAddress|macAddress|HardwareAddress|"
-                         r"hardwareAddress|BluetoothAdapter", raw):
-            continue
         tele = "Telephony" in raw
         bt = "Bluetooth" in raw
         for m in _sites(_HW_ID.finditer(code)):
@@ -3328,7 +3577,9 @@ _SANITIZED = re.compile(r"canonical(?:Path|File)|getCanonical|normalize\s*\(|toR
 
 @detector("android_dirty_stream")
 def dirty_stream(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, code, blank in _code_files(ctx):
+    # Every _DISPLAY_NAME alternative contains one of these ("astPathSegment" covers both spellings).
+    for path, code, blank in _code_files_any(ctx, ("OpenableColumns", "_display_name", "astPathSegment",
+                                                   "DocumentFile")):
         if not _DISPLAY_NAME.search(code):
             continue
         seen: Set[int] = set()
@@ -3370,6 +3621,60 @@ def dirty_stream(ctx: Context, rule: Rule) -> Iterable[Hit]:
 # ---------------------------------------------------------------------------- build
 
 
+class _Spans:
+    """gradle.inside(index, blocks) for many indexes: the union of the blocks' bodies, merged once."""
+
+    def __init__(self, blocks: List[gradle.Block]):
+        self.starts: List[int] = []
+        self.ends: List[int] = []
+        for b in sorted(blocks, key=lambda b: b.body_start):
+            if b.body_start >= b.body_end:
+                continue                       # an empty body holds nothing
+            if self.ends and b.body_start <= self.ends[-1]:
+                self.ends[-1] = max(self.ends[-1], b.body_end)
+            else:
+                self.starts.append(b.body_start)
+                self.ends.append(b.body_end)
+
+    def holds(self, index: int) -> bool:
+        k = bisect.bisect_right(self.starts, index) - 1
+        return k >= 0 and index < self.ends[k]
+
+
+class _Unreported:
+    """The indexes in [0, n) not taken yet. A rule that meets the same build-script setting (or block) from
+    several nested blocks reports it only the first time: the engine keeps only the first finding per rule
+    and line anyway, and a crafted script of thousands of nested blocks made the repeats quadratic."""
+
+    def __init__(self, n: int):
+        self.next = list(range(n + 1))
+
+    def _find(self, i: int) -> int:
+        nxt = self.next
+        while nxt[i] != i:
+            nxt[i] = nxt[nxt[i]]
+            i = nxt[i]
+        return i
+
+    def take(self, lo: int, hi: int) -> List[int]:
+        """The indexes in [lo, hi) not taken before, in order; they are taken now."""
+        out = []
+        i = self._find(lo)
+        while i < hi:
+            out.append(i)
+            self.next[i] = i + 1
+            i = self._find(i + 1)
+        return out
+
+
+def _new_settings(code: str, pattern: "re.Pattern[str]", block: gradle.Block,
+                  unreported: _Unreported) -> List[Tuple[int, str]]:
+    """gradle.find_settings(code, pattern, body of block), less the script's matches already taken."""
+    first, lo, hi = gradle.settings_in(code, pattern, block.body_start, block.body_end)
+    found = gradle.settings_list(code, pattern)
+    return first + [(found[i][0], found[i][2]) for i in unreported.take(lo, hi)]
+
+
 _DEBUGGABLE = gradle.setting(r"isDebuggable|debuggable|setDebuggable")
 _MINIFY = gradle.setting(r"isMinifyEnabled|minifyEnabled|setMinifyEnabled")
 _ENABLE = gradle.setting(r"enable|isEnable")
@@ -3389,8 +3694,11 @@ def debuggable(ctx: Context, rule: Rule) -> Iterable[Hit]:
                            "android:debuggable=\"true\" in the main manifest makes every build debuggable.",
                            ack=_ack(ctx, path, app, "HardcodedDebugMode"))
     for path, code, blank in _build_files(ctx):
-        for block in gradle.build_type_blocks(code, blank, "release"):
-            for idx, val in gradle.find_settings(code, _DEBUGGABLE, block.body_start, block.body_end):
+        # Each release block once (build_type_blocks repeats one under nested buildTypes), and each setting
+        # once across nested release blocks: a repeat only repeats a finding or note already made.
+        unreported = _Unreported(len(gradle.settings_list(code, _DEBUGGABLE)))
+        for block in gradle.blocks_named_within(code, blank, "buildTypes", "release"):
+            for idx, val in _new_settings(code, _DEBUGGABLE, block, unreported):
                 if val == "true":
                     yield _hit(ctx, path, ctx.line_of(code, idx), "The release build type is debuggable.")
                 elif val != "false":
@@ -3421,8 +3729,9 @@ def release_native_debug(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if xmlsafe.is_true(app.get("android:testOnly")):
                 yield _hit(ctx, path, app.line, "android:testOnly=\"true\" marks the app as a test build.")
     for path, code, blank in _build_files(ctx):
+        unreported = _Unreported(len(gradle.settings_list(code, _NATIVE_DEBUG)))   # see _Unreported
         for block in _release_like_blocks(ctx, path, code, blank):
-            for idx, val in gradle.find_settings(code, _NATIVE_DEBUG, block.body_start, block.body_end):
+            for idx, val in _new_settings(code, _NATIVE_DEBUG, block, unreported):
                 if val == "true":
                     key = re.match(r"\w+", code[idx:]).group(0)
                     what = ("ships coverage instrumentation" if "overage" in key else
@@ -3435,15 +3744,21 @@ def release_native_debug(ctx: Context, rule: Rule) -> Iterable[Hit]:
 @detector("android_r8_off")
 def r8_off(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _build_files(ctx):
-        for block in gradle.build_type_blocks(code, blank, "release"):
-            for idx, val in gradle.find_settings(code, _MINIFY, block.body_start, block.body_end):
+        # Each release block, `optimization` block, and setting once (see _Unreported).
+        minify = _Unreported(len(gradle.settings_list(code, _MINIFY)))
+        enable = _Unreported(len(gradle.settings_list(code, _ENABLE)))
+        opts: Optional[_Unreported] = None
+        for block in gradle.blocks_named_within(code, blank, "buildTypes", "release"):
+            for idx, val in _new_settings(code, _MINIFY, block, minify):
                 if val == "false":
                     yield _hit(ctx, path, ctx.line_of(code, idx),
                                "R8 minification is off in the release build type.")
                 elif val != "true":
                     ctx.note_unknown(f"{path}: release minification is set from '{val}'.")
-            for opt in gradle.child_blocks(code, blank, block, "optimization"):
-                for idx, val in gradle.find_settings(code, _ENABLE, opt.body_start, opt.body_end):
+            named, lo, hi = gradle.named_range(code, blank, "optimization", block)
+            opts = opts or _Unreported(len(named))
+            for opt in (named[i] for i in opts.take(lo, hi)):
+                for idx, val in _new_settings(code, _ENABLE, opt, enable):
                     if val == "false":
                         yield _hit(ctx, path, ctx.line_of(code, idx),
                                    "App optimization (R8) is off in the release build type.")
@@ -3522,7 +3837,7 @@ def debug_tool_release(ctx: Context, rule: Rule) -> Iterable[Hit]:
                         yield _hit(ctx, path, ctx.line_of(code, dep.index),
                                    f"{label} ({coord}) is added with {dep.config}, so it ships in release builds and "
                                    f"{what}.")
-    for path, _code, blank in _code_files(ctx):
+    for path, _code, blank in _code_files_any(ctx, ("Stetho", "AndroidFlipperClient", "DebugDB")):
         if not _release_path(ctx, path):
             continue
         for m in _sites(_DEBUG_TOOL_INIT.finditer(blank)):
@@ -3692,14 +4007,20 @@ _V3_ON = gradle.setting(r"enableV3Signing|v3SigningEnabled|isV3SigningEnabled")
 @detector("android_v1_signing_only")
 def v1_signing_only(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _build_files(ctx):
+        # A v2 setting a nested config repeats is reported once (see _Unreported); "true" among a config's v3
+        # settings is counted, not listed.
+        unreported = _Unreported(len(gradle.settings_list(code, _V2_OFF)))
+        v3_all = gradle.settings_list(code, _V3_ON)
+        v3_true = list(itertools.accumulate((v == "true" for _s, _e, v in v3_all), initial=0))
         for sc in gradle.named_blocks(code, blank, "signingConfigs"):
             for cfg in gradle.direct_children(code, blank, sc):
                 if _variant_kind(ctx, posixpath.dirname(path), cfg.name) == "debug":
                     continue
-                v2 = [(i, v) for i, v in gradle.find_settings(code, _V2_OFF, cfg.body_start, cfg.body_end)]
-                v3 = [v for _i, v in gradle.find_settings(code, _V3_ON, cfg.body_start, cfg.body_end)]
-                for idx, val in v2:
-                    if val == "false" and "true" not in v3:
+                first3, lo3, hi3 = gradle.settings_in(code, _V3_ON, cfg.body_start, cfg.body_end)
+                if any(v == "true" for _i, v in first3) or v3_true[hi3] > v3_true[lo3]:
+                    continue                  # no v2 setting here is reported
+                for idx, val in _new_settings(code, _V2_OFF, cfg, unreported):
+                    if val == "false":
                         yield _hit(ctx, path, ctx.line_of(code, idx),
                                    f"The {cfg.name} signing config turns off APK Signature Scheme v2 and doesn't "
                                    "turn on v3, so the APK relies on the v1 (JAR) scheme.")
@@ -3795,14 +4116,17 @@ def safetynet(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 
 def _evidence(ctx: Context, key: str, code_rx: "re.Pattern[str]", dep_rx: "re.Pattern[str]",
-              layouts: bool = False) -> bool:
+              layouts: bool = False, needles: Tuple[str, ...] = ()) -> bool:
     """Is there any evidence of a control in shipping code, build files, or Flutter/RN manifests?
-    With layouts=True, layout and style XML counts too (view attributes such as filterTouchesWhenObscured)."""
+    With layouts=True, layout and style XML counts too (view attributes such as filterTouchesWhenObscured).
+    `needles`: literals (case-sensitive) at least one of which every match of code_rx contains."""
     def compute() -> bool:
         for path in ctx.files(".kt", ".java", ".dart", ".js", ".ts", ".tsx", ".xml"):
             if path.endswith(".xml") and not (layouts and re.search(r"/res/(?:layout|values)[\w-]*/", "/" + path)):
                 continue
             if scope_of(path) == "test":
+                continue
+            if needles and not holds_any(ctx, path, needles):
                 continue
             raw = ctx.text(path) or ""
             if not code_rx.search(raw):
@@ -3837,6 +4161,10 @@ _SCREEN_EVIDENCE = re.compile(r"\bFLAG_SECURE\b|setRecentsScreenshotEnabled\s*\(
                               r"|\bsetSecure\s*\(\s*true|secureFlagPolicy|screen_protector|no_screenshot"
                               r"|secure_application|flutter_windowmanager|[Ss]creenshotPrevent|[Pp]reventScreenCapture"
                               r"|[Pp]reventScreenshot")
+# A literal from each alternative above, in order (the [Ss] and [Pp] classes left out).
+_SCREEN_NEEDLES = ("FLAG_SECURE", "setRecentsScreenshotEnabled", "SecureFlagPolicy", "setSecure", "secureFlagPolicy",
+                   "screen_protector", "no_screenshot", "secure_application", "flutter_windowmanager",
+                   "creenshotPrevent", "reventScreenCapture", "reventScreenshot")
 _SCREEN_DEPS = re.compile(r"screen_protector|no_screenshot|secure_application|flutter_windowmanager|"
                           r"react-native-(?:screenshot-prevent|prevent-screenshot|screenguard|capture-protection)|"
                           + _RASP, re.IGNORECASE)
@@ -3846,7 +4174,7 @@ _SCREEN_DEPS = re.compile(r"screen_protector|no_screenshot|secure_application|fl
 def no_screenshot_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if not _is_app_project(ctx):
         return
-    if _evidence(ctx, "screenshot", _SCREEN_EVIDENCE, _SCREEN_DEPS):
+    if _evidence(ctx, "screenshot", _SCREEN_EVIDENCE, _SCREEN_DEPS, needles=_SCREEN_NEEDLES):
         return
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,
@@ -3856,6 +4184,8 @@ def no_screenshot_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 _OVERLAY_EVIDENCE = re.compile(r"filterTouchesWhenObscured|setHideOverlayWindows\s*\(\s*true|FLAG_WINDOW_IS_OBSCURED"
                                r"|FLAG_WINDOW_IS_PARTIALLY_OBSCURED|onFilterTouchEventForSecurity")
+_OVERLAY_NEEDLES = ("filterTouchesWhenObscured", "setHideOverlayWindows", "FLAG_WINDOW_IS_",
+                    "onFilterTouchEventForSecurity")
 
 
 @detector("android_no_overlay_protection")
@@ -3884,7 +4214,7 @@ def no_overlay_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
                    "setHideOverlayWindows(true) needs the HIDE_OVERLAY_WINDOWS permission, which the manifest doesn't "
                    "declare, so the call does nothing.")
         return
-    if _evidence(ctx, "overlay", _OVERLAY_EVIDENCE, re.compile(_RASP), layouts=True):
+    if _evidence(ctx, "overlay", _OVERLAY_EVIDENCE, re.compile(_RASP), layouts=True, needles=_OVERLAY_NEEDLES):
         return
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,
@@ -3896,6 +4226,9 @@ def no_overlay_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
 _INTEGRITY_EVIDENCE = re.compile(r"IntegrityManagerFactory|StandardIntegrityManager|prepareIntegrityToken|requestIntegrityToken"
                                  r"|PlayIntegrityAppCheckProviderFactory|AndroidProvider\s*\.\s*playIntegrity"
                                  r"|app_integrity_checker")
+_INTEGRITY_NEEDLES = ("IntegrityManagerFactory", "StandardIntegrityManager", "prepareIntegrityToken",
+                      "requestIntegrityToken", "PlayIntegrityAppCheckProviderFactory", "playIntegrity",
+                      "app_integrity_checker")
 _INTEGRITY_DEPS = re.compile(r"com\.google\.android\.play:integrity|play[-.]integrity|firebase[-_]app[-_]?check|"
                              r"app_integrity_checker|appcheck-playintegrity|" + _RASP, re.IGNORECASE)
 
@@ -3904,9 +4237,9 @@ _INTEGRITY_DEPS = re.compile(r"com\.google\.android\.play:integrity|play[-.]inte
 def no_play_integrity(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if not _is_app_project(ctx):
         return
-    if _evidence(ctx, "integrity", _INTEGRITY_EVIDENCE, _INTEGRITY_DEPS):
+    if _evidence(ctx, "integrity", _INTEGRITY_EVIDENCE, _INTEGRITY_DEPS, needles=_INTEGRITY_NEEDLES):
         return
-    if _evidence(ctx, "safetynet", _SAFETYNET_ATTEST, re.compile(r"play-services-safetynet")):
+    if _evidence(ctx, "safetynet", _SAFETYNET_ATTEST, re.compile(r"play-services-safetynet"), needles=("SafetyNet",)):
         return                       # AND-044 reports the SafetyNet call instead
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,

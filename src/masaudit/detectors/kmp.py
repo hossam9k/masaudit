@@ -10,7 +10,8 @@ from __future__ import annotations
 import re
 from typing import Iterable, List, Set
 
-from masaudit import guards
+from masaudit.guards import guarded_by
+from masaudit.textscan import bracket_match
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -151,7 +152,7 @@ def ktor_logging(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         blank = ctx.code(path, keep_strings=False) or ""
         for m in KTOR_LOGGING.finditer(blank):
-            body = blank[m.end() - 1:guards.match(blank, m.end() - 1, "{", "}") + 1]
+            body = blank[m.end() - 1:bracket_match(blank, m.end() - 1, "{", "}") + 1]
             lv = KTOR_LEVEL.search(body)
             if lv is None:
                 continue                         # INFO, NONE, or a level chosen at runtime
@@ -160,7 +161,7 @@ def ktor_logging(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             idx = m.end() - 1 + lv.start()
             line = ctx.line_of(blank, idx)
-            scope = "debug" if guards.guarded_by(blank, m.start(), _kmp_debug) else ""
+            scope = "debug" if guarded_by(blank, m.start(), _kmp_debug) else ""
             what = "request and response bodies" if level == "BODY" else "headers, including `Authorization`,"
             yield Hit(path, line, ctx.snippet(path, line),
                       f"Ktor's Logging plugin at `LogLevel.{level}` writes {what} to the log in every build.",

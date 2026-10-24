@@ -10,9 +10,11 @@ Two kinds of rule:
 
 from __future__ import annotations
 
+import bisect
 import json
 import os
 import re
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Optional
 
@@ -46,6 +48,11 @@ def detector(rule_id: str) -> Callable[[DetectorFn], DetectorFn]:
     return register
 
 
+# Non-ASCII characters an IGNORECASE regex matches to an ASCII letter although str.lower() maps them elsewhere
+# (checked over every code point on Python 3.9 and 3.14). Context.lower() folds them before lower-casing.
+_FOLD_TO_ASCII = {0x130: "i", 0x131: "i", 0x17F: "s"}
+
+
 class Context:
     """What a detector can see. Caches file reads; never touches files outside the root."""
 
@@ -56,17 +63,47 @@ class Context:
         self.current_rule: Optional[str] = None
         self._text: Dict[str, Optional[str]] = {}
         self._stripped: Dict[tuple, str] = {}
+        self._lower: Dict[str, str] = {}
+        self._listing: Dict[tuple, List[str]] = {}
+        self._listing_of: Optional[tuple] = None
+        self._lines: Dict[str, List[str]] = {}
+        # id(text) -> (text, offsets of its newlines once a second lookup asks for them); a few recent texts.
+        self._newlines: "OrderedDict[int, tuple]" = OrderedDict()
 
     def files(self, *suffixes: str, name: Optional[str] = None) -> List[str]:
-        out = []
-        for f in self.project.files:
-            base = f.rsplit("/", 1)[-1]
-            if name is not None and base != name:
-                continue
-            if suffixes and not f.endswith(suffixes):
-                continue
-            out.append(f)
-        return out
+        # Detectors ask for the same few listings hundreds of times; filter the project once per listing.
+        # The cache is dropped if the project's file list is replaced or grows.
+        files = self.project.files
+        if self._listing_of != (id(files), len(files)):
+            self._listing = {}
+            self._listing_of = (id(files), len(files))
+        key = (suffixes, name)
+        cached = self._listing.get(key)
+        if cached is None:
+            cached = []
+            for f in files:
+                base = f.rsplit("/", 1)[-1]
+                if name is not None and base != name:
+                    continue
+                if suffixes and not f.endswith(suffixes):
+                    continue
+                cached.append(f)
+            self._listing[key] = cached
+        return list(cached)
+
+    def lower(self, path: str) -> Optional[str]:
+        """The file text lower-cased for case-insensitive substring prefilters, with the three characters
+        that a case-insensitive regex matches to an ASCII letter but str.lower() doesn't map to one
+        (U+0130 and U+0131 match `i`, U+017F matches `s`) folded first. So a lower-case ASCII needle that
+        an `(?i)` pattern's match must contain is always found in it."""
+        if path not in self._lower:
+            text = self.text(path)
+            if text is None:
+                return None
+            if not text.isascii() and ("\u0130" in text or "\u0131" in text or "\u017f" in text):
+                text = text.translate(_FOLD_TO_ASCII)
+            self._lower[path] = text.lower()
+        return self._lower[path]
 
     def text(self, path: str) -> Optional[str]:
         if path not in self._text:
@@ -90,11 +127,33 @@ class Context:
         return self._stripped[key]
 
     def line_of(self, text: str, index: int) -> int:
-        return text.count("\n", 0, index) + 1
+        # Counting newlines from the start is a pass over the text per call: a file with thousands of hits
+        # made that quadratic. From the second call on the same long text, its newline offsets are kept
+        # and a binary search gives the same count.
+        if len(text) < 8192 or not 0 <= index <= len(text):
+            return text.count("\n", 0, index) + 1
+        key = id(text)
+        entry = self._newlines.get(key)
+        if entry is None or entry[0] is not text:
+            self._newlines[key] = (text, None)
+            if len(self._newlines) > 8:
+                self._newlines.popitem(last=False)
+            return text.count("\n", 0, index) + 1
+        offsets = entry[1]
+        if offsets is None:
+            offsets = []
+            i = text.find("\n")
+            while i >= 0:
+                offsets.append(i)
+                i = text.find("\n", i + 1)
+            self._newlines[key] = (text, offsets)
+        self._newlines.move_to_end(key)
+        return bisect.bisect_left(offsets, index) + 1
 
     def snippet(self, path: str, line: int) -> str:
-        text = self.text(path) or ""
-        lines = text.splitlines()
+        lines = self._lines.get(path)
+        if lines is None:
+            lines = self._lines[path] = (self.text(path) or "").splitlines()   # once per file, not per hit
         if 1 <= line <= len(lines):
             return safety.mask(lines[line - 1])
         return ""
@@ -151,6 +210,19 @@ PLATFORM_OF_RULE = {"android": "android", "ios": "ios", "kmp": "kmp", "ci": "ci"
 CODE_PLATFORMS = {"android", "ios", "kmp", "flutter"}
 
 
+def applies_to_platforms(rule: Rule, platforms) -> bool:
+    """Whether a rule can run on a project with these platforms."""
+    platforms = set(platforms)
+    if rule.platform == "ci":
+        # Workflow rules find nothing without workflows; repo-hygiene CI rules (committed
+        # signing keys, wrapper checksum, lockfiles) matter in any mobile repository.
+        return bool(platforms & ({"ci"} | CODE_PLATFORMS))
+    needed = PLATFORM_OF_RULE.get(rule.platform)
+    if needed and needed not in platforms:
+        return False
+    return not (rule.platform == "cross" and not platforms & CODE_PLATFORMS)
+
+
 def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) -> List[Finding]:
     _import_detectors()
     ctx = Context(project, profile)
@@ -158,15 +230,7 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
     for rule in rules:
         if rule.retired:
             continue
-        needed = PLATFORM_OF_RULE.get(rule.platform)
-        if rule.platform == "ci":
-            # Workflow rules find nothing without workflows; repo-hygiene CI rules (committed
-            # signing keys, wrapper checksum, lockfiles) matter in any mobile repository.
-            if not (set(project.platforms) & ({"ci"} | CODE_PLATFORMS)):
-                continue
-        elif needed and needed not in project.platforms:
-            continue
-        if rule.platform == "cross" and not (set(project.platforms) & CODE_PLATFORMS):
+        if not applies_to_platforms(rule, project.platforms):
             continue
         ctx.current_rule = rule.id
         if rule.detector:

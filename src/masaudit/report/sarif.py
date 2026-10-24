@@ -129,7 +129,15 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
             }
         },
         "automationDetails": {"id": f"masaudit/{platforms}"},
-        "invocations": [{"executionSuccessful": True, "endTimeUtc": when}],
+        "invocations": [dict(
+            {"executionSuccessful": True, "endTimeUtc": when},
+            **({"toolConfigurationNotifications": [{
+                "descriptor": {"id": "masaudit/app-type"},
+                "level": "warning",
+                "message": {"text": w.summary()},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": w.path}}}],
+            } for w in result.profile.warnings]} if result.profile.warnings else {}),
+        )],
         "columnKind": "unicodeCodePoints",
         "results": results,
         "properties": {

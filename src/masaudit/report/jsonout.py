@@ -134,6 +134,7 @@ def to_dict(result) -> dict:
             "source": p.source,
             "description": profile_mod.describe(p),
             "suggestions": list(p.suggestions),
+            "warnings": [w.to_dict() for w in p.warnings],
         },
         "summary": counts(result.findings),
         "findings": [finding_dict(f) for f in findings],

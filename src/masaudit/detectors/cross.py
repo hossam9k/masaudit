@@ -9,13 +9,29 @@ imports a test framework is reported with that scope, so it is lowered rather th
 
 from __future__ import annotations
 
+import bisect
 import re
-from typing import Callable, Iterable, List, Optional, Pattern, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Pattern, Sequence, Set, Tuple
 
-from masaudit import guards
-from masaudit.detect import scope_of
+from masaudit.guards import debug_guarded, preprocessor_debug_guarded
+from masaudit.textscan import _raw_index, bracket_match, finditer_lit, holds_any, text_memo
+from masaudit.detect import scope_of as _scope_of
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
+
+
+_SCOPES: Dict[str, str] = {}
+
+
+def scope_of(path: str) -> str:
+    """detect.scope_of, memoised: detectors ask it about the same paths many times per scan."""
+    s = _SCOPES.get(path)
+    if s is None:
+        if len(_SCOPES) >= 200_000:
+            _SCOPES.clear()
+        s = _SCOPES[path] = _scope_of(path)
+    return s
+
 
 CODE = (".kt", ".java", ".swift", ".m", ".mm", ".h", ".dart")
 JVM = (".kt", ".java")
@@ -42,18 +58,43 @@ _TEST_IMPORT = re.compile(
 )
 
 
+def _has_test_import(text: str) -> bool:
+    """bool(_TEST_IMPORT.search(text)), without trying the pattern at every offset: a match starts at the
+    start of a line holding `import` (every alternative contains it, on the same line), so only those
+    line starts are tried."""
+    tried = -1
+    i = text.find("import")
+    while i >= 0:
+        start = text.rfind("\n", 0, i) + 1
+        if start != tried:
+            tried = start
+            if _TEST_IMPORT.match(text, start):
+                return True
+        i = text.find("import", i + 1)
+    return False
+
+
+def _test_file(ctx: Context, path: str) -> bool:
+    """_has_test_import on the file's raw text, once per file (it was asked again for every hit)."""
+    cache = getattr(ctx, "_xpl_test_file", None)
+    if cache is None:
+        cache = ctx._xpl_test_file = {}  # type: ignore[attr-defined]
+    if path not in cache:
+        cache[path] = _has_test_import(ctx.text(path) or "")
+    return cache[path]
+
+
 # Gradle source sets of internal, QA, or staging flavors don't ship to users.
 _NON_RELEASE_SOURCE_SET = re.compile(r"/src/(?:internal|qa|staging|dev|develop|uat)(?:Debug|Release)?/")
 
 
 def _hit_scope(ctx: Context, path: str, idx: int, blank: Optional[str] = None) -> str:
     """'test' for a test-framework file, 'debug' under a debug-only guard, else '' (path decides)."""
-    raw = ctx.text(path) or ""
-    if _TEST_IMPORT.search(raw):
+    if _test_file(ctx, path):
         return "test"
     if blank is None:
         blank = ctx.code(path, keep_strings=False) or ""
-    if guards.debug_guarded(path, blank, idx) or _NON_RELEASE_SOURCE_SET.search("/" + path):
+    if debug_guarded(path, blank, idx) or _NON_RELEASE_SOURCE_SET.search("/" + path):
         return "debug"
     return ""
 
@@ -96,8 +137,81 @@ def _is_function_head(head: str, path: str) -> bool:
     return False
 
 
+# [text, {question: answer}] for the last few texts: a whole-file search that a rule repeats for every hit
+# (is this name a constant, where is it declared) is answered once per file.
 def _enclosing_function(blank: str, idx: int, path: str) -> Tuple[int, int, str]:
     """(body start, body end, head text) of the innermost function around `idx`, or the whole file."""
+    blocks = _blocks_of(blank, path)
+    if blocks is not None:
+        return blocks.enclosing_function(idx)
+    return _enclosing_function_scan(blank, idx, path)
+
+
+class _Blocks:
+    """The `{ }` blocks of one text, for answering _enclosing_function about many offsets in it: the walk
+    back from each offset was a pass over the file per hit. A `{` the backward walk finds unmatched is
+    exactly a `{` still open at `idx` when braces are paired forwards (a `}` with nothing open is
+    ignored), so the open blocks at each brace, innermost first, give the same answer."""
+
+    def __init__(self, blank: str, path: str):
+        self.blank, self.path = blank, path
+        self.events: List[int] = []           # offsets of every { and }
+        self.tops: List[int] = []             # the innermost open { after each event, or -1
+        self.parent: dict = {}                # { -> the { open around it, or -1
+        stack: List[int] = []
+        for m in re.finditer(r"[{}]", blank):
+            i = m.start()
+            if blank[i] == "{":
+                self.parent[i] = stack[-1] if stack else -1
+                stack.append(i)
+            elif stack:
+                stack.pop()
+            self.events.append(i)
+            self.tops.append(stack[-1] if stack else -1)
+        self.owner: dict = {}                 # { -> the innermost function { at or around it, or -1
+        self.answer: dict = {}                # function { -> (start, end, head)
+
+    def _head(self, i: int) -> str:
+        head = self.blank[max(0, i - 400):i]
+        cut = max(head.rfind(";"), head.rfind("}"), head.rfind("{"))
+        return head[cut + 1:]
+
+    def enclosing_function(self, idx: int) -> Tuple[int, int, str]:
+        k = bisect.bisect_left(self.events, idx) - 1     # events before idx
+        brace = self.tops[k] if k >= 0 else -1
+        chain = []
+        while brace >= 0 and brace not in self.owner:
+            chain.append(brace)
+            if _is_function_head(self._head(brace), self.path):
+                self.owner[brace] = brace
+                break
+            brace = self.parent[brace]
+        found = self.owner.get(brace, -1) if brace >= 0 else -1
+        for b in chain:
+            self.owner[b] = found
+        if found < 0:
+            return 0, len(self.blank), ""
+        if found not in self.answer:
+            self.answer[found] = (found, bracket_match(self.blank, found, "{", "}"), self._head(found))
+        return self.answer[found]
+
+
+# The texts _enclosing_function was last asked about: (text, path, _Blocks or None until a second question).
+_BLOCKS: List[list] = []
+
+
+def _blocks_of(blank: str, path: str) -> Optional[_Blocks]:
+    for entry in _BLOCKS:
+        if entry[0] is blank and entry[1] == path:
+            if entry[2] is None:
+                entry[2] = _Blocks(blank, path)
+            return entry[2]
+    _BLOCKS.insert(0, [blank, path, None])
+    del _BLOCKS[4:]
+    return None
+
+
+def _enclosing_function_scan(blank: str, idx: int, path: str) -> Tuple[int, int, str]:
     depth = 0
     i = idx
     while i > 0:
@@ -113,7 +227,7 @@ def _enclosing_function(blank: str, idx: int, path: str) -> Tuple[int, int, str]
             cut = max(head.rfind(";"), head.rfind("}"), head.rfind("{"))
             head = head[cut + 1:]
             if _is_function_head(head, path):
-                return i, guards.match(blank, i, "{", "}"), head
+                return i, bracket_match(blank, i, "{", "}"), head
     return 0, len(blank), ""
 
 
@@ -173,20 +287,33 @@ def _line_span(code: str, idx: int) -> Tuple[int, int]:
     return start, (len(code) if end < 0 else end)
 
 
+# Patterns whose every match starts with one of the listed literals (checked alternative by alternative),
+# so _finditer can jump between occurrences of those literals instead of trying every offset.
+_STARTS: Dict[Pattern[str], Tuple[str, ...]] = {}
+
+
+def _finditer(rx: Pattern[str], text: str) -> Iterator["re.Match[str]"]:
+    """rx.finditer(text), sped up for patterns listed in _STARTS."""
+    starts = _STARTS.get(rx)
+    return finditer_lit(rx, text, starts) if starts else rx.finditer(text)
+
+
 def _scan(ctx: Context, rule_patterns: Sequence[Tuple[Pattern[str], str]], suffixes: Tuple[str, ...] = CODE,
           keep_strings: bool = True, prefilter: Sequence[str] = (),
           mask_group: Optional[int] = None) -> Iterable[Hit]:
     """Run (regex, message) pairs over code; at most one hit per line."""
     for path in ctx.files(*suffixes):
-        raw = ctx.text(path)
-        if raw is None or (prefilter and not any(p in raw for p in prefilter)):
+        if prefilter:
+            if not holds_any(ctx, path, prefilter):
+                continue
+        elif ctx.text(path) is None:
             continue
         code = ctx.code(path, keep_strings=keep_strings)
         if code is None:
             continue
         seen: Set[int] = set()
         for regex, message in rule_patterns:
-            for m in regex.finditer(code):
+            for m in _finditer(regex, code):
                 line = ctx.line_of(code, m.start())
                 if line in seen:
                     continue
@@ -228,9 +355,8 @@ RESTRICTED: List[Tuple[Pattern[str], str]] = [
 @detector("xpl_restricted_secret")
 def restricted_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE):
-        raw = ctx.text(path)
-        if raw is None or not any(p in raw for p in ("PRIVATE KEY", "AKIA", "ASIA", "sk-", "k_live_", "ghp_", "gho_",
-                                                      "ghu_", "ghs_", "ghr_", "github_pat_", "xox")):
+        if not holds_any(ctx, path, ("PRIVATE KEY", "AKIA", "ASIA", "sk-", "k_live_", "ghp_", "gho_", "ghu_", "ghs_",
+                                     "ghr_", "github_pat_", "xox")):
             continue
         code = ctx.code(path, keep_strings=True) or ""
         seen: Set[int] = set()
@@ -502,25 +628,33 @@ def _var_is_literal(code: str, name: str, idx: int = -1, path: str = ".kt", blan
         r"byte\s*\[\s*\]\s*" + re.escape(name) + r"\s*=\s*(\{|" + _LITERAL_BYTES + ")",
     )
     for pat in pats:
-        for decl in re.finditer(pat, code):
+        for decl in text_memo(code, ("decls", pat), lambda pat=pat: list(re.finditer(pat, code))):
             in_function = start <= decl.start() < end
             if not in_function:
                 if idx < 0:
                     in_function = True
                 elif _enclosing_function(blank, decl.start(), path)[2]:
                     continue                 # declared inside another function
-            scope_text = code[start:end] if in_function and idx >= 0 else code
+            local = in_function and idx >= 0          # the function is the scope; else the whole file
             init = decl.group(1)
             if re.match(r"ByteArray\(|new\s+byte\s*\[\s*\d", init):
                 stmt_end = code.find("\n", decl.end())
                 stmt = code[decl.end():stmt_end if stmt_end >= 0 else len(code)]
                 if re.match(r"\s*\)?\s*\.\s*(?:also|apply)\s*\{[^}]*nextBytes", stmt):
                     return False
-                rest = scope_text.replace(code[decl.start():decl.end()], "", 1)
-                if _filled(rest, name) or re.search(r"getSecretBytes|SecureRandom", scope_text):
+                # Once per declaration and scope: at file level the scope is the whole file.
+                key = ("filled", name, decl.start(), decl.end(), local, start, end)
+                if text_memo(code, key, lambda d=decl, local=local: _filled_in_scope(
+                        code[start:end] if local else code, code[d.start():d.end()], name)):
                     return False
             return True
     return False
+
+
+def _filled_in_scope(scope_text: str, decl_text: str, name: str) -> bool:
+    """The buffer declared by `decl_text` is filled (or a secure source is used) elsewhere in its scope."""
+    return bool(_filled(scope_text.replace(decl_text, "", 1), name)
+                or re.search(r"getSecretBytes|SecureRandom", scope_text))
 
 
 _FRESH_KEY = re.compile(r"doFinal\s*\(|hkdf|Hkdf|HKDF|derive\w*\s*\(|computeCipherKey|calculateAgreement|"
@@ -589,6 +723,11 @@ WEAK_HASH_DART: List[Tuple[Pattern[str], str]] = [
     (re.compile(r"\b(?:MD5|SHA1)Digest\s*\(|\bDigest\s*\(\s*[\"'](?:MD5|SHA-1)[\"']"),
      "MD5 or SHA-1 through PointyCastle"),
 ]
+_STARTS.update({
+    WEAK_HASH[0][0]: ("MessageDigest",), WEAK_HASH[1][0]: ("Insecure",), WEAK_HASH[2][0]: ("CC_",),
+    WEAK_HASH[3][0]: ("DigestUtils",), WEAK_HASH[4][0]: ("Hashing",),
+    WEAK_HASH_DART[0][0]: ("md5", "sha1"), WEAK_HASH_DART[1][0]: ("MD5", "SHA1", "Digest"),
+})
 # The hash only matters when it protects something: a password, a signature, a token.
 _HASH_SECURITY = {"password", "passwd", "passcode", "signature", "sign", "signed", "verify", "verification",
                   "integrity", "certificate", "cert", "pin", "pinning", "token", "auth", "authenticate",
@@ -608,14 +747,13 @@ def _hash_context(blank: str, idx: int, path: str) -> Set[str]:
 def weak_hash(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for suffixes, pats in ((JVM + APPLE, WEAK_HASH), (DART, WEAK_HASH_DART)):
         for path in ctx.files(*suffixes):
-            raw = ctx.text(path) or ""
-            if not any(p in raw for p in ("MD5", "SHA1", "SHA-1", "md5", "sha1")):
+            if not holds_any(ctx, path, ("MD5", "SHA1", "SHA-1", "md5", "sha1")):
                 continue
             code = ctx.code(path, keep_strings=True) or ""
             blank = ctx.code(path, keep_strings=False) or ""
             seen: Set[int] = set()
             for regex, what in pats:
-                for m in regex.finditer(code):
+                for m in _finditer(regex, code):
                     line = ctx.line_of(code, m.start())
                     if line in seen:
                         continue
@@ -653,6 +791,14 @@ RNG_APPLE: List[Tuple[Pattern[str], str]] = [
 ]
 # dart:math `Random()`; `Random.secure()` is the safe one.
 DART_RANDOM = re.compile(r"(?<![\w.])Random\s*\(")
+# The literals each generator pattern's matches start with, for finditer_lit ("rand" also starts "random").
+_RNG_STARTS = {
+    RNG_JVM[0][0]: ("java.util.Random",), RNG_JVM[1][0]: ("kotlin.random.Random",), RNG_JVM[2][0]: ("Math.random",),
+    RNG_JVM[3][0]: ("setSeed",), RNG_IMPORTED_USE: ("Random", "new"), RNG_SEEDED_SECURE: ("SecureRandom",),
+    RNG_APPLE[0][0]: ("rand", "drand48", "lrand48"), RNG_APPLE[1][0]: ("srand",), DART_RANDOM: ("Random",),
+}
+# A literal every match of each RNG_IMPORTS pattern contains.
+_RNG_IMPORT_NEEDLES = ("java.util.", "kotlin.random.")
 # Words that say the value protects something. Strong words count on their own; weak words count only
 # when nothing in the context says the value is an ID, a delay, or decoration.
 RNG_STRONG = {"token", "nonce", "salt", "secret", "password", "passcode", "passphrase", "otp", "totp", "hotp",
@@ -713,18 +859,18 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         code = ctx.code(path, keep_strings=False) or ""
         seen: Set[int] = set()
-        for m in RNG_SEEDED_SECURE.finditer(code):
+        for m in finditer_lit(RNG_SEEDED_SECURE, code, _RNG_STARTS[RNG_SEEDED_SECURE]):
             line = ctx.line_of(code, m.start())
             seen.add(line)
             yield Hit(path, line, ctx.snippet(path, line), "A SecureRandom seeded by the caller.",
                       _hit_scope(ctx, path, m.start(), code))
         pats = list(RNG_JVM)
-        for imp, message in RNG_IMPORTS:
-            if imp.search(code):
+        for (imp, message), needle in zip(RNG_IMPORTS, _RNG_IMPORT_NEEDLES):
+            if needle in code and imp.search(code):
                 pats.append((RNG_IMPORTED_USE, message))
                 break
         for regex, message in pats:
-            for m in regex.finditer(code):
+            for m in finditer_lit(regex, code, _RNG_STARTS[regex]):
                 if regex.pattern.startswith(r"\bsetSeed") and "Random" not in code:
                     continue
                 s, _e = _line_span(code, m.start())
@@ -746,7 +892,7 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
         code = ctx.code(path, keep_strings=False) or ""
         seen = set()
         for regex, message in RNG_APPLE:
-            for m in regex.finditer(code):
+            for m in finditer_lit(regex, code, _RNG_STARTS[regex]):
                 s, _e = _line_span(code, m.start())
                 if re.search(r"\bfunc\s+$", code[s:m.start()]):
                     continue                   # `static func random() -> UInt32` declares a function
@@ -763,7 +909,7 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         code = ctx.code(path, keep_strings=False) or ""
         seen = set()
-        for m in DART_RANDOM.finditer(code):
+        for m in finditer_lit(DART_RANDOM, code, _RNG_STARTS[DART_RANDOM]):
             line = ctx.line_of(code, m.start())
             words = _rng_security_words(code, m.start(), path)
             if line in seen or not words:
@@ -810,7 +956,7 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue                         # tests and build tooling never ship
         raw = ctx.text(path)
         is_dart = path.endswith(".dart")
-        if raw is None or not ("http://" in raw or (is_dart and "Uri.http" in raw)) or _TEST_IMPORT.search(raw):
+        if raw is None or not ("http://" in raw or (is_dart and "Uri.http" in raw)) or _has_test_import(raw):
             continue
         code = ctx.code(path, keep_strings=True) or ""
         blank = ctx.code(path, keep_strings=False) or ""
@@ -850,6 +996,10 @@ LOG_CALL = re.compile(
     r"println|print|debugPrint|NSLog|os_log)\s*\("
 )
 DART_LOG_CALL = re.compile(r"(?<![\w.])(?:print|debugPrint|debugPrintSynchronously|log|developer\.log)\s*\(")
+# The literals each log-call match starts with (`print` also starts `println`, `debugPrint` also starts
+# `debugPrintSynchronously`); every match therefore contains one of them.
+_STARTS[LOG_CALL] = ("Log.", "Timber.", "System.", "print", "debugPrint", "NSLog", "os_log")
+_STARTS[DART_LOG_CALL] = ("print", "debugPrint", "log", "developer.")
 SENSITIVE_WORD = re.compile(r"(?i)token|passw(?:or)?d|passwd|secret|authorization|bearer")
 SENSITIVE_IDENT = re.compile(r"\b[A-Za-z_]\w*\b")
 INTERP = re.compile(r"\$\{([^}]*)\}|\$([A-Za-z_]\w*)|\\\(([^)]*)\)")
@@ -913,14 +1063,18 @@ def _secret_expr(expr: str, before: str) -> bool:
 @detector("xpl_sensitive_log")
 def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE):
-        raw = ctx.text(path)
-        if raw is None or not SENSITIVE_WORD.search(raw):
+        log_call = DART_LOG_CALL if path.endswith(".dart") else LOG_CALL
+        if not holds_any(ctx, path, _STARTS[log_call]):
+            continue                                        # no log call in the file
+        low = ctx.lower(path)
+        # Every SENSITIVE_WORD match contains one of these (passw covers passw(or)d and passwd).
+        if low is None or not any(w in low for w in ("token", "passw", "secret", "authorization", "bearer")):
             continue
         bare = ctx.code(path, keep_strings=False) or ""     # string contents blanked
         full = ctx.code(path, keep_strings=True) or ""      # same offsets, strings kept
         seen: Set[int] = set()
-        log_call = DART_LOG_CALL if path.endswith(".dart") else LOG_CALL
-        for m in log_call.finditer(bare):
+        lexical: Optional[bool] = None          # _LEXICAL_TOKEN_FILE.search(bare), once per file
+        for m in _finditer(log_call, bare):
             open_at = m.end() - 1
             close = _close_paren(bare, open_at)
             if m.group(0).startswith("os_log") and "{public}" not in full[open_at:close]:
@@ -942,8 +1096,11 @@ def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 expr = next(x for x in g.groups() if x is not None)
                 if SENSITIVE_WORD.search(expr) and _secret_expr(expr, ""):
                     names.append(expr.strip())
-            if names and all(n in ("token", "tokens") for n in names) and _LEXICAL_TOKEN_FILE.search(bare):
-                continue
+            if names and all(n in ("token", "tokens") for n in names):
+                if lexical is None:
+                    lexical = bool(_LEXICAL_TOKEN_FILE.search(bare))
+                if lexical:
+                    continue
             if not names:
                 continue
             line = ctx.line_of(bare, m.start())
@@ -989,9 +1146,9 @@ def _mask_literals(snippet: str) -> str:
 
 
 def _string_constant(code: str, name: str, *_args) -> bool:
-    return bool(re.search(
+    return text_memo(code, ("string_constant", name), lambda: bool(re.search(
         r"\b(?:val|var|let|String|final\s+String|static\s+final\s+String)?\s*\b" + re.escape(name)
-        + r"\s*(?::\s*String)?\s*=\s*\"[^\"\n]+\"", code))
+        + r"\s*(?::\s*String)?\s*=\s*\"[^\"\n]+\"", code)))
 
 
 @detector("xpl_hardcoded_key")
@@ -1049,7 +1206,7 @@ NATIVE = (".c", ".cc", ".cpp", ".cxx", ".m", ".mm", ".h", ".hpp")
 
 def _args_of(blank: str, open_paren: int) -> List[Tuple[int, int]]:
     """(start, end) of each top-level argument of the call whose `(` is at `open_paren`."""
-    close = guards.match(blank, open_paren, "(", ")")
+    close = bracket_match(blank, open_paren, "(", ")")
     out: List[Tuple[int, int]] = []
     depth = 0
     start = open_paren + 1
@@ -1117,8 +1274,10 @@ def _hit_at(ctx: Context, path: str, code: str, idx: int, message: str, blank: O
 def _files_with(ctx: Context, suffixes: Tuple[str, ...], needles: Sequence[str]) -> Iterable[Tuple[str, str, str]]:
     """(path, code, blank) for files whose raw text contains any needle."""
     for path in ctx.files(*suffixes):
-        raw = ctx.text(path)
-        if raw is None or (needles and not any(n in raw for n in needles)):
+        if needles:
+            if not holds_any(ctx, path, needles):
+                continue
+        elif ctx.text(path) is None:
             continue
         yield path, ctx.code(path, keep_strings=True) or "", ctx.code(path, keep_strings=False) or ""
 
@@ -1153,7 +1312,7 @@ def clipboard_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
         seen: Set[int] = set()
         for m in regex.finditer(blank):
             open_paren = m.end() - 1
-            close = guards.match(blank, open_paren, "(", ")")
+            close = bracket_match(blank, open_paren, "(", ")")
             args_blank = blank[open_paren:close]
             args_code = code[open_paren:close]
             literals = " ".join(re.findall(r"[\"']([^\"'\n]{1,60})[\"']", args_code))
@@ -1179,6 +1338,9 @@ BROKEN_CIPHER: List[Tuple[Pattern[str], str]] = [
     (re.compile(r"\b(DESede|DES|RC4|RC2|Blowfish)Engine\s*\("), "PointyCastle"),
     (re.compile(r"\bEVP_(des_\w+|des_ede\w*|rc4\w*|bf_\w+|rc2_\w+)\s*\("), "OpenSSL"),
 ]
+# The literals each BROKEN_CIPHER match starts with ("DES" also starts "DESede"), for finditer_lit.
+_BROKEN_CIPHER_STARTS = [("Cipher", "KeyGenerator", "SecretKeyFactory"), ("KeyProperties",), ("kCCAlgorithm",),
+                         ("Blowfish",), ("DES", "RC4", "RC2", "Blowfish"), ("EVP_",)]
 
 
 @detector("xpl_broken_cipher")
@@ -1186,8 +1348,8 @@ def broken_cipher(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, CODE + NATIVE, ("DES", "RC4", "RC2", "ARC", "Blowfish", "3DES",
                                                              "des_", "rc4", "bf_", "rc2_", "CAST")):
         seen: Set[int] = set()
-        for regex, where in BROKEN_CIPHER:
-            for m in regex.finditer(code):
+        for (regex, where), starts in zip(BROKEN_CIPHER, _BROKEN_CIPHER_STARTS):
+            for m in finditer_lit(regex, code, starts):
                 line = ctx.line_of(code, m.start())
                 if line in seen:
                     continue
@@ -1290,7 +1452,7 @@ def _kdf_calls(ctx: Context) -> Iterable[Tuple[str, str, str, int, Optional[Tupl
         for regex in (PBE_SPEC, CC_PBKDF, SWIFT_PBKDF2, DART_PBKDF2):
             for m in regex.finditer(blank):
                 args = _args_of(blank, m.end() - 1)
-                call_text = code[m.start():guards.match(blank, m.end() - 1, "(", ")")]
+                call_text = code[m.start():bracket_match(blank, m.end() - 1, "(", ")")]
                 prf = _prf(call_text) if _PRF_IN.search(call_text) else prf_file
                 it = salt = None
                 if regex is PBE_SPEC and len(args) >= 3:
@@ -1333,17 +1495,17 @@ def _enum_counts(code: str, blank: str, prop: str) -> List[Tuple[int, int, str]]
                     if re.search(r"\bva[lr]\s+" + re.escape(prop) + r"\s*:", blank[s:e])), None)
         if idx is None:
             continue
-        open_body = blank.find("{", guards.match(blank, m.end() - 1, "(", ")"))
+        open_body = blank.find("{", bracket_match(blank, m.end() - 1, "(", ")"))
         if open_body < 0:
             continue
-        close_body = guards.match(blank, open_body, "{", "}")
+        close_body = bracket_match(blank, open_body, "{", "}")
         for e in re.finditer(r"(?m)^[ \t]*([A-Z]\w*)\s*\(", blank[open_body:close_body]):
             paren = open_body + e.end() - 1
             args = _args_of(blank, paren)
             if len(args) > idx:
                 n = _int_literal(code[args[idx][0]:args[idx][1]])
                 if n is not None:
-                    out.append((open_body + e.start(1), n, code[open_body + e.start():guards.match(blank, paren, "(", ")")]))
+                    out.append((open_body + e.start(1), n, code[open_body + e.start():bracket_match(blank, paren, "(", ")")]))
     return out
 
 
@@ -1401,7 +1563,7 @@ def pbkdf2_iterations(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if n == 2048 and prf == "sha512" and re.search(r"(?i)mnemonic|bip-?39|seed", code):
                 continue                      # BIP-39 fixes 2,048 rounds of PBKDF2-HMAC-SHA512
             if it is not None:
-                call_end = guards.match(blank, blank.find("(", start), "(", ")")
+                call_end = bracket_match(blank, blank.find("(", start), "(", ")")
                 fn_name = _function_name(_enclosing_function(blank, start, path)[2])
                 if _KDF_BENCHMARK.search(code[it[0]:it[1]]) or _KDF_BENCHMARK.search(fn_name) \
                         or _TIMER.search(blank[call_end:call_end + 400]):
@@ -1511,7 +1673,7 @@ def biometric_fallback(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     yield _hit_at(ctx, path, code, m.start(), message, blank)
     for path, code, blank in _files_with(ctx, DART, ("local_auth",)):
         for m in re.finditer(r"\.\s*authenticate\s*\(", blank):
-            close = guards.match(blank, m.end() - 1, "(", ")")
+            close = bracket_match(blank, m.end() - 1, "(", ")")
             args = code[m.end():close]
             if "localizedReason" not in args or re.search(r"\bbiometricOnly\s*:\s*true\b", args):
                 continue
@@ -1614,6 +1776,7 @@ def zip_slip(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if not entries:
             continue
         reported: Set[int] = set()
+        guarded: dict = {}                    # (start, end) of a function -> it checks the path; once each
         for entry in entries:
             name_vars = {entry + r"\s*\.\s*(?:name|getName\s*\(\s*\))"}
             for m in re.finditer(r"\b(\w+)\s*(?::\s*String\??)?\s*=\s*" + re.escape(entry)
@@ -1624,9 +1787,11 @@ def zip_slip(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                   + r"|\bresolve\s*\(\s*" + nv)
                 for m in sink.finditer(blank):
                     start, end, _head = _enclosing_function(blank, m.start(), path)
-                    body = blank[start:end]
-                    if (_ZIP_GUARD.search(body) and "startsWith" in body) or re.search(r"contains\s*\(\s*\"\.\.\"",
-                                                                                         code[start:end]):
+                    if (start, end) not in guarded:
+                        body = blank[start:end]
+                        guarded[(start, end)] = bool((_ZIP_GUARD.search(body) and "startsWith" in body) or re.search(
+                            r"contains\s*\(\s*\"\.\.\"", code[start:end]))
+                    if guarded[(start, end)]:
                         continue
                     if start in reported:
                         continue
@@ -1691,28 +1856,20 @@ def _found(ctx: Context, pattern: Pattern[str], platform: str = "",
            accept: Optional[Callable[[str, str, "re.Match[str]"], bool]] = None) -> Optional[str]:
     """First file holding evidence. `platform` limits it to android, ios, or shared (Dart, deps) files.
     `accept(path, text, match)` can reject a match that isn't real evidence."""
-    cache = getattr(ctx, "_xpl_evidence_joined", None)
-    if cache is None:
-        cache = ctx._xpl_evidence_joined = {}  # type: ignore[attr-defined]
-    if platform not in cache:
-        files = []
-        for path, text in _evidence_files(ctx):
-            if platform == "android" and not path.endswith((".kt", ".java", ".kts", ".gradle", ".toml", ".pro")
-                                                           + NATIVE):
-                continue
-            if platform == "ios" and not path.endswith(APPLE + NATIVE + (".pbxproj", ".resolved", "Podfile",
-                                                                          "Package.swift", "Cartfile")):
-                continue
-            files.append((path, text))
-        # One search over the joined text is far faster than one per file; files are separated by a
-        # line that no evidence pattern can span.
-        cache[platform] = (files, "\n\x00\n".join(text for _p, text in files).lower())
-    files, joined = cache[platform]
+    files = _evidence_files(ctx)
     needles = _NEEDLES.get(pattern.pattern)
-    if needles is not None and not any(n in joined for n in needles):
-        return None                           # a cheap substring test rules most projects out
-    for path, text in files:
-        if needles is not None and not any(n in text.lower() for n in needles):
+    if needles is None:
+        candidates: Iterable[int] = range(len(files))
+    else:
+        # Only files whose lower-cased text holds a needle can match.
+        hit_set: Set[int] = set()
+        for n in needles:
+            hit_set.update(_evidence_holding(ctx, n))
+        candidates = sorted(hit_set)
+    suffixes = _PLATFORM_SUFFIXES.get(platform)
+    for i in candidates:
+        path, text = files[i]
+        if suffixes is not None and not path.endswith(suffixes):
             continue
         if accept is None:
             if pattern.search(text):
@@ -1720,6 +1877,50 @@ def _found(ctx: Context, pattern: Pattern[str], platform: str = "",
         elif any(accept(path, text, m) for m in pattern.finditer(text)):
             return path
     return None
+
+
+_PLATFORM_SUFFIXES = {
+    "android": (".kt", ".java", ".kts", ".gradle", ".toml", ".pro") + NATIVE,
+    "ios": APPLE + NATIVE + (".pbxproj", ".resolved", "Podfile", "Package.swift", "Cartfile"),
+}
+
+
+def _evidence_holding(ctx: Context, needle: str) -> List[int]:
+    """Indices into _evidence_files of the files whose text, lower-cased, contains `needle`; cached.
+    Candidates come from the raw-text index (an evidence text is its file's raw text with comments
+    blanked, so a needle without spaces in it lies in the raw text too); files outside that index are
+    always candidates. Each candidate is then tested directly."""
+    cache = getattr(ctx, "_xpl_evidence_cache", None)
+    if cache is None:
+        files = _evidence_files(ctx)
+        index, pos = _raw_index(ctx)
+        of_raw: dict = {}
+        unindexed: List[int] = []
+        for i, (path, _text) in enumerate(files):
+            k = pos.get(path)
+            if k is None:
+                unindexed.append(i)
+            else:
+                of_raw[k] = i
+        cache = ctx._xpl_evidence_cache = ({}, {}, of_raw, unindexed)  # type: ignore[attr-defined]
+    answers, lowered, of_raw, unindexed = cache
+    if needle not in answers:
+        files = _evidence_files(ctx)
+        index, _pos = _raw_index(ctx)
+        if " " in needle:
+            candidates: Iterable[int] = range(len(files))
+        else:
+            candidates = sorted({of_raw[k] for k in index.candidates_lower(needle) if k in of_raw}
+                                | set(unindexed))
+        out = []
+        for i in candidates:
+            low = lowered.get(i)
+            if low is None:
+                low = lowered[i] = files[i][1].lower()
+            if needle in low:
+                out.append(i)
+        answers[needle] = out
+    return answers[needle]
 
 
 _NOT_APP_PLIST_DIR = re.compile(r"(?i)(?:^|/)[^/]*(?:watch|test|mock|harness)[^/]*/")
@@ -1817,7 +2018,7 @@ def _real_debugger_check(path: str, text: str, m: "re.Match[str]") -> bool:
         return False
     if path.endswith((".kt", ".java")) and _NEGATED_DEBUG.search(text[max(0, m.start() - 40):m.start()]):
         return False
-    if path.endswith(APPLE + NATIVE) and guards.preprocessor_debug_guarded(text, m.start()):
+    if path.endswith(APPLE + NATIVE) and preprocessor_debug_guarded(text, m.start()):
         return False
     return True
 
@@ -1953,7 +2154,7 @@ def rsa_pkcs1(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     yield _lower_if_legacy(ctx, _hit_at(ctx, path, code, m.start(), message, blank))
         if path.endswith(".dart") and "package:encrypt" in code:
             for m in re.finditer(r"\bRSA\s*\(", blank):
-                args = code[m.end():guards.match(blank, m.end() - 1, "(", ")")]
+                args = code[m.end():bracket_match(blank, m.end() - 1, "(", ")")]
                 line = ctx.line_of(code, m.start())
                 if "publicKey" in args and "encoding" not in args and line not in seen:
                     seen.add(line)
@@ -2110,7 +2311,7 @@ def webview_dom_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                                     "runJavaScript")):
         for m in JS_EVAL.finditer(code):
             open_paren = code.index("(", m.start())
-            close = guards.match(blank, open_paren, "(", ")")
+            close = bracket_match(blank, open_paren, "(", ")")
             text = code[open_paren:min(close, open_paren + 800)]
             if not _DOM_SINK.search(text):
                 continue
@@ -2184,7 +2385,7 @@ def db_plain_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
                          r"['\"]", code, re.IGNORECASE):
             continue
         for m in re.finditer(r"\bHive\s*\.\s*openBox\s*(?:<[^>]*>)?\s*\(", blank):
-            args = code[m.end():guards.match(blank, m.end() - 1, "(", ")")]
+            args = code[m.end():bracket_match(blank, m.end() - 1, "(", ")")]
             if "encryptionCipher" not in args:
                 yield _hit_at(ctx, path, code, m.start(), "A Hive box that stores a token or password is opened "
                                                           "without `encryptionCipher`.", blank)
@@ -2215,13 +2416,14 @@ def _notif_found(text_code: str, text_blank: str) -> List[str]:
 def notification_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, JVM, ("setContentText", "setContentTitle", "bigText")):
         for m in NOTIF_TEXT.finditer(blank):
-            close = guards.match(blank, m.end() - 1, "(", ")")
+            close = bracket_match(blank, m.end() - 1, "(", ")")
             found = _notif_found(code[m.end():close], blank[m.end():close])
             if not found:
                 continue
             start, end, _head = _enclosing_function(blank, m.start(), path)
-            if _NOTIF_PRIVATE.search(blank[start:end]):
-                continue
+            if text_memo(blank, ("notif_private", start, end),
+                         lambda b=blank, s=start, e=end: bool(_NOTIF_PRIVATE.search(b[s:e]))):
+                continue                      # (searched once per function, not once per call in it)
             yield _hit_at(ctx, path, code, m.start(), f"A notification shows a `{found[0]}`, which appears on the "
                                                       "lock screen unless the notification is private.", blank)
     for path, code, blank in _files_with(ctx, (".swift",), ("UNMutableNotificationContent",)):
@@ -2235,7 +2437,7 @@ def notification_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if _NOTIF_PRIVATE.search(code):
             continue
         for m in re.finditer(r"\.\s*show\s*\(", blank):
-            close = guards.match(blank, m.end() - 1, "(", ")")
+            close = bracket_match(blank, m.end() - 1, "(", ")")
             found = _notif_found(code[m.end():close], blank[m.end():close])
             if found:
                 yield _hit_at(ctx, path, code, m.start(), f"A notification shows a `{found[0]}` on the lock screen.",
@@ -2280,7 +2482,7 @@ def unmasked_secret_field(ctx: Context, rule: Rule) -> Iterable[Hit]:
                       "A password or PIN field shows the typed characters (no password input type).")
     for path, code, blank in _files_with(ctx, (".kt",), ("TextField",)):
         for m in COMPOSE_FIELD.finditer(blank):
-            close = guards.match(blank, m.end() - 1, "(", ")")
+            close = bracket_match(blank, m.end() - 1, "(", ")")
             args = code[m.end():close]
             if "visualTransformation" in args or not _field_label_secret(args):
                 continue
@@ -2290,7 +2492,7 @@ def unmasked_secret_field(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield _hit_at(ctx, path, code, m.start(), "A `SecureTextField` is set to show its text.", blank)
     for path, code, blank in _files_with(ctx, DART, ("TextField", "TextFormField")):
         for m in DART_FIELD.finditer(blank):
-            close = guards.match(blank, m.end() - 1, "(", ")")
+            close = bracket_match(blank, m.end() - 1, "(", ")")
             args = code[m.end():close]
             if re.search(r"\bobscureText\s*:\s*(?!false\b)", args) or not _field_label_secret(args):
                 continue
@@ -2325,7 +2527,7 @@ def analytics_pii(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         seen: Set[int] = set()
         for m in ANALYTICS_ID.finditer(blank):
-            close = guards.match(blank, m.end() - 1, "(", ")")
+            close = bracket_match(blank, m.end() - 1, "(", ")")
             found = sorted(_words_of(blank[m.end():close]) & _PII_WORDS)
             line = ctx.line_of(code, m.start())
             if found and line not in seen:
@@ -2396,7 +2598,7 @@ _DOC_HOSTS = re.compile(r"(?:^|\.)(?:example\.(?:com|org|net)|test|invalid|local
 @detector("xpl_nonprod_endpoint")
 def nonprod_endpoint(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, CODE, ("http",)):
-        if (scope_of(path) in ("test", "build-script", "debug") or _TEST_IMPORT.search(code)
+        if (scope_of(path) in ("test", "build-script", "debug") or _has_test_import(code)
                 or _NON_RELEASE_SOURCE_SET.search("/" + path)):
             continue                          # only code that ships in the release variant
         seen: Set[int] = set()
@@ -2479,11 +2681,16 @@ def _constant_piece(code: str, expr: str) -> bool:
         piece = piece.strip()
         if _STRING_LIT.match(piece) or re.fullmatch(r"(?:[A-Za-z_]\w*\.)*[A-Z][A-Z0-9_]*", piece):
             continue
-        if re.fullmatch(r"[A-Za-z_]\w*", piece) and (_string_constant(code, piece) or re.search(
-                r"\b" + re.escape(piece) + r"\s*=\s*(?:arrayOf|listOf)\s*\(\s*(?:\"[^\"\n]*\"\s*,?\s*)*\)", code)):
+        if re.fullmatch(r"[A-Za-z_]\w*", piece) and _named_constant(code, piece):
             continue
         return False
     return True
+
+
+def _named_constant(code: str, name: str) -> bool:
+    """`name` is a string constant or a list of string literals defined in this file."""
+    return text_memo(code, ("named_constant", name), lambda: bool(_string_constant(code, name) or re.search(
+        r"\b" + re.escape(name) + r"\s*=\s*(?:arrayOf|listOf)\s*\(\s*(?:\"[^\"\n]*\"\s*,?\s*)*\)", code)))
 
 
 def _elements(code: str, blank: str, span: Tuple[int, int]) -> Optional[List[str]]:
@@ -2493,7 +2700,7 @@ def _elements(code: str, blank: str, span: Tuple[int, int]) -> Optional[List[str
         return None
     open_at = span[0] + max(m.start(g) for g in (1, 2, 3) if m.group(g))
     closer = {"(": ")", "{": "}", "[": "]"}[blank[open_at]]
-    close = guards.match(blank, open_at, blank[open_at], closer)
+    close = bracket_match(blank, open_at, blank[open_at], closer)
     out: List[str] = []
     depth, start = 0, open_at + 1
     for i in range(open_at + 1, close):
@@ -2540,7 +2747,7 @@ def shell_command(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, JVM + NATIVE + DART, ("exec", "ProcessBuilder", "system", "popen",
                                                                    "Process.")):
         is_c, is_dart = path.endswith(NATIVE), path.endswith(".dart")
-        for m in SHELL_EXEC.finditer(blank):
+        for m in finditer_lit(SHELL_EXEC, blank, ("Runtime", "Process", "system", "popen")):
             call = m.group(0)
             if is_c != call.startswith(("system", "popen")) or is_dart != bool(re.match(r"Process\s*\.", call)):
                 continue

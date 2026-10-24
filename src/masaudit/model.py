@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 SEVERITIES = ["critical", "high", "medium", "low", "info"]
 SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITIES)}
@@ -70,11 +70,58 @@ class Finding:
 
 
 @dataclass
+class AppTypeWarning:
+    """The code suggests a riskier app type than the one chosen ("Check your app type")."""
+    chosen: str                        # the app type in use
+    source: str                        # where it came from: flag, config, prompt, default
+    suggested: str                     # the type the evidence points to
+    evidence: str                      # what was found, e.g. "card-number fields"
+    path: str                          # the first file it was found in
+    extra_checks: int                  # checks the suggested type runs that the chosen one skips
+    hidden: List[Tuple[str, str]] = field(default_factory=list)  # (rule id, title) under Not needed
+
+    def lines(self) -> List[str]:
+        """The warning as short plain lines: the first is the headline."""
+        chose = ("No app type was given, so masaudit assumed general." if self.source == "default"
+                 else f"You chose:  {self.chosen}")
+        n = self.extra_checks
+        out = [
+            "Check your app type.",
+            chose,
+            f"The code:   {self.path} has {self.evidence}.",
+            f"Suggests:   {self.suggested}, which adds {n} {'check' if n == 1 else 'checks'} for this project.",
+        ]
+        if self.hidden:
+            names = "; ".join(title for _id, title in self.hidden[:3]) + ("; ..." if len(self.hidden) > 3 else "")
+            k = len(self.hidden)
+            out.append(f"Hidden:     {k} {'finding is' if k == 1 else 'findings are'} under Not needed: {names}")
+        if self.source == "config":
+            out.append(f"To fix:     set app_type = {self.suggested} in .masaudit.ini.")
+        else:
+            out.append(f"To fix:     run again with --app-type {self.suggested}.")
+        out.append(f"Keeping {self.chosen} on purpose? Add app_type_reviewed = {self.suggested} to .masaudit.ini.")
+        return out
+
+    def summary(self) -> str:
+        """One line, for annotations and SARIF."""
+        return (f"Check your app type: {self.path} has {self.evidence}, which suggests {self.suggested} "
+                f"({self.extra_checks} more checks) instead of {self.chosen}.")
+
+    def to_dict(self) -> dict:
+        return {"chosen": self.chosen, "source": self.source, "suggested": self.suggested,
+                "evidence": {"label": self.evidence, "path": self.path},
+                "extra_checks": self.extra_checks,
+                "hidden": [{"rule_id": i, "title": t} for i, t in self.hidden],
+                "message": self.summary()}
+
+
+@dataclass
 class Profile:
     app_type: str                      # banking, identity, health, ...
     mas_profiles: List[str]            # e.g. ["L1", "L2", "P", "R"]
     source: str                        # "flag", "config", "prompt", "default"
     suggestions: List[str] = field(default_factory=list)   # code clues, stated, never applied silently
+    warnings: List["AppTypeWarning"] = field(default_factory=list)  # the code suggests a riskier type
 
 
 @dataclass

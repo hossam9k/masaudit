@@ -109,6 +109,22 @@ Open findings (fix before release or fix soon) in shipping code and CI. "Apps" i
 IOS-012 is the one rule under 90%: one of its nine findings is a confirmation prompt before saving a
 biometric-bound key, not an unlock check. The rule is marked *Check by hand*.
 
+## Speed
+
+Every app in the corpus scans without a crash. End-to-end times for the largest, as a banking app (so
+every rule runs), on an Apple M5 laptop with Python 3.14, version 0.4.1:
+
+| App | Files | Time |
+|---|---|---|
+| Signal (Android) | 9,528 | 5.6 s |
+| DuckDuckGo (Android) | 9,998 | 5.6 s |
+| Lichess (Flutter) | 7,885 | 4.6 s |
+| Signal (iOS) | 3,741 | 4.3 s |
+
+Crafted inputs can't make a scan slow: the parsers are fuzzed in CI, and tests check that files built
+to trigger worst cases (thousands of nested blocks, unclosed brackets, huge single lines) still scan in
+linear time. `scripts/benchmark.py` times a scan per rule.
+
 ## What this doesn't measure
 
 - **Recall** (what masaudit misses) is harder to measure. The reviewers searched the corpus for the

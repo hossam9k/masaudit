@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+"""The numbers and tables in README.md and docs/ match the code, so they can't quietly go stale."""
+
+import collections
+import json
+import os
+import re
+import unittest
+
+from helpers import scan_dir  # noqa: F401  (sets sys.path)
+from masaudit import __version__, cli, engine, profile
+
+ROOT = os.path.join(os.path.dirname(__file__), "..")
+
+
+def read(rel):
+    with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+        return fh.read()
+
+
+README = read("README.md")
+
+
+class ReadmeNumbers(unittest.TestCase):
+    def test_rule_counts(self):
+        rules = [r for r in engine.load_rules() if not r.retired]
+        by = collections.Counter(r.platform for r in rules)
+        m = re.search(r"(\d+) rules: (\d+) Android, (\d+) iOS, (\d+) cross-platform code, (\d+) Flutter, "
+                      r"(\d+) CI and supply chain, (\d+) Kotlin\s+Multiplatform", README)
+        self.assertIsNotNone(m, "README rule-count sentence not found")
+        self.assertEqual([int(x) for x in m.groups()],
+                         [len(rules), by["android"], by["ios"], by["cross"], by["flutter"], by["ci"], by["kmp"]])
+
+    def test_owasp_coverage(self):
+        rules = engine.load_rules()
+        with open(os.path.join(ROOT, "src/masaudit/rules/_maswe.json"), encoding="utf-8") as fh:
+            catalog = json.load(fh)
+        maswe = {r.maswe for r in rules if r.maswe and not r.retired}
+        mastg = {t for r in rules for t in r.mastg if t.startswith("MASTG-TEST")}
+        self.assertIn(f"{len(maswe)} of the {len(catalog)} weaknesses", README)
+        self.assertIn(f"cite {len(mastg)} OWASP MASTG tests", README)
+
+    def test_demo_app_table(self):
+        demo = os.path.join(ROOT, "examples", "acme-wallet")
+        rows = {}
+        for app_type in ("banking", "news"):
+            counts = collections.Counter(
+                f.bucket for f in cli.scan(demo, cli_type=app_type, allow_prompt=False).findings)
+            rows[app_type] = [counts["fix-before-release"], counts["fix-soon"], counts["not-needed"]]
+        table = {}
+        for label in ("Fix before release", "Fix soon", "Not needed for your app"):
+            m = re.search(r"^\| " + re.escape(label) + r" \| (\d+) \| (\d+)", README, re.M)
+            self.assertIsNotNone(m, label)
+            table[label] = (int(m.group(1)), int(m.group(2)))
+        self.assertEqual([t[0] for t in table.values()], rows["banking"])
+        self.assertEqual([t[1] for t in table.values()], rows["news"])
+
+    def test_versions(self):
+        for rel in ("README.md", "docs/ci.md"):
+            text = read(rel)
+            for found in re.findall(r"(?:# v|rev: v|masaudit )(\d+\.\d+\.\d+)", text):
+                with self.subTest(file=rel):
+                    self.assertEqual(found, __version__)
+
+
+class UsageGuide(unittest.TestCase):
+    def test_app_type_table_matches_the_code(self):
+        usage = read("docs/usage.md")
+        rows = dict(re.findall(r"^\| `([a-z-]+)` \| [^|]+ \| ([^|]+) \|$", usage, re.M))
+        self.assertEqual(set(rows), set(profile.APP_TYPES))
+        for key, (profiles, description) in profile.APP_TYPES.items():
+            with self.subTest(app_type=key):
+                self.assertEqual(rows[key].strip(), ", ".join(p for p in ("L1", "L2", "R", "P") if p in profiles))
+                self.assertIn(f"| `{key}` | {description} |", usage)
+
+
+if __name__ == "__main__":
+    unittest.main()

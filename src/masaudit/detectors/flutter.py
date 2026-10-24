@@ -10,12 +10,28 @@ Dart's `HttpClient` brings its own TLS stack, so `<pin-set>` and NSPinnedDomains
 from __future__ import annotations
 
 import re
-from typing import Iterable, Optional, Set, Tuple
+from typing import Dict, Iterable, Optional, Set, Tuple
 
-from masaudit import guards, safety
-from masaudit.detect import scope_of
+from masaudit import safety
+from masaudit.detect import scope_of as _scope_of
+from masaudit.guards import dart_debug, guarded_by
+from masaudit.textscan import bracket_match
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
+
+
+_SCOPES: Dict[str, str] = {}
+
+
+def scope_of(path: str) -> str:
+    """detect.scope_of, memoised: detectors ask it about the same paths many times per scan."""
+    s = _SCOPES.get(path)
+    if s is None:
+        if len(_SCOPES) >= 200_000:
+            _SCOPES.clear()
+        s = _SCOPES[path] = _scope_of(path)
+    return s
+
 
 DART = (".dart",)
 
@@ -136,18 +152,18 @@ _ASSERT = re.compile(r"\bassert\s*\(")
 def _release_off(blank: str, idx: int) -> bool:
     """Debug-only Dart code: `if (kDebugMode)`, `if (kProfileMode)`, `if (!kReleaseMode)`, or inside
     `assert(...)`, whose body is compiled out of release builds."""
-    if guards.dart_debug_guarded(blank, idx):
+    if guarded_by(blank, idx, dart_debug):            # guards.dart_debug_guarded
         return True
-    if guards.guarded_by(blank, idx, lambda c: "!kReleaseMode" in c and "&&" not in c):
+    if guarded_by(blank, idx, lambda c: "!kReleaseMode" in c and "&&" not in c):
         return True
     for m in _ASSERT.finditer(blank, max(0, idx - 4000), idx):
-        if guards.match(blank, m.end() - 1, "(", ")") > idx:
+        if bracket_match(blank, m.end() - 1, "(", ")") > idx:
             return True
     return False
 
 
 def _args_of(blank: str, open_paren: int) -> str:
-    return blank[open_paren:guards.match(blank, open_paren, "(", ")") + 1]
+    return blank[open_paren:bracket_match(blank, open_paren, "(", ")") + 1]
 
 
 def _hit_at(ctx: Context, path: str, blank: str, idx: int, message: str) -> Hit:
@@ -304,12 +320,12 @@ def _closure_body(blank: str, start: int) -> str:
     else:
         if not blank.startswith("(", start):
             return ""
-        m = _BODY_START.match(blank, guards.match(blank, start, "(", ")") + 1)
+        m = _BODY_START.match(blank, bracket_match(blank, start, "(", ")") + 1)
         if not m:
             return ""
         at = m.start(1)
     if blank.startswith("{", at):
-        return blank[at:guards.match(blank, at, "{", "}") + 1]
+        return blank[at:bracket_match(blank, at, "{", "}") + 1]
     depth = 0                                    # arrow body: up to the `,` or `)` that ends it
     for j in range(at + 2, min(len(blank), at + 3000)):
         c = blank[j]

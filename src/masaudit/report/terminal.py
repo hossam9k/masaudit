@@ -51,7 +51,11 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
         f"Profile:   {profile_mod.describe(result.profile)}",
     ]
     if result.profile.source == "default":
-        lines.append("Assumed general app (MAS-L1). Set --app-type for accurate results.")
+        lines.append("Assumed a general app (MAS-L1+P). Set --app-type for accurate results.")
+    for w in result.profile.warnings:
+        wl = w.lines()
+        lines.append(_c(color, "high", f"WARNING: {wl[0]}"))
+        lines += [f"  {x}" for x in wl[1:]]
     for s in result.profile.suggestions:
         lines.append(f"Clue:      {s}")
     lines += [
@@ -68,7 +72,8 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
             sev = _c(color, f.effective_severity, f"[{f.effective_severity}]")
             lines.append(f"  {i}. {sev} {f.rule.title} ({f.rule.id}) - {loc}")
     else:
-        lines += ["", "No open findings to fix."]
+        lines += ["", "No open findings to fix." + (" Check your app type first (see the warning above)."
+                                                    if result.profile.warnings else "")]
     notes = list(getattr(result, "notes", []))
     for n in notes:
         lines.append(f"Note: {n}")
