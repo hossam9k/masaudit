@@ -1,0 +1,2 @@
+# The tests need fixtures and examples that aren't packaged; run them from a git checkout.
+prune tests

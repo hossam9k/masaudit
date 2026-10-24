@@ -59,7 +59,9 @@ Each finding has:
   `acknowledged` (a decision recorded for another tool, such as Lint's `tools:ignore`).
 - **Advice:** `why`, `fix`, `verify`, `effort`, `safe_fix`, and the references `maswe`, `masvs`,
   `mastg`, `book`, and `book_url`.
-- `imported`: whether it came from `--import-sarif`.
+- `imported`: `true` for an `--import-sarif` result with no matching masaudit rule (its `rule_id` is
+  `tool:ID`). An imported result that matches a masaudit rule takes that rule's ID, shows
+  `imported: false`, and names the source tool in `message`.
 
 Each `profile.warnings` item has `chosen`, `source`, `suggested`, `evidence` (`label` and `path`),
 `extra_checks`, `hidden` (the rules it hid under *Not needed*), and a one-line `message`.
@@ -82,8 +84,10 @@ SARIF 2.1.0, ready for GitHub code scanning (the [GitHub Action](ci.md) uploads 
   | low | `note` | 3.0 |
   | info | `note` | 1.0 |
 
-- `automationDetails.id` is `masaudit/` plus the detected platforms, for example
-  `masaudit/android+ios`. It changes when the detected platforms change.
+- Paths (`artifactLocation.uri`) are relative to the scanned folder. The
+  [GitHub Action](ci.md) rewrites them to be relative to the repository root.
+- There is no `automationDetails`: set the code-scanning category when you upload, for example with
+  the Action's `category` input.
 - *Not needed* findings are left out unless you pass `--sarif-include-not-needed`, which adds them as
   notes.
 - Suppressed findings carry an `inSource` suppression and baselined ones an `external` suppression,

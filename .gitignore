@@ -5,5 +5,6 @@ build/
 dist/
 .venv/
 SECURITY-AUDIT.md
+masaudit.sarif
 masaudit-fixes.patch
 .DS_Store

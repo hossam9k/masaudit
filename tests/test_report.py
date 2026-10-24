@@ -148,8 +148,8 @@ class Terminal(unittest.TestCase):
             "/home/a/.cache/uv/archive-v0/abc/bin/masaudit": "uvx masaudit",
             "C:\\Users\\a\\AppData\\Local\\uv\\cache\\archive-v0\\x\\Scripts\\masaudit.exe": "uvx masaudit",
             "/home/a/.local/pipx/.cache/abc/bin/masaudit": "pipx run masaudit",
-            "/home/a/Downloads/masaudit.pyz": "python3 /home/a/Downloads/masaudit.pyz",
-            "/x/src/masaudit/__main__.py": "python3 -m masaudit",
+            "/home/a/Downloads/masaudit.pyz": f"{terminal.PYTHON} /home/a/Downloads/masaudit.pyz",
+            "/x/src/masaudit/__main__.py": f"{terminal.PYTHON} -m masaudit",
             "/Users/a/Library/Caches/pipx/abc123/bin/masaudit": "pipx run masaudit",
             "/home/a/.cache/pipx/abc123/bin/masaudit": "pipx run masaudit",
             # Real installs leave a `masaudit` command.

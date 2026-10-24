@@ -42,13 +42,17 @@ Every rule is also in the [rules reference](rules.md).
 ## Let masaudit apply a safe fix
 
 masaudit applies only fixes that can't change how a correct app behaves. Today that's one: removing
-`android:debuggable="true"` from the main manifest.
+`android:debuggable="true"` from the `<application>` tag of every `AndroidManifest.xml` that isn't
+debug-only.
 
 ```bash
 masaudit . --fix-safe                  # print the diff; changes nothing
 masaudit . --fix-safe --write-patch    # also save it as masaudit-fixes.patch
 masaudit . --fix-safe --yes            # apply it in place (needs a clean git tree)
 ```
+
+`--yes` needs a clean git tree, and an untracked `SECURITY-AUDIT.md` counts as a change. Commit the
+report, delete it, or add it to `.gitignore` before you run `--yes`.
 
 masaudit never edits Gradle files. For `isDebuggable = true` in a Gradle release build type, the
 report's fix tells you the change to make by hand.
@@ -61,3 +65,8 @@ Every other finding has a fix in the report for you to apply, or an
 If a finding doesn't apply, suppress it with a written reason (see
 [Suppress a finding](team.md#suppress-a-finding-with-a-reason)). If the rule itself is wrong, send
 a [false-positive report](https://github.com/hossam9k/masaudit/issues/new?template=false-positive.yml).
+
+## Next steps
+
+- **Scan every pull request:** [Use masaudit in CI](ci.md).
+- **Fix an older app over time:** [Adopt masaudit in an older app](team.md#adopt-masaudit-in-an-older-app).

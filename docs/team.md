@@ -8,7 +8,7 @@ fixing everything at once, and bring in results from other tools.
 ## Share one configuration
 
 Commit a `.masaudit.ini` in the folder you scan, so every developer and CI use the same settings. The
-pre-commit hook uses every key except `fail_on`; see [pre-commit](ci.md#pre-commit).
+pre-commit hook overrides `fail_on`; see [pre-commit](ci.md#pre-commit).
 
 ```ini
 [masaudit]
@@ -31,6 +31,9 @@ can review later:
 To suppress several rules on one line, separate the IDs with commas. Block comments (`/* */`) work
 too.
 
+A finding without a line number, such as *No certificate pinning* on iOS, can't be suppressed with a
+comment. Accept it with a [baseline](#adopt-masaudit-in-an-older-app) instead.
+
 A suppression without a reason is ignored and reported. Suppressed findings move to *Accepted earlier
 (not counted)* in the report, with the reason.
 
@@ -52,7 +55,7 @@ Commit `.masaudit-baseline.json` and fix the accepted findings over time. In CI,
 `--baseline`, or with the Action's `baseline` input:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.4.2
+- uses: hossam9k/masaudit@<commit-sha> # v0.4.3
   with:
     app-type: banking
     baseline: .masaudit-baseline.json
@@ -68,3 +71,8 @@ masaudit . --import-sarif lint.sarif mobsfscan.sarif
 
 masaudit reads SARIF files from Android Lint, mobsfscan, Semgrep, and zizmor, and sorts their results
 into the same buckets for your app type, in one report.
+
+## Next steps
+
+- **Every setting:** [Config file reference](config.md).
+- **Scan every pull request:** [Use masaudit in CI](ci.md).

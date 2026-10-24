@@ -90,16 +90,28 @@ jobs:
           app-type: banking
           fail-on: none
           upload-sarif: "false"
-      - name: Action wrote both reports
-        run: test -s masaudit.sarif && test -s SECURITY-AUDIT.md
-      - name: Save an app type in the project's .masaudit.ini
-        run: printf '[masaudit]\napp_type = content\n' > examples/acme-wallet/.masaudit.ini
+      - name: Action wrote both reports, with paths from the checkout root
+        run: |
+          test -s masaudit.sarif && test -s SECURITY-AUDIT.md
+          grep -q '"uri": "examples/acme-wallet/android/' masaudit.sarif
+      - name: A tool error fails the scan step
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          path: does-not-exist
+          upload-sarif: "false"
+      - name: The broken scan failed
+        if: steps.broken.outcome != 'failure'
+        run: exit 1
+      - name: Save an app type and fail_on in the project's .masaudit.ini
+        run: printf '[masaudit]\napp_type = content\nfail_on = high\n' > examples/acme-wallet/.masaudit.ini
       - uses: ./
         with:
           path: examples/acme-wallet
           fail-on: none
           upload-sarif: "false"
-      - name: Without an app-type input, the Action uses .masaudit.ini
+      - name: Without an app-type input, the Action uses .masaudit.ini (and fail-on none overrides fail_on)
         run: grep -q "App profile:\*\* content" SECURITY-AUDIT.md
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

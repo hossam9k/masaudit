@@ -89,14 +89,17 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
     return asciify("\n".join(lines)) + "\n"
 
 
+PYTHON = "py" if os.name == "nt" else "python3"      # the launcher Python's Windows installer adds
+
+
 def invocation() -> str:
     """The command that runs masaudit again the way the user just did (uvx, pipx, a .pyz, or installed)."""
     argv0 = sys.argv[0] if sys.argv else ""
     base = os.path.basename(argv0)
     if base.endswith(".pyz"):
-        return f'python3 "{argv0}"' if " " in argv0 else f"python3 {argv0}"
+        return f'{PYTHON} "{argv0}"' if " " in argv0 else f"{PYTHON} {argv0}"
     if base == "__main__.py":
-        return "python3 -m masaudit"
+        return f"{PYTHON} -m masaudit"
     # uvx and `pipx run` run from a throwaway environment that they also put on PATH, so check for
     # those first. `uv tool install` and `pipx install` leave a real `masaudit` command.
     where = argv0.replace("\\", "/").lower()
@@ -148,7 +151,9 @@ def explain(rule: Rule) -> str:
         lines.append(f"IDs: {', '.join(ids)}")
     lines.append(f"Book: {rule.book} {rule.book_url}".rstrip())
     if rule.safe_fix:
-        lines.append(f"Safe fix: yes ({invocation()} --fix-safe)")
+        # AND-002 is the only safe-fix rule; its fix edits manifests, never Gradle files.
+        lines.append(f"Safe fix: in AndroidManifest.xml only ({invocation()} --fix-safe). "
+                     "Gradle files get a suggestion to apply by hand.")
     if rule.retired:
         lines.append("This rule is retired.")
     return asciify("\n".join(lines)) + "\n"

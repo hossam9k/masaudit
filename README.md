@@ -21,6 +21,16 @@ masaudit needs no AI, no account, and no network connection after the first down
 
 ## Quick start
 
+Use masaudit on its own, or with an AI assistant. The scan, the report, and every fix work without AI.
+
+| | Without AI | With an AI assistant (optional) |
+|---|---|---|
+| Start | Run one command, below | Install the masaudit plugin or skill in your assistant |
+| You get | `SECURITY-AUDIT.md`: what to fix, why, how, and how to verify | The same report, plus the assistant confirms each finding in your code and fixes them with you |
+| Guide | [Getting started](https://github.com/hossam9k/masaudit/blob/main/docs/getting-started.md) | [Use masaudit with an AI assistant](https://github.com/hossam9k/masaudit/blob/main/docs/ai-assistants.md) |
+
+### Without AI
+
 You need Python 3.9 or later. In your project's root folder, run one of these:
 
 ```bash
@@ -29,8 +39,9 @@ pipx run masaudit .                  # if you have pipx: https://pipx.pypa.io/
 python3 ~/Downloads/masaudit.pyz .   # no installer: one file, works offline
 ```
 
-Download `masaudit.pyz` from the [latest release](https://github.com/hossam9k/masaudit/releases/latest).
-On Windows, run `py masaudit.pyz .` instead.
+For the last line, first download `masaudit.pyz` from the
+[latest release](https://github.com/hossam9k/masaudit/releases/latest) to your Downloads folder. On
+Windows, run `py $HOME\Downloads\masaudit.pyz .` in PowerShell.
 [Install and upgrade](https://github.com/hossam9k/masaudit/blob/main/docs/install.md) lists every way
 to run it.
 
@@ -39,22 +50,37 @@ writes `SECURITY-AUDIT.md` with the top fixes first.
 [Getting started](https://github.com/hossam9k/masaudit/blob/main/docs/getting-started.md) walks you
 through your first fix.
 
+### With an AI assistant
+
+In Claude Code:
+
+```text
+/plugin marketplace add hossam9k/masaudit
+/plugin install masaudit@masaudit
+/masaudit:scan
+```
+
+Codex, GitHub Copilot, Cursor, Gemini CLI, and other [Agent Skills](https://agentskills.io) tools can
+use the same skill, and any chat assistant can use the report's fix plan. See
+[Use masaudit with an AI assistant](https://github.com/hossam9k/masaudit/blob/main/docs/ai-assistants.md).
+
 ## See it on a real app
 
 The repository ships a deliberately insecure demo app,
 [Acme Wallet](https://github.com/hossam9k/masaudit/tree/main/examples/acme-wallet). Scanned as a news
-app, the terminal shows (paths shortened):
+app, the terminal shows (trimmed):
 
 ```text
-$ masaudit examples/acme-wallet --app-type news
+$ uvx masaudit examples/acme-wallet --app-type news
 Profile:   content (News, video, music, reading, or learning); MAS-L1+P; from --app-type
+Clue:      Found a payment SDK (Stripe) in android/app/build.gradle.kts - ecommerce may fit
 
 Fix before release: 9   Fix soon: 12   Notes: 0   Not needed: 18   Accepted: 0
 
 Top fixes:
   1. [critical] Release build is debuggable (AND-002) - android/app/build.gradle.kts:17
   2. [critical] WebView ignores TLS certificate errors (AND-004) - .../WalletApi.kt:40
-  3. [critical] pull_request_target workflow checks out the pull request's code (CI-003)
+  3. [critical] pull_request_target workflow checks out the pull request's code (CI-003) - ...
 ```
 
 The same code gets different advice under each app type:
@@ -98,7 +124,7 @@ In GitHub Actions, the step looks like this; the [CI guide](https://github.com/h
 has the complete workflow:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.4.2
+- uses: hossam9k/masaudit@<commit-sha> # v0.4.3
   with:
     app-type: banking
     fail-on: high

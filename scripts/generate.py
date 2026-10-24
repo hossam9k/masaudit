@@ -135,7 +135,7 @@ def _slug(text: str) -> str:
 def main() -> None:
     rules = engine.load_rules()
     cat = catalog(rules)
-    write(os.path.join(ROOT, "docs", "rules.md"), cat)
+    write(os.path.join(ROOT, "docs", "rules.md"), "[masaudit documentation](README.md) › Rules reference\n\n" + cat)
     write(os.path.join(SKILL, "references", "rules.md"), cat)
     for name, text in fixes(rules).items():
         write(os.path.join(SKILL, "references", name), text)

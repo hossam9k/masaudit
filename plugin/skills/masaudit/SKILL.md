@@ -6,7 +6,7 @@ metadata:
   author: Hossam Atef
   homepage: https://github.com/hossam9k/masaudit
   book: https://github.com/hossam9k/mobile-app-security
-  version: "0.4.2"
+  version: "0.4.3"
 ---
 
 # masaudit: risk-calibrated mobile security audits
@@ -35,13 +35,14 @@ Book for Engineers*; every rule links to the section that explains it.
 
 Use the first that works:
 
-1. `masaudit --version` (installed with `pipx install masaudit`).
+1. `python3 <this skill's folder>/scripts/masaudit.pyz --version` (bundled with this skill, so it
+   matches these instructions; offline, no dependencies). On Windows use `py` instead of `python3`.
 2. `uvx masaudit --version` (needs uv and network access the first time).
-3. `python3 scripts/masaudit.pyz --version`, run from this skill's folder (bundled, offline, no
-   dependencies). On Windows use `py` instead of `python3`.
+3. `masaudit --version` (installed with `pipx install masaudit`). Use it only if its version is the
+   same as the bundled copy's or newer.
 
 Use the same prefix for every command in the workflow files. They write `masaudit`; replace it with
-`uvx masaudit` or `python3 <this skill's folder>/scripts/masaudit.pyz` if that's what worked.
+`python3 <this skill's folder>/scripts/masaudit.pyz` or `uvx masaudit` if that's what worked.
 
 If Python 3.9+ isn't available, say so and offer the manual path: read
 [references/rules.md](references/rules.md) and check the project by hand.

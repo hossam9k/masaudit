@@ -116,7 +116,6 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
                                     "justification": "Listed in the masaudit baseline file."}]
         results.append(res)
 
-    platforms = "-".join(result.project.platforms) or "none"
     when = report_datetime().strftime("%Y-%m-%dT%H:%M:%SZ")
     run = {
         "tool": {
@@ -128,7 +127,6 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
                 "rules": [_rule_entry(rules[rid], worst[rid]) for rid in rule_ids],
             }
         },
-        "automationDetails": {"id": f"masaudit/{platforms}"},
         "invocations": [dict(
             {"executionSuccessful": True, "endTimeUtc": when},
             **({"toolConfigurationNotifications": [{

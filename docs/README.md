@@ -58,7 +58,8 @@ offline. An [AI assistant](ai-assistants.md) is optional.
 
 **Does it upload my code, or run it?**
 No. It makes no network calls (a test enforces it), sends no telemetry, and never builds or runs your
-code. It writes only its own report, plus a baseline or a safe fix when you ask for one. See
+code. It writes only its own report, plus `.masaudit.ini`, a baseline, a patch, or a safe fix when
+you ask for one. See
 [Safe to run on any code](how-it-works.md#safe-to-run-on-any-code).
 
 **Which projects does it scan?**
