@@ -1,3 +1,5 @@
+[masaudit documentation](README.md) ›
+
 # Writing a rule
 
 A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a declarative

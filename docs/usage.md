@@ -1,3 +1,5 @@
+[masaudit documentation](README.md) ›
+
 # Using masaudit
 
 This guide covers everything the README leaves out: install options, app types, every option, the

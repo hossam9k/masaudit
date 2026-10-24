@@ -15,9 +15,17 @@ every finding into **fix before release**, **fix soon**, or **not needed for you
 A news app should never be told to pin certificates. A banking app should. Most scanners give both
 the same list.
 
-It runs on your machine, needs no account, and sends nothing anywhere.
+It runs on your machine, needs no account, and sends nothing anywhere. Use it two ways:
 
-## Quick start
+- **On its own, no AI needed:** the [quick start](https://github.com/hossam9k/masaudit#quick-start-no-ai-needed) below. Everything,
+  including the report and its fixes, works offline.
+- **With an AI assistant** that confirms findings and applies fixes: see
+  [Use it with an AI assistant](https://github.com/hossam9k/masaudit#use-it-with-an-ai-assistant).
+
+**[Full documentation](https://github.com/hossam9k/masaudit/blob/main/docs/README.md)**: every option,
+app types, the report, CI, team features, AI assistants, all rules, and answers to common questions.
+
+## Quick start (no AI needed)
 
 You need Python 3.9 or later. Check with `python3 --version`. In your project's root folder, run
 one of these:
@@ -45,7 +53,7 @@ What happens:
 If the code suggests a riskier app type than your answer, for example card-number fields in a news
 app, masaudit warns you with "Check your app type" instead of switching on its own.
 
-Fix the top fixes, scan again, then
+Fix those, scan again, then
 [add masaudit to CI](https://github.com/hossam9k/masaudit/blob/main/docs/ci.md).
 
 ## What a scan looks like
@@ -103,27 +111,19 @@ It's built for:
 
 ## Use it with an AI assistant
 
-**Claude Code:**
+An assistant is optional. It confirms each finding in your real code, looks for what a scanner can't
+see, and fixes one finding at a time, asking before any change in behavior. It never commits.
+
+In Claude Code:
 
 ```text
 /plugin marketplace add hossam9k/masaudit
 /plugin install masaudit@masaudit
 ```
 
-Then run `/masaudit:scan`, `/masaudit:fix`, `/masaudit:review`, or `/masaudit:explain AND-004`. You
-can also ask in your own words, for example *"Is my app ready for a pentest?"*
-
-**Other tools** (Codex, GitHub Copilot, Cursor, Gemini CLI, and other tools that read
-[Agent Skills](https://agentskills.io)): copy
-[`plugin/skills/masaudit/`](https://github.com/hossam9k/masaudit/tree/main/plugin/skills/masaudit)
-into your tool's skills folder. The skill bundles the scanner, so it works offline.
-
-**Any chat assistant:** every `SECURITY-AUDIT.md` ends with a *Fix plan for your AI assistant*.
-Paste it into the chat.
-
-The assistant confirms each finding in context and looks for what a scanner can't see, such as
-server-side trust, biometric flows, and token handling. It fixes one finding at a time, asks before
-any fix that changes behavior, and never commits.
+Then run `/masaudit:scan`, or ask *"Is my app ready for a pentest?"* Codex, GitHub Copilot, Cursor,
+Gemini CLI, and any chat assistant work too: see the
+[AI assistants guide](https://github.com/hossam9k/masaudit/blob/main/docs/ai-assistants.md).
 
 ## Use it in CI and in a team
 
@@ -212,14 +212,13 @@ No telemetry. To report a vulnerability or verify a download, see
 
 ## Documentation
 
-- [Usage guide](https://github.com/hossam9k/masaudit/blob/main/docs/usage.md): install options, app types, every option, the config file, and team features.
-- [CI guide](https://github.com/hossam9k/masaudit/blob/main/docs/ci.md): GitHub Action, pre-commit hook, and other CI systems.
-- [Rules](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md): all 172 rules with fixes and book links.
-- [Precision](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md): how each rule was measured.
-- Sample reports: [banking](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-banking.md) and [news](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-news.md).
-- [Writing a rule](https://github.com/hossam9k/masaudit/blob/main/docs/writing-rules.md) and [CONTRIBUTING.md](https://github.com/hossam9k/masaudit/blob/main/CONTRIBUTING.md).
-- [CHANGELOG.md](https://github.com/hossam9k/masaudit/blob/main/CHANGELOG.md) and [SECURITY.md](https://github.com/hossam9k/masaudit/blob/main/SECURITY.md).
-- The book: [*Mobile Application Security: A Study Book for Engineers*](https://github.com/hossam9k/mobile-app-security).
+The [full documentation](https://github.com/hossam9k/masaudit/blob/main/docs/README.md) has guides in
+the order you'll need them, a reference for every rule, and answers to common questions. Quick links:
+[usage](https://github.com/hossam9k/masaudit/blob/main/docs/usage.md),
+[CI](https://github.com/hossam9k/masaudit/blob/main/docs/ci.md),
+[AI assistants](https://github.com/hossam9k/masaudit/blob/main/docs/ai-assistants.md),
+[rules](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md), and
+[accuracy](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md).
 
 ## Contributing
 
