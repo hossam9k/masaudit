@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application android:label="Bank">
+        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
+        <meta-data android:name="com.example.SafeBrowsing" android:value="false" />
+    </application>
+</manifest>

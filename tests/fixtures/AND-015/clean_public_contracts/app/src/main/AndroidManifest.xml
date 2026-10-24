@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="com.example.IPC" android:protectionLevel="signature" />
+    <application>
+        <activity android:name=".ShareActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".Widget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/w" />
+        </receiver>
+        <service android:name=".PlaybackService" android:exported="true">
+            <intent-filter><action android:name="android.media.browse.MediaBrowserService" /></intent-filter>
+        </service>
+        <service android:name=".WearSvc" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" />
+            </intent-filter>
+        </service>
+        <service android:name=".AuthSvc" android:exported="true">
+            <intent-filter><action android:name="android.accounts.AccountAuthenticator" /></intent-filter>
+            <meta-data android:name="android.accounts.AccountAuthenticator" android:resource="@xml/auth" />
+        </service>
+        <activity android:name=".Main" android:exported="true" />
+        <activity-alias android:name=".DefaultIcon" android:targetActivity=".Main" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity android:name=".ProcessText" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".Shortcut" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.CREATE_SHORTCUT" /></intent-filter>
+        </activity>
+        <activity android:name=".WidgetConfig" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
+        <activity android:name=".TileSettings" android:exported="true">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" /></intent-filter>
+        </activity>
+        <receiver android:name=".MediaButtons" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.MEDIA_BUTTON" /></intent-filter>
+        </receiver>
+        <provider android:name=".Slices" android:authorities="com.example.slices" android:exported="true" />
+    </application>
+</manifest>

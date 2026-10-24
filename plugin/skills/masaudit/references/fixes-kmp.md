@@ -97,3 +97,58 @@ actual fun createPinnedHttpClient(): HttpClient = HttpClient(OkHttp) {
 Verify: Put a proxy such as mitmproxy in front of the app and make the device trust its CA (§8.10, Verify it). Requests to the pinned host should fail on Android and on iOS.
 
 Book: [§8.10](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it)
+
+## KMP-004: Ktor client logs headers or bodies in every build
+
+Use `LogLevel.NONE` in release builds, and add `sanitizeHeader { it == HttpHeaders.Authorization }` wherever headers are logged.
+
+```kotlin
+install(Logging) {
+    level = if (isDebugBuild) LogLevel.HEADERS else LogLevel.NONE
+    sanitizeHeader { it == HttpHeaders.Authorization || it == HttpHeaders.Cookie }
+}
+```
+
+Verify: Install a release build, sign in, and watch `adb logcat` or Console.app: no `Authorization` header or response body should appear.
+
+Book: [§6.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it)
+
+## KMP-005: Kotlin iOS code accepts any server certificate
+
+Call `SecTrustEvaluateWithError` on `challenge.protectionSpace.serverTrust` and cancel the challenge when it fails, or use Ktor's Darwin `CertificatePinner`, which validates the chain first.
+
+```kotlin
+handleChallenge { _, _, challenge, completionHandler ->
+    val trust = challenge.protectionSpace.serverTrust
+    if (trust != null && SecTrustEvaluateWithError(trust, null)) {
+        completionHandler(NSURLSessionAuthChallengeUseCredential, NSURLCredential.create(trust = trust))
+    } else {
+        completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, null)
+    }
+}
+```
+
+Verify: Route an iPhone through a proxy whose CA it doesn't trust; every request from the shared client should fail.
+
+Book: [§8.10](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it)
+
+## KMP-006: Shared settings library stores a token in plain storage
+
+Put secrets behind an `expect` interface backed by `KeychainSettings` on Apple and a Keystore-backed store (Tink with DataStore) on Android. Keep only non-secret settings in plain storage.
+
+```kotlin
+// commonMain
+interface SecretStore { fun put(key: String, value: String); fun get(key: String): String? }
+
+// iosMain
+class IosSecretStore : SecretStore {
+    private val settings = KeychainSettings(service = "com.example.secrets")
+    override fun put(key: String, value: String) = settings.putString(key, value)
+    override fun get(key: String) = settings.getStringOrNull(key)
+}
+// androidMain: Tink AEAD with an android-keystore:// master key over DataStore (§6.6).
+```
+
+Verify: Sign in on an emulator and run `adb shell run-as <package> cat shared_prefs/*.xml`; no token or password should appear. On iOS, check the app's Preferences plist the same way.
+
+Book: [§21.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#212-the-mistake-that-will-bite-you)

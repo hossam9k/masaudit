@@ -1,0 +1,6 @@
+[versions]
+chucker = "4.1.0"
+
+[libraries]
+chucker = { module = "com.github.chuckerteam.chucker:library", version.ref = "chucker" }
+leakcanary-android = "com.squareup.leakcanary:leakcanary-android:2.14"

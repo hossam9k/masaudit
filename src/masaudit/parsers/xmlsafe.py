@@ -7,9 +7,10 @@ of every element. Documents that declare a DTD or entities are refused (no entit
 
 from __future__ import annotations
 
+import re
 import xml.parsers.expat
 from dataclasses import dataclass, field
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Tuple
 
 from masaudit import safety
 
@@ -26,6 +27,9 @@ class Element:
     children: List["Element"] = field(default_factory=list)
     parent: Optional["Element"] = None
     text: str = ""
+    # Only on the root: every XML comment as (first line, last line, text, alone on its line), so a
+    # finding can quote the rationale written next to a Lint `tools:ignore`.
+    comments: List[Tuple[int, int, str, bool]] = field(default_factory=list)
 
     def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
         return self.attrs.get(name, default)
@@ -77,15 +81,91 @@ def parse(text: str) -> Optional[Element]:
         if stack:
             stack[-1].text += data
 
+    comments: List[Tuple[int, int, str, bool]] = []
+    text_lines: List[str] = []
+
+    def comment(data: str) -> None:
+        if not text_lines:
+            text_lines.extend(text.splitlines() or [""])
+        start_line = parser.CurrentLineNumber
+        line = text_lines[start_line - 1] if 0 < start_line <= len(text_lines) else ""
+        alone = not line[:parser.CurrentColumnNumber].strip()
+        comments.append((start_line, start_line + data.count("\n"), data, alone))
+
     parser.StartElementHandler = start
     parser.EndElementHandler = end
     parser.CharacterDataHandler = chars
+    parser.CommentHandler = comment
     try:
         parser.Parse(text, True)
     except xml.parsers.expat.ExpatError:
         return None
-    return root[0] if root else None
+    if not root:
+        return None
+    root[0].comments = comments
+    return root[0]
 
 
 def is_true(value: Optional[str]) -> bool:
     return (value or "").strip().lower() == "true"
+
+
+# ---------------------------------------------------------------------------- Android Lint acknowledgements
+
+
+def lint_ignored(el: Element, *issue_ids: str) -> Optional[Element]:
+    """The element (el or an ancestor) whose `tools:ignore` names one of issue_ids or "all".
+
+    Android Lint applies `tools:ignore` to an element and everything inside it.
+    """
+    wanted = {i.lower() for i in issue_ids} | {"all"}
+    node: Optional[Element] = el
+    while node is not None:
+        ids = {s.strip().lower() for s in (node.get("tools:ignore") or "").split(",") if s.strip()}
+        if ids & wanted:
+            return node
+        node = node.parent
+    return None
+
+
+_NOT_A_REASON = re.compile(r"(?i)copyright|licen[cs]e|SPDX|apache|\bGPL\b")
+
+
+def comment_near(el: Element) -> str:
+    """The XML comment written next to `el`: one on its own line ending in the 3 lines above it, or one
+    that starts on its lines (a trailing comment) before the next element. Empty if there is none."""
+    root = el
+    while root.parent is not None:
+        root = root.parent
+    if not root.comments:
+        return ""
+    lines = [e.line for e in root.iter()]
+    later = [n for n in lines if n > el.line]
+    next_line = min(later) if later else el.line + 1
+    best = ""
+    best_gap = None
+    for first, last, text, alone in root.comments:
+        text = " ".join(text.split())
+        if not text or len(text) > 300 or _NOT_A_REASON.search(text):
+            continue
+        if el.line - 3 <= last < el.line and alone:
+            gap = el.line - last
+        elif el.line <= first < next_line:
+            gap = 0
+        else:
+            continue
+        if best_gap is None or gap < best_gap:
+            best, best_gap = text, gap
+    return best
+
+
+def ack_text(el: Element, *issue_ids: str) -> str:
+    """'tools:ignore=X — <comment>' when Lint is told to ignore one of issue_ids here, else ''."""
+    node = lint_ignored(el, *issue_ids)
+    if node is None:
+        return ""
+    ids = [s.strip() for s in (node.get("tools:ignore") or "").split(",") if s.strip()]
+    named = [i for i in ids if i.lower() in {x.lower() for x in issue_ids} | {"all"}]
+    reason = comment_near(el) or (comment_near(node) if node is not el else "")
+    text = "tools:ignore=" + ",".join(named)
+    return f"{text} \u2014 {reason}" if reason else text
