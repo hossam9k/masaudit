@@ -45,6 +45,22 @@ def _hit(ctx: Context, path: str, line: int, message: str, severity: str = "", a
     return Hit(path, line, ctx.snippet(path, line), message, severity=severity, acknowledged=acknowledged)
 
 
+# A public action reference: owner/repo[/path]@ref. It names code anyone can read, never a secret.
+ACTION_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9_./-]{1,200}(?:@[A-Za-z0-9_./+-]{1,200})?$")
+
+
+def _uses_snippet(ctx: Context, path: str, uses: Scalar) -> str:
+    """The `uses:` line, masked as usual except for the action reference itself: the secret masker
+    otherwise hides a public name such as `someone/base64Secret-action`."""
+    value = str(uses).strip()
+    lines = (ctx.text(path) or "").split("\n")
+    raw = lines[uses.line - 1] if 0 < uses.line <= len(lines) else ""
+    if not ACTION_REF.match(value) or raw.count(value) != 1:
+        return ctx.snippet(path, uses.line)
+    masked = safety.mask(raw.replace(value, "ACTIONREF"))
+    return masked.replace("ACTIONREF", value, 1)[:160] if "ACTIONREF" in masked else ctx.snippet(path, uses.line)
+
+
 def _action_name(uses: Optional[Scalar]) -> str:
     return str(uses).split("@")[0].strip().lower() if uses else ""
 
@@ -176,7 +192,8 @@ def _uses_hits(ctx: Context, path: str, refs: Sequence[Scalar]) -> Iterable[Hit]
         policy = _policy_for(name, policies)
         if policy and (policy[1] == "any" or (policy[1] == "ref-pin" and ref)):
             acknowledged = f"zizmor.yml unpinned-uses policy `{policy[0]}: {policy[1]}`"
-        yield _hit(ctx, path, uses.line, message, severity=severity, acknowledged=acknowledged)
+        yield Hit(path, uses.line, _uses_snippet(ctx, path, uses), message, severity=severity,
+                  acknowledged=acknowledged)
 
 
 def _action_files(ctx: Context) -> List[str]:
@@ -250,6 +267,25 @@ FORK_TEST = re.compile(r"github\.event\.pull_request\.head\.repo\.full_name\s*!=
 FAILS_JOB = re.compile(r"\bexit\s+[1-9]")
 GATED = (" The job only runs for branches of this repository, so outsiders can't reach it; a collaborator's "
          "branch still runs with the write token.")
+GATED_IDLE = (" The job only runs for branches of this repository, and no later step runs the checked-out code, so "
+              "the risk is a future step that does.")
+
+
+# A step that runs code from the checkout: a repository script, a build tool that reads its build files,
+# a package manager that runs install hooks, or a local action.
+RUNS_CHECKOUT = re.compile(r"(?:^|[\s;&|(])(?:\./|bash\s+[\w./-]+\.sh|sh\s+[\w./-]+\.sh|python3?\s+[\w./-]+\.py)|"
+                           r"\b(?:gradlew|gradle|npm|npx|yarn|pnpm|make|cmake|bundle|pod|fastlane|mvn|cargo|go\s+(?:run|build|"
+                           r"test|generate)|pip3?\s+install|poetry|tox|nox|dotnet|swift\s+(?:build|test|run)|"
+                           r"xcodebuild|flutter|dart|melos|rake|composer|node)\b")
+
+
+def _runs_checkout(steps: Sequence[Step]) -> bool:
+    for s in steps:
+        if s.uses is not None and str(s.uses).strip().startswith("./"):
+            return True
+        if s.run is not None and RUNS_CHECKOUT.search(str(s.run)):
+            return True
+    return False
 
 
 def _stops_forks(step: Step) -> bool:
@@ -263,9 +299,11 @@ def prt_checkout(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         for job in wf.jobs:
             gated = bool(job.if_ and SAME_REPO_GATE.search(job.if_))
-            for step in job.steps:
+            for i, step in enumerate(job.steps):
                 gated = gated or _stops_forks(step)
                 severity, extra = ("high", GATED) if gated else ("", "")
+                if gated and not _runs_checkout(job.steps[i + 1:]):
+                    severity, extra = "medium", GATED_IDLE
                 if _action_name(step.uses) == "actions/checkout":
                     for key in ("ref", "repository"):
                         val = step.with_.get(key)
@@ -363,11 +401,41 @@ VERSION_COMMENT = re.compile(r"#\s*v?(\d{1,4})(?:\.\d{1,9}){0,3}\b")
 MAX_SCRIPT_LINE = 8192
 
 
+# A fastlane lane named for a push, a tag or a git-flow finish runs git with the checkout's credentials.
+# (The gh CLI merges and creates releases through the API with GH_TOKEN, so it doesn't count.)
+FASTLANE_LANE = re.compile(r"\bfastlane\s+(?:(?:android|ios|mac)\s+)?(?P<lane>[A-Za-z][\w-]{0,100})")
+FASTLANE_PUSH_WORDS = {"push", "tag", "hotfix", "finish"}
+
+
+def _fastlane_pushes(line: str) -> bool:
+    """`fastlane tag_and_push_release`, `fastlane android hotfix-finish`: a lane named for pushing."""
+    m = FASTLANE_LANE.search(line)
+    return bool(m) and bool(set(re.split(r"[_-]", m.group("lane").lower())) & FASTLANE_PUSH_WORDS)
+
+
+# `git remote set-url origin https://${{ secrets.X }}@github.com/...`: the token goes into .git/config.
+TOKEN_REMOTE = re.compile(r"\bgit\s+remote\s+(?:set-url|add)\b[^\n]{0,200}?https://[^\s@]{0,100}\$\{\{\s*"
+                          r"(secrets\.\w+|github\.token)\s*\}\}[^@\s]{0,100}@")
+
+
+def _token_remote(steps: Sequence[Step]) -> Optional[str]:
+    """The secret a step writes into the remote URL, if any."""
+    for s in steps:
+        if s.run is None:
+            continue
+        for line in str(s.run).split("\n"):
+            if len(line) <= MAX_SCRIPT_LINE:
+                m = TOKEN_REMOTE.search(line)
+                if m:
+                    return m.group(1)
+    return None
+
+
 def _pushes(text: str) -> bool:
     for line in text.split("\n"):
         if len(line) > MAX_SCRIPT_LINE:
             continue
-        if GIT_PUSH.search(line):
+        if GIT_PUSH.search(line) or _fastlane_pushes(line) or TOKEN_REMOTE.search(line):
             return True
         tag = GIT_TAG.search(line)
         rest = line[tag.end():] if tag else ""
@@ -428,6 +496,13 @@ def persist_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                "`persist-credentials: true` keeps the token on disk, but nothing in this job pushes. "
                                "Set it to false unless a later step needs git credentials.",
                                severity="high" if custom else "", acknowledged="persist-credentials: true")
+                elif pushes and _token_remote(later):
+                    yield _hit(ctx, path, line,
+                               f"This job pushes, and a step writes `{_token_remote(later)}` into the remote URL, so the "
+                               "token stays in .git/config whatever `persist-credentials` says, and every later step "
+                               "(third-party actions included) can read it. Pass the token only to the push, for "
+                               "example in an `http.extraheader` for that one command.",
+                               severity="high" if custom else "")
                 elif pushes:
                     yield _hit(ctx, path, line, "This job pushes, so it needs the token: say so with "
                                                 "`persist-credentials: true`, or set it to false and pass the token "
@@ -506,6 +581,59 @@ def _in_debug_signing_block(text: str, base: str) -> bool:
     return False
 
 
+# Where a build or workflow says what unlocks a keystore.
+KEYSTORE_PASSWORD = re.compile(
+    r"\b(?:storePassword|keyPassword|store_?pass\w*|key_?pass\w*)\b[\"']?\s*(?:=|:|\(|\s)\s*(?P<v1>[^\n,)]+)"
+    r"|--(?:ks|key)-pass\s+(?P<v2>\S+)|-(?:storepass|keypass)\s+(?P<v3>\S+)", re.IGNORECASE)
+EXTERNAL_VALUE = re.compile(r"getenv|System\.env|secrets\.|\benv\.|environmentOrGradleValue|findProperty|"
+                            r"getProperty|properties\s*\[|providers\.|project\.property|\$|^\s*(?:env|file):", re.IGNORECASE)
+LITERAL_VALUE = re.compile(r"""^\s*(?:pass:)?(?:"[^"$\n]+"|'[^'$\n]+'|[^\s"'$(){}]+)\s*$""")
+PASSWORD_WINDOW = 15
+
+
+def _same_block(lines: List[str], n: int) -> List[str]:
+    """Lines near line n that belong to its Gradle signing block: the window stops at another block's
+    header or a closing brace, so the debug config's password never speaks for the release keystore."""
+    out = [lines[n]]
+    for k in range(n - 1, max(-1, n - PASSWORD_WINDOW - 1), -1):
+        if SIGNING_BLOCK.search(lines[k]) or lines[k].strip().startswith("}"):
+            break
+        out.append(lines[k])
+    for k in range(n + 1, min(len(lines), n + PASSWORD_WINDOW + 1)):
+        if SIGNING_BLOCK.search(lines[k]) or lines[k].strip().startswith("}"):
+            break
+        out.append(lines[k])
+    return out
+
+
+def _keystore_password(ctx: Context, base: str) -> str:
+    """"literal" when a build file or workflow that names the keystore holds its password in the clear,
+    "external" when the password comes from the environment or CI secrets, "" when masaudit can't tell."""
+    found = set()
+    for p in ctx.files(".gradle", ".kts", ".yml", ".yaml", ".sh", ".properties"):
+        text = ctx.text(p) or ""
+        if base not in text:
+            continue
+        lines = text.split("\n")
+        for n, line in enumerate(lines):
+            if base not in line:
+                continue
+            for near in _same_block(lines, n):
+                if len(near) > MAX_SCRIPT_LINE:
+                    continue
+                for m in KEYSTORE_PASSWORD.finditer(near):
+                    value = (m.group("v1") or m.group("v2") or m.group("v3") or "").strip()
+                    if not value:
+                        continue
+                    if EXTERNAL_VALUE.search(value):
+                        found.add("external")
+                    elif LITERAL_VALUE.match(value) and value.strip("\"'").lower() not in ("null", "none", ""):
+                        found.add("literal")
+    if "literal" in found:
+        return "literal"
+    return "external" if found else ""
+
+
 def _debug_keystore(ctx: Context, base: str) -> bool:
     if DEBUG_WORD.search(base):
         return True
@@ -532,10 +660,18 @@ def signing_material(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield Hit(path, 0, base, f"`{base}` is a debug keystore (a debug signing config or Android's public "
                                      "`android` password). It signs nothing that ships.", severity="info")
             continue
+        password = _keystore_password(ctx, base)
+        kept_out = (" Its password is kept out of the repository (environment or CI secrets), but the keystore can "
+                    "still be brute-forced offline.")
         if NON_RELEASE_WORD.search(base.rsplit(".", 1)[0]):
             yield Hit(path, 0, base, f"`{base}` looks like a signing key for a non-release build (nightly, QA, "
-                                     "beta). Anyone who has it can sign builds your testers install as you.",
-                      severity="high")
+                                     "beta). Anyone who has it can sign builds your testers install as you."
+                                     + (kept_out if password == "external" else ""),
+                      severity="medium" if password == "external" else "high")
+            continue
+        if password == "external":
+            yield Hit(path, 0, base, f"`{base}` looks like a signing key or certificate with its private key."
+                                     + kept_out, severity="high")
             continue
         yield Hit(path, 0, base, f"`{base}` looks like a signing key or certificate with its private key.")
     for path in ctx.files(".properties"):

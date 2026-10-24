@@ -98,7 +98,7 @@ Matched line (masked):
 ref: ${{ github.event.pull_request.head.sha }}
 ```
 
-**Why it matters:** `pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high.
+**Why it matters:** `pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high, or medium when no later step runs the checked-out code.
 
 **Fix:** Use `pull_request` for anything that builds or tests contributed code. If you need `pull_request_target`, never check out or run the fork's code in that job, and never let it write a cache or artifact another workflow uses.
 
@@ -298,7 +298,7 @@ Matched line (masked):
 <activity android:name=".TransferActivity" android:exported="true" />
 ```
 
-**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly.
+**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.
 
 **Fix:** Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
 

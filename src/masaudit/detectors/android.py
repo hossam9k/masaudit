@@ -50,14 +50,16 @@ def _xml(ctx: Context, path: str):
     return root
 
 
-def _hit(ctx: Context, path: str, line: int, message: str, ack: str = "", scope: str = "") -> Hit:
+def _hit(ctx: Context, path: str, line: int, message: str, ack: str = "", scope: str = "",
+         severity: str = "") -> Hit:
     """A hit whose scope also knows Gradle variants: code in a debug or non-release flavor or build
-    type (src/staging/, src/internal/, a debug-derived build type) is reported as debug code."""
+    type (src/staging/, src/internal/, a debug-derived build type) is reported as debug code.
+    `severity` overrides the rule's severity for this one hit ("" keeps the rule's)."""
     base = scope_of(path)
     if not scope:
         scope = _scope(ctx, path)
     return Hit(path, line, ctx.snippet(path, line), message,
-               scope=scope if scope != base else "", acknowledged=ack)
+               scope=scope if scope != base else "", acknowledged=ack, severity=severity)
 
 
 # Per-file cap on call sites a detector examines: each site costs a scan of its function, and a generated or
@@ -1333,7 +1335,73 @@ def webview_untrusted_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
                            "The WebView loads a URL that came from an intent or deep link, with no host check.")
 
 
+_LOAD_CALL = re.compile(r"(?<![\w$])(?P<fn>loadUrl|loadDataWithBaseURL)\s*\(")
+_HTTPS_LIT = re.compile(r"\s*\"https://")
+_ASSET_LIT = re.compile(r"\s*\"file:///android_(?:asset|res)/")
+_LOCAL_LIT = re.compile(r"\s*\"(?:file|content):")
+_CONFIG_URL = re.compile(r"\s*BuildConfig\s*\.\s*\w*(?:URL|Url|HOST|Host|ORIGIN|Origin)\w*\s*")
+
+
+def _webview_loads(ctx: Context, code: str, blank: str) -> Set[str]:
+    """What the WebView loads in this file, one kind per loadUrl / loadDataWithBaseURL call:
+    https (a fixed https:// page), asset (file:///android_asset/), config (a BuildConfig URL), local
+    (another file: or content: page, or HTML with a null or file: base URL), tainted (an intent or
+    deep-link URL), or var (anything masaudit can't resolve). Empty when the file loads nothing."""
+    consts = _string_constants(ctx)
+    tainted = {m.group(1) for m in _STRING_ASSIGN.finditer(blank)
+               if _URL_SOURCE.search(m.group(2)) and not _URL_CHECK.search(m.group(2))}
+    kinds: Set[str] = set()
+    for m in _sites(_LOAD_CALL.finditer(blank)):
+        if _is_import(blank, m.start()) or re.search(r"\bfun\s+$|\bvoid\s+$", blank[max(0, m.start() - 12):m.start()]):
+            continue          # a declaration, not a call
+        spans = _args(blank, m.end() - 1)
+        if not spans:
+            continue
+        first = code[spans[0][0]:spans[0][1]].strip()
+        bare = blank[spans[0][0]:spans[0][1]].strip()
+        cm = re.fullmatch(r"(?:[\w.]+\.)?([A-Z][A-Z0-9_]*)", first)
+        if cm and cm.group(1) in consts:
+            first = "\"" + consts[cm.group(1)] + "\""
+        if re.match(r"\s*\"(?:about:blank|javascript:)", first):
+            continue          # an empty page, or a script run in the page already loaded
+        if m.group("fn") == "loadDataWithBaseURL" and (first == "null" or _LOCAL_LIT.match(first)):
+            kinds.add("local")
+        elif _ASSET_LIT.match(first):
+            kinds.add("asset")
+        elif _LOCAL_LIT.match(first):
+            kinds.add("local")
+        elif _HTTPS_LIT.match(first):
+            kinds.add("https")
+        elif _CONFIG_URL.fullmatch(first):
+            kinds.add("config")
+        elif _URL_SOURCE.search(bare) or re.sub(r"!!|\.toString\(\)", "", bare).strip() in tainted:
+            kinds.add("tainted")
+        else:
+            kinds.add("var")
+    return kinds
+
+
+def _browser_file(ctx: Context, path: str) -> bool:
+    """A browser's own tab code: the app is a browser (category APP_BROWSER) and the file is named for it.
+    Its WebView navigates to whatever URL the user types or another app sends."""
+    def compute() -> bool:
+        for _p, root in _manifests(ctx):
+            for f in root.iter("intent-filter"):
+                if "android.intent.category.APP_BROWSER" in manifest.names(f, "category"):
+                    return True
+        return False
+    return bool(_memo(ctx, "browser_app", compute)) and "Browser" in path.rsplit("/", 1)[-1]
+
+
+def _origin_kinds(ctx: Context, path: str, code: str, blank: str) -> Set[str]:
+    kinds = _webview_loads(ctx, code, blank)
+    if _browser_file(ctx, path):
+        kinds.add("tainted")
+    return kinds
+
+
 _ADD_JS = re.compile(r"\.addJavascriptInterface\s*\(")
+_FIXED_ORIGINS = {"https", "asset", "config"}
 # A host allowlist or an origin test on the page URL (reading webView.url alone isn't a check).
 _ORIGIN_CHECK = re.compile(r"allowed(?:Domains|Hosts|Origins|Urls)|isAllowed\w*\(|\.host\s+(?:!)?in\b|\bhost\s*[!=]=|"
                            r"getHost\(\)\s*\.equals|originAllowList|\bisTrusted\w*\(|\bis\w*(?:Url|Domain|Origin|Host)\s*\(",
@@ -1359,6 +1427,12 @@ def js_bridge(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if checked:
                 ctx.note_unknown(f"{path}:{line}: the JavaScript bridge appears to check the page origin in code; "
                                  "confirm every @JavascriptInterface method checks it.")
+                continue
+            kinds = _origin_kinds(ctx, path, _code, blank)
+            if kinds and kinds <= _FIXED_ORIGINS:
+                yield _hit(ctx, path, line, "addJavascriptInterface exposes native methods to every frame in this "
+                                            "WebView. It loads only fixed https or bundled pages, so an attacker needs "
+                                            "a frame or script inside them.", severity="medium")
                 continue
             yield _hit(ctx, path, line, "addJavascriptInterface exposes native methods to every frame in this WebView.")
 
@@ -1388,15 +1462,56 @@ _JS_ON = re.compile(r"\bsetJavaScriptEnabled\s*\(\s*true\s*\)|\bjavaScriptEnable
 _CONTENT_OFF = re.compile(r"\bsetAllowContentAccess\s*\(\s*false\s*\)|\ballowContentAccess\s*=\s*false\b")
 
 
+_FILE_ACCESS_ON = re.compile(r"\b(?:setAllowFileAccess|setAllowFileAccessFromFileURLs|setAllowUniversalAccessFromFileURLs)"
+                             r"\s*\(\s*true\s*\)|\b(?:allowFileAccess|allowFileAccessFromFileURLs|"
+                             r"allowUniversalAccessFromFileURLs)\s*=\s*true\b")
+_FILE_URL_ACCESS_ON = re.compile(r"\b(?:setAllowFileAccessFromFileURLs|setAllowUniversalAccessFromFileURLs)\s*\(\s*true"
+                                 r"\s*\)|\b(?:allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\s*=\s*true\b")
+
+
 @detector("android_webview_content_access")
 def webview_content_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path, _code, blank in _code_files(ctx, "avaScriptEnabled"):
+    for path, code, blank in _code_files(ctx, "avaScriptEnabled"):
         if _CONTENT_OFF.search(blank):
             continue
-        for m in _JS_ON.finditer(blank):
-            yield _hit(ctx, path, ctx.line_of(blank, m.start()),
-                       "This WebView runs JavaScript and keeps content:// access on (the default), so a page "
-                       "script can read content providers the app can open.")
+        sites = list(_JS_ON.finditer(blank))
+        if not sites:
+            continue
+        kinds = _origin_kinds(ctx, path, code, blank)
+        # content:// is a local scheme: a web page can't load it. Only a file: or content: page, or a WebView
+        # that opens URLs other apps or the user choose, can reach the app's providers.
+        local = bool(kinds & {"local", "asset", "tainted"}) or bool(_FILE_ACCESS_ON.search(blank))
+        for m in sites:
+            if local:
+                yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                           "This WebView runs JavaScript and keeps content:// access on (the default), and it loads "
+                           "local or outside URLs, so a page script can read content providers the app can open.")
+            else:
+                yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                           "This WebView runs JavaScript and keeps content:// access on (the default). It loads only "
+                           "web pages, which can't open content:// URLs, so turn it off as hardening.", severity="low")
+
+
+@detector("android_webview_file_access")
+def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, code, blank in _code_files(ctx, "llow"):
+        sites = list(_FILE_ACCESS_ON.finditer(blank))
+        if not sites:
+            continue
+        kinds = _origin_kinds(ctx, path, code, blank)
+        for m in sites:
+            line = ctx.line_of(blank, m.start())
+            from_file = bool(_FILE_URL_ACCESS_ON.match(m.group(0)))
+            if from_file and kinds & {"local", "tainted"}:
+                yield _hit(ctx, path, line, "This WebView lets file:// pages read other local files, and it loads "
+                                            "file:// pages or outside URLs, so such a page can read the app's private "
+                                            "files.")
+            elif kinds & {"local", "asset", "tainted"}:
+                yield _hit(ctx, path, line, "This WebView setting lets page content read local files, and the WebView "
+                                            "loads local pages.", severity="medium")
+            else:
+                yield _hit(ctx, path, line, "This WebView setting lets page content read local files. The WebView loads "
+                                            "only web pages here, so turn it off as hardening.", severity="low")
 
 
 # ---------------------------------------------------------------------------- components and IPC
@@ -1425,21 +1540,33 @@ _PROTECTED_BROADCASTS = frozenset({f"android.intent.action.{a}" for a in (
     "android.media.AUDIO_BECOMING_NOISY", "android.os.action.POWER_SAVE_MODE_CHANGED",
     "android.os.action.DEVICE_IDLE_MODE_CHANGED", "android.hardware.usb.action.USB_STATE",
     "android.provider.action.DEFAULT_SMS_PACKAGE_CHANGED"})
-# Receivers whose job is to take these from other apps (media buttons, launcher widgets).
-_RECEIVER_PUBLIC = frozenset({"android.intent.action.MEDIA_BUTTON", "android.appwidget.action.APPWIDGET_UPDATE"})
-# Cross-app protocols whose actions other apps are meant to send.
-_PUBLIC_INTEROP = frozenset({"org.autocrypt.PEER_ACTION"})
+# Receivers whose job is to take these from other apps (media buttons, launcher widgets), and vendor boot
+# broadcasts that stand in for BOOT_COMPLETED on some devices.
+_RECEIVER_PUBLIC = frozenset({"android.intent.action.MEDIA_BUTTON", "android.appwidget.action.APPWIDGET_UPDATE",
+                              "android.intent.action.QUICKBOOT_POWERON", "com.htc.intent.action.QUICKBOOT_POWERON"})
+# Cross-app protocols whose actions other apps are meant to send: Autocrypt, PanicKit, UnifiedPush (the
+# distributor app delivers messages; the registration token authenticates them).
+_PUBLIC_INTEROP = frozenset({"org.autocrypt.PEER_ACTION", "info.guardianproject.panic.action.TRIGGER"})
+_PUBLIC_INTEROP_PREFIX = ("org.unifiedpush.android.connector.",)
+# Custom receiver actions that only refresh what a widget, media session or poll shows.
+_LOW_IMPACT_ACTION = re.compile(r"(?i)widget|media|playback|player|poll")
+# A provider that checks who is calling, in code.
+_CALLER_CHECK = re.compile(r"\bgetCallingPackage\s*\(|\bcallingPackage\b|\bBinder\s*\.\s*getCallingUid\s*\(|"
+                           r"\bcheckCallingPermission\s*\(|\benforceCalling\w*Permission\s*\(|\bgetCallingActivity\s*\(|"
+                           r"\bcheckCallingOrSelfPermission\s*\(")
 _STD_SCHEMES = {"http", "https", "content", "file", "mailto", "tel", "sms", "smsto", "mms", "mmsto", "geo", "market",
                 "data", "about", "rtsp", "ftp"}
 _SMS_RECEIVED = "android.provider.Telephony.SMS_RECEIVED"
 
 
-def _private_surface(c: Element) -> List[str]:
+def _private_surface(c: Element) -> Tuple[List[str], bool]:
     """Why an exported component exposes something app-specific, or [] if it only serves public
-    platform contracts (share target, widget, media session, launcher shortcut, sync adapter ...)."""
+    platform contracts (share target, widget, media session, launcher shortcut, sync adapter ...).
+    The flag is True when the only reason is a custom action of lower impact: one next to public
+    intent filters, or a receiver's widget, media or poll action."""
     filters = manifest.intent_filters(c)
     if not filters:
-        return ["it has no intent filter, so any app can start it by its class name"]
+        return ["it has no intent filter, so any app can start it by its class name"], False
     out: List[str] = []
     public = False
     for f in filters:
@@ -1449,7 +1576,7 @@ def _private_surface(c: Element) -> List[str]:
                       and not a.startswith("android.appwidget.action.")]
         else:
             custom = [a for a in acts if a and not _FRAMEWORK_ACTION.match(a)]
-        custom = [a for a in custom if a not in _PUBLIC_INTEROP]
+        custom = [a for a in custom if a not in _PUBLIC_INTEROP and not a.startswith(_PUBLIC_INTEROP_PREFIX)]
         if len(custom) < len([a for a in acts if a]):
             public = True
         out += custom
@@ -1460,14 +1587,21 @@ def _private_surface(c: Element) -> List[str]:
             private = sorted(s for s in schemes if s not in _STD_SCHEMES and not s.startswith(("@", "$")))
             if private and not any(d.get("android:mimeType") for d in data):
                 out.append(f"VIEW intents for the private scheme {', '.join(p + ':' for p in private)}")
+    if c.tag == "service" and public:
+        # A service serving a public contract (MediaBrowserService, MediaSessionService ...) is already
+        # reachable by its component name; an extra custom action adds no surface.
+        return [], False
     reasons = []
     actions = [a for a in out if not a.startswith("VIEW intents")]
     if actions:
         shown = ", ".join(sorted(set(actions))[:3]) + (", ..." if len(set(actions)) > 3 else "")
         reasons.append(f"accepts the app-specific action{'s' if len(set(actions)) > 1 else ''} {shown}"
                        + (" next to its public intent filters" if public else ""))
-    reasons += [a for a in out if a.startswith("VIEW intents")]
-    return reasons
+    views = [a for a in out if a.startswith("VIEW intents")]
+    reasons += views
+    low = bool(actions) and not views and (
+        public or (c.tag == "receiver" and all(_LOW_IMPACT_ACTION.search(a) for a in actions)))
+    return reasons, low
 
 
 def _launcher_targets(root: Element) -> Set[str]:
@@ -1497,6 +1631,7 @@ def exported_components(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 ctx.note_unknown(f"{path}: {name} sets android:exported from a placeholder.")
                 continue
             sms = False
+            severity = ""
             if c.tag == "provider":
                 if not xmlsafe.is_true(exported):
                     continue
@@ -1511,6 +1646,9 @@ def exported_components(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 perm_attrs = [c.get(a) for a in ("android:permission", "android:readPermission",
                                                  "android:writePermission") if c.get(a)]
                 why = ["any app can read or change its data"]
+                if any(_CALLER_CHECK.search(ctx.code(p, False) or "") for p in _files.get(_simple(name), [])):
+                    why = ["its code checks the calling app, so verify that check covers every operation"]
+                    severity = "low"
             else:
                 filters = manifest.intent_filters(c)
                 is_exported = xmlsafe.is_true(exported) if exported is not None else bool(filters)
@@ -1522,9 +1660,11 @@ def exported_components(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     continue
                 perm_attrs = [c.get("android:permission")] if c.get("android:permission") else []
                 sms = c.tag == "receiver" and any(_SMS_RECEIVED in manifest.names(f, "action") for f in filters)
-                why = _private_surface(c)
+                why, low = _private_surface(c)
                 if not why:
                     continue          # it only serves public platform contracts
+                if low and not sms:
+                    severity = "medium"
             if not perm_attrs and app_perm:
                 perm_attrs = [app_perm]
             ack = _ack(ctx, path, c, _LINT_EXPORTED[c.tag])
@@ -1544,7 +1684,7 @@ def exported_components(ctx: Context, rule: Rule) -> Iterable[Hit]:
             else:
                 how = "exported" if exported is not None else "exported (it has an intent filter)"
                 msg = f"The {c.tag} {name} is {how} with no permission: " + "; ".join(why) + "."
-            yield _hit(ctx, path, c.line, msg, ack=ack)
+            yield _hit(ctx, path, c.line, msg, ack=ack, severity=severity)
 
 
 def _referenced_xml(ctx: Context, meta_name: str) -> Set[str]:
@@ -1573,14 +1713,18 @@ def file_provider_paths(ctx: Context, rule: Rule) -> Iterable[Hit]:
             p = re.sub(r"^(?:\./?|/+)", "", raw.strip()).rstrip("/")
             p = "" if p == "." else p
             if el.tag == "root-path":
-                if p:
+                if re.match(r"(?:storage|sdcard|mnt)(?:/|$)", p):
+                    yield _hit(ctx, path, el.line, f"<root-path path=\"{raw}\"> shares /{p} and every file under it "
+                                                   "(lower impact: shared storage isn't private to the app).",
+                               severity="medium")
+                elif p:
                     yield _hit(ctx, path, el.line, f"<root-path path=\"{raw}\"> shares /{p} and every file under it.")
                 else:
                     yield _hit(ctx, path, el.line, "<root-path> shares the whole device filesystem.")
             elif p == "" and el.tag in _EXTERNAL_PATHS:
                 yield _hit(ctx, path, el.line,
                            f"<{el.tag} path=\"{raw}\"> shares an entire external storage directory (lower impact: "
-                           "files there aren't private to the app).")
+                           "files there aren't private to the app).", severity="medium")
             elif p == "" and el.tag in ("files-path", "cache-path"):
                 yield _hit(ctx, path, el.line,
                            f"<{el.tag} path=\"{raw}\"> shares the app's whole private {el.tag[:-5]} directory.")
@@ -1776,6 +1920,9 @@ def _sql_is_numeric(expr: str, code: str = "") -> bool:
         if re.search(r"\b" + re.escape(e) + r"\s*:\s*(?:String|CharSequence)\b|\b(?:String|CharSequence)\s+"
                      + re.escape(e) + r"\b", code):
             return False                      # declared as text, whatever its name says
+        if re.search(r"\b(?:val|var)\s+" + re.escape(e) + r"\s*=\s*[^\n;]*(?:lastPathSegment|getLastPathSegment\s*\(|"
+                     r"pathSegments|getQueryParameter\s*\(|getStringExtra\s*\()", code):
+            return False                      # assigned text from a URI or an intent
         if re.search(r"\b" + re.escape(e) + r"\s*:\s*(?:Int|Long|Short|Byte|Double|Float|Boolean)\b|\b(?:int|long|short|"
                      r"byte|double|float|boolean|Integer|Long)\s+" + re.escape(e) + r"\b", code):
             return True
@@ -1907,6 +2054,48 @@ def _in_value_list(sql: str) -> bool:
 
 
 _FORMAT_SPEC = re.compile(r"%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?([sdfxXcb])")
+_MIGRATION_FUN = {"migrate", "onUpgrade", "onDowngrade"}
+_MIGRATION_PATH = re.compile(r"(?i)(?:^|/)(?:migrations?|DBUpgrader)[^/]*(?:/|\.(?:kt|java)$)")
+# Values a migration reads back out of the database: they can hold a quote whatever the app meant.
+_DB_READ = re.compile(r"\.\s*(?:getString|requireString|requireNonNullString|getStringOrNull|optString)\s*\(|"
+                      r"\b[Cc]ursor\b")
+
+
+def _in_migration(path: str, blank: str, idx: int, lo: int, fn: str) -> bool:
+    """A one-time schema migration: Room's Migration.migrate(), SQLiteOpenHelper.onUpgrade(), or a
+    migration class or file. It runs once, over data the app wrote."""
+    if fn in _MIGRATION_FUN or _MIGRATION_PATH.search(path):
+        return True
+    if re.search(r"\bMigration\s*\(\s*\d+\s*,\s*\d+\s*\)", blank[max(0, lo - 300):lo]):
+        return True
+    return "Migration" in _class_at(blank, idx)
+
+
+def _from_database(expr: str, code: str, lo: int, idx: int) -> bool:
+    """`expr` (or the variable it starts with) is read from a cursor in this function."""
+    if _DB_READ.search(expr):
+        return True
+    name = re.match(r"\s*(\w+)", expr)
+    if not name:
+        return False
+    for m in re.finditer(r"\b(?:val|var|final\s+String|String)\s+" + re.escape(name.group(1))
+                         + r"\b[^=;\n]*=\s*([^;\n]+)", code[lo:idx]):
+        if _DB_READ.search(m.group(1)):
+            return True
+    return False
+
+
+def _enum_typed(ctx: Context, expr: str, code: str) -> bool:
+    """`x` or `a.x` whose declared type is an enum class of this project (it prints a constant name)."""
+    last = re.fullmatch(r"(?:\w+\??\.)*(\w+)", expr.strip().rstrip("!"))
+    if not last:
+        return False
+    tm = re.search(r"\b" + re.escape(last.group(1)) + r"\s*:\s*([A-Z]\w*)\b(?!\s*[<(.])", code)
+    if not tm:
+        return False
+    _subs, _sup, files = _class_index(ctx)
+    rx = re.compile(r"\benum\s+(?:class\s+)?" + re.escape(tm.group(1)) + r"\b")
+    return any(rx.search(ctx.code(f, False) or "") for f in files.get(tm.group(1), []))
 
 
 @detector("android_sql_concat")
@@ -1966,7 +2155,8 @@ def sql_concat(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 quoted = _quote_open(sql)
                 sql_before = sql
                 sql += "X"
-                if _sql_is_constant(expr, code, blank, m.start()) or _sql_is_numeric(expr, code):
+                if _sql_is_constant(expr, code, blank, m.start()) or _sql_is_numeric(expr, code) \
+                        or _enum_typed(ctx, expr, code):
                     continue
                 if quoted:
                     bad = expr
@@ -1979,6 +2169,17 @@ def sql_concat(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if bad is not None:
                 line = ctx.line_of(blank, m.start())
                 shown = re.sub(r"\s+", " ", bad)[:60]
+                lo, _hi, fn = _function_at(blank, m.start())
+                if _in_migration(path, blank, m.start(), lo, fn):
+                    if not _from_database(bad, code, lo, m.start()):
+                        ctx.note_unknown(f"{path}:{line}: a one-time migration joins `{shown}` into SQL; it looks "
+                                         "app-owned (an ID, enum or default), so it wasn't reported.")
+                        continue
+                    yield _hit(ctx, path, line,
+                               f"This one-time migration puts `{shown}`, read back from the database, into a value "
+                               "position by joining strings. A stored quote breaks the statement; bind it instead.",
+                               severity="low")
+                    continue
                 yield _hit(ctx, path, line,
                            f"This SQL puts `{shown}` into a value position by joining strings, so input can change "
                            "the query.")
@@ -2207,6 +2408,14 @@ def _filter_actions(ctx: Context, code: str, blank: str, expr: str, lo: int, hi:
         if not nm:
             return None
         name = nm.group(1)
+        if name == "this":
+            # IntentFilter().apply { addAction(..) }.run { register(receiver, this) }
+            scoped = list(re.finditer(r"IntentFilter\s*\(\s*\)\s*\.\s*apply\s*\{([^{}]*)\}\s*\.\s*(?:run|let|also)\s*\{",
+                                      code[lo:hi]))
+            if not scoped:
+                return None
+            texts += re.findall(r"addAction\s*\(([^)]*)\)", scoped[-1].group(1))
+            return _resolve_actions(ctx, texts)
         dm = re.search(r"\b(?:val|var|IntentFilter)\s+" + re.escape(name) + r"\s*(?::\s*IntentFilter\s*)?=\s*"
                        r"(?:new\s+)?IntentFilter\s*\(([^)]*)\)", code[lo:hi])
         if not dm:
@@ -2217,6 +2426,10 @@ def _filter_actions(ctx: Context, code: str, blank: str, expr: str, lo: int, hi:
         am = re.match(r"\s*\.\s*apply\s*\{([^}]*)\}", after)
         if am:
             texts += re.findall(r"addAction\s*\(([^)]*)\)", am.group(1))
+    return _resolve_actions(ctx, texts)
+
+
+def _resolve_actions(ctx: Context, texts: List[str]) -> Optional[List[str]]:
     out: List[str] = []
     consts = _string_constants(ctx)
     for t in texts:
@@ -2237,9 +2450,54 @@ def _filter_actions(ctx: Context, code: str, blank: str, expr: str, lo: int, hi:
     return out
 
 
+def _param_index(blank: str, code: str, lo: int, fn: str, name: str) -> Optional[int]:
+    """Position of parameter `name` in the declaration of function `fn` whose body starts at lo."""
+    if not fn:
+        return None
+    heads = list(re.finditer(r"\b" + re.escape(fn) + r"\s*\(", blank[:lo]))
+    if not heads:
+        return None
+    params = [code[a:b].strip() for a, b in _args(blank, heads[-1].end() - 1)]
+    return next((i for i, p in enumerate(params) if re.match(r"(?:\w+\s+)*" + re.escape(name) + r"\s*:|"
+                                                             r"(?:final\s+)?[\w.<>\[\]]+\s+" + re.escape(name) + r"$",
+                                                             p)), None)
+
+
+def _exported_message(custom: Optional[List[str]], via: str = "") -> str:
+    shown = f" for {', '.join(custom[:3])}" if custom else ""
+    how = f" through {via}()" if via else ""
+    return f"This receiver is registered as exported{shown}{how} with no permission, so any app can send it broadcasts."
+
+
+def _custom_actions(actions: Optional[List[str]]) -> Optional[List[str]]:
+    return None if actions is None else [a for a in actions if a != "system" and a not in _PROTECTED_BROADCASTS
+                                         and not a.startswith("android.")]
+
+
+def _wrapper_calls(ctx: Context, wrapper: str, pos: int) -> Iterator[Hit]:
+    """Call sites of a helper such as `fun Context.registerExportedReceiver(r, filter)` that registers
+    whatever filter it's given as exported: each caller decides what the receiver accepts."""
+    call = re.compile(r"(?<![\w$])" + re.escape(wrapper) + r"\s*\(")
+    for path, code, blank in _code_files(ctx, wrapper):
+        for m in _sites(call.finditer(blank)):
+            if _is_import(blank, m.start()) or re.search(r"\bfun\s+(?:<[^>{}]*>\s*)?(?:[\w.]+\.)?$",
+                                                        blank[max(0, m.start() - 80):m.start()]):
+                continue
+            spans = _args(blank, m.end() - 1)
+            if pos >= len(spans):
+                continue
+            lo, hi, _fn = _function_at(blank, m.start())
+            custom = _custom_actions(_filter_actions(ctx, code, blank, code[spans[pos][0]:spans[pos][1]].strip(),
+                                                     lo, hi))
+            if custom == []:
+                continue
+            yield _hit(ctx, path, ctx.line_of(blank, m.start()), _exported_message(custom, wrapper))
+
+
 @detector("android_receiver_registered_exported")
 def receiver_registered_exported(ctx: Context, rule: Rule) -> Iterable[Hit]:
     target = None
+    wrappers: Dict[str, int] = {}
     for path, code, blank in _code_files(ctx, "registerReceiver"):
         for m in _sites(_REGISTER.finditer(blank)):
             spans = _args(blank, m.end() - 1)
@@ -2258,17 +2516,18 @@ def receiver_registered_exported(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             if perm and perm not in ("null", "None"):
                 continue
-            lo, hi, _fn = _function_at(blank, m.start())
+            lo, hi, fn = _function_at(blank, m.start())
             actions = _filter_actions(ctx, code, blank, args[1], lo, hi)
-            custom = None if actions is None else [a for a in actions if a != "system" and a not in _PROTECTED_BROADCASTS
-                                                   and not a.startswith("android.")]
+            custom = _custom_actions(actions)
             line = ctx.line_of(blank, m.start())
             if flags and re.search(r"\bRECEIVER_EXPORTED\b", flags):
                 if custom == []:
                     continue
-                shown = f" for {', '.join(custom[:3])}" if custom else ""
-                yield _hit(ctx, path, line, f"This receiver is registered as exported{shown} with no permission, so "
-                                            "any app can send it broadcasts.")
+                pos = _param_index(blank, code, lo, fn, args[1]) if re.fullmatch(r"\w+", args[1]) else None
+                if actions is None and pos is not None:
+                    wrappers[fn] = pos        # a helper: report where it's called, with the caller's filter
+                    continue
+                yield _hit(ctx, path, line, _exported_message(custom))
             elif flags is None:
                 if custom:
                     if target is None:
@@ -2277,6 +2536,8 @@ def receiver_registered_exported(ctx: Context, rule: Rule) -> Iterable[Hit]:
                         yield _hit(ctx, path, line,
                                    f"This receiver for {', '.join(custom[:3])} is registered without a flag; below "
                                    "targetSdk 34 that makes it exported, so any app can send it broadcasts.")
+    for wrapper, pos in sorted(wrappers.items()):
+        yield from _wrapper_calls(ctx, wrapper, pos)
 
 
 _GRANT_ALL = {"android:path": {"/"}, "android:pathPrefix": {"/", ""}, "android:pathPattern": {".*", "/.*"}}
@@ -2347,6 +2608,111 @@ def provider_read_only_permission(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 
 _SERIALIZABLE = re.compile(r"\bgetSerializableExtra\s*\(|\bgetSerializable\s*\(")
+_OIS = re.compile(r"\bObjectInputStream\s*\(")
+_OUTSIDE_STREAM = re.compile(r"openInputStream|ParcelFileDescriptor|\bSocket\b|getInputStream|URLConnection|EXTRA_STREAM"
+                             r"|\bInputStream\s+\w+\s*[,)]|\w+\s*:\s*InputStream\b")
+_JAVA_METHOD_HEAD = re.compile(r"(?P<name>\w+)\s*\([^{};]*\)\s*(?:throws\s+[\w.,\s]+)?$")
+
+
+def _method_name_at(blank: str, idx: int, java: bool) -> str:
+    """Name of the method around idx; for Java also when its parameters or throws clause span lines."""
+    _lo, _hi, fn = _function_at(blank, idx)
+    if fn or not java:
+        return fn
+    depth, j = 0, idx - 1
+    while j >= 0:
+        c = blank[j]
+        if c == "}":
+            depth += 1
+        elif c == "{":
+            if depth == 0:
+                head = blank[max(0, j - 600):j].rstrip()
+                m = _JAVA_METHOD_HEAD.search(head)
+                if m and m.group("name") not in _NOT_METHODS and \
+                        not re.search(r"\b(?:new|class|interface)\s+[\w.]*\s*$", head[:m.start()]):
+                    return m.group("name")
+            else:
+                depth -= 1
+        j -= 1
+    return ""
+
+
+def _never_called(ctx: Context, path: str, blank: str, idx: int) -> str:
+    """The name of the method around idx when nothing in the project calls it (vendored dead code), else ""."""
+    java = path.endswith(".java")
+    name = _method_name_at(blank, idx, java)
+    if not name or name in ("main", "readObject", "readExternal", "readResolve"):
+        return ""
+    decl = re.search(r"(?:@Override[^;{}]*|\boverride\s+(?:\w+\s+)*fun\s+)\b" + re.escape(name) + r"\s*\(",
+                     blank[max(0, idx - 20000):idx])
+    if decl:
+        return ""             # the framework or a supertype calls it
+    ref = re.compile(r"(?<![\w$])" + re.escape(name) + r"\s*\(|::\s*" + re.escape(name) + r"\b")
+    for other in ctx.files(*CODE_SUFFIXES):
+        if name not in (ctx.text(other) or ""):
+            continue
+        ob = ctx.code(other, False) or ""
+        for m in ref.finditer(ob):
+            if not m.group(0).startswith("::"):
+                before = ob[max(0, m.start() - 80):m.start()]
+                if re.search(r"\bfun\s+(?:<[^>{}]*>\s*)?(?:[\w.]+\.)?$", before):
+                    continue          # a Kotlin declaration
+                close = _match(ob, m.end() - 1, "(", ")")
+                if re.match(r"\s*(?:throws\b[^{;]*)?\{", ob[close + 1:close + 200]) and \
+                        not re.search(r"(?:\bnew\s+[\w.<>]*|[=(,]\s*)$", before):
+                    continue          # a Java declaration
+            if _method_name_at(ob, m.start(), other.endswith(".java")) == name:
+                continue              # an overload or recursion of itself
+            return ""
+    return name
+
+
+def _hardened_subclass(blank: str, m: "re.Match[str]") -> bool:
+    """`class X(..) : ObjectInputStream(s) { override fun resolveClass ... throw }` or the anonymous
+    `new ObjectInputStream(s) { resolveClass ... throw }`: the class-allowlist mitigation itself."""
+    close = _match(blank, m.end() - 1, "(", ")")
+    rest = blank[close + 1:close + 400]
+    om = re.match(r"\s*(?::\s*[\w.<>, ]+\s*)?\{", rest)
+    if not om:
+        return False
+    brace = close + 1 + om.end() - 1
+    body = blank[brace:_match(blank, brace, "{", "}") + 1]
+    rm = re.search(r"\bresolveClass\s*\(", body)
+    return bool(rm) and bool(re.search(r"\bthrow\b", body[rm.end():]))
+
+
+@detector("android_object_input_stream")
+def object_input_stream(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, _code, blank in _code_files(ctx, "ObjectInputStream"):
+        for m in _sites(_OIS.finditer(blank)):
+            if _is_import(blank, m.start()):
+                continue
+            line = ctx.line_of(blank, m.start())
+            if _hardened_subclass(blank, m):
+                continue
+            spans = _args(blank, m.end() - 1)
+            arg = blank[spans[0][0]:spans[0][1]].strip() if spans else ""
+            lo, hi, _fn = _function_at(blank, m.start())
+            body = blank[lo:hi]
+            clone = re.fullmatch(r"(?:new\s+)?(?:java\.io\.)?ByteArrayInputStream\s*\(\s*(\w+)\s*\.\s*toByteArray\s*"
+                                 r"\(\s*\)\s*\)", arg)
+            if clone and re.search(r"\bObjectOutputStream\s*\(\s*" + re.escape(clone.group(1)) + r"\s*\)", body):
+                continue              # an in-memory deep copy of the app's own object
+            dead = _never_called(ctx, path, blank, m.start())
+            if dead:
+                ctx.note_unknown(f"{path}:{line}: ObjectInputStream in {dead}(), which nothing in the project "
+                                 "calls; not reported.")
+                continue
+            name = re.fullmatch(r"\w+", arg)
+            from_file = "FileInputStream(" in re.sub(r"\s+", "", arg) or bool(name and re.search(
+                r"\b" + re.escape(arg) + r"\s*(?::\s*\w+\s*)?=\s*(?:new\s+)?FileInputStream\s*\(", body))
+            if from_file and not _OUTSIDE_STREAM.search(body):
+                yield _hit(ctx, path, line, "ObjectInputStream deserializes arbitrary classes from a file the app "
+                                            "reads. Whoever can write that file controls what gets built.",
+                           severity="medium")
+            else:
+                yield _hit(ctx, path, line, "ObjectInputStream deserializes arbitrary classes. Check where the bytes "
+                                            "come from.")
 
 
 @detector("android_serializable_extra")
@@ -2573,7 +2939,7 @@ def security_crypto(ctx: Context, rule: Rule) -> Iterable[Hit]:
         ctx,
         re.compile(r"androidx\.security:security-crypto|group\s*=\s*[\"']androidx\.security[\"'][^\n]*"
                    r"name\s*=\s*[\"']security-crypto|\bAndroidX\.security\.crypto\b"),
-        re.compile(r"^\s*import\s+androidx\.security\.crypto\.", re.MULTILINE),
+        re.compile(r"^[ \t]*import\s+androidx\.security\.crypto\.", re.MULTILINE),
         "the deprecated Jetpack Security library (androidx.security:security-crypto)",
     )
 
@@ -2584,7 +2950,7 @@ def sqlcipher_legacy(ctx: Context, rule: Rule) -> Iterable[Hit]:
         ctx,
         re.compile(r"net\.zetetic:android-database-sqlcipher|group\s*=\s*[\"']net\.zetetic[\"'][^\n]*"
                    r"name\s*=\s*[\"']android-database-sqlcipher"),
-        re.compile(r"^\s*import\s+net\.sqlcipher\.", re.MULTILINE),
+        re.compile(r"^[ \t]*import\s+net\.sqlcipher\.", re.MULTILINE),
         "the end-of-life SQLCipher package (net.zetetic:android-database-sqlcipher)",
     )
 
@@ -2736,9 +3102,14 @@ def external_storage(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             seen.add(lo)
             line = ctx.line_of(blank, m.start())
-            extra = " The file names suggest sensitive data." if _SENSITIVE_FILE.search(code[lo:hi]) else ""
-            yield _hit(ctx, path, line,
-                       f"The app writes to shared storage, which other apps can read ({broad}).{extra}")
+            if _SENSITIVE_FILE.search(code[lo:hi]):
+                yield _hit(ctx, path, line, f"The app writes to shared storage, which other apps can read ({broad}). "
+                                            "The file names suggest sensitive data.")
+            else:
+                yield _hit(ctx, path, line,
+                           f"The app writes to shared storage, which other apps can read ({broad}). Nothing here "
+                           "suggests sensitive data, as with a download or export the user asked for; check what "
+                           "ends up there.", severity="low")
 
 
 _WORLD_MODE = re.compile(r"\bMODE_WORLD_(?:READABLE|WRITEABLE)\b|\bset(?:Readable|Writable|Executable)\s*\(\s*true\s*,"
@@ -2911,10 +3282,10 @@ _HW_ID = re.compile(
     r"\bSettings\s*\.\s*Secure\s*\.\s*ANDROID_ID\b|\bSecure\s*\.\s*getString\s*\([^)]*\"android_id\"|"
     r"\bBuild\s*\.\s*(?:getSerial\s*\(\s*\)|SERIAL\b)|"
     r"(?:\b\w*(?:[Tt]elephony|[Pp]hone|\btm|\bTM)\w*\s*\??|\))\s*\.\s*(?:getDeviceId|getImei|getMeid"
-    r"|getSimSerialNumber|getSubscriberId|getLine1Number)\s*\(|"
+    r"|getSimSerialNumber|getSubscriberId)\s*\(|"
     r"\bgetMacAddress\s*\(\s*\)|\bgetHardwareAddress\s*\(\s*\)|\.\s*hardwareAddress\b|"
     r"\b(?:wifiInfo|connectionInfo|info)\s*\??\s*\.\s*macAddress\b|"
-    r"\b\w*(?:[Tt]elephony|[Pp]hone)\w*\s*\??\s*\.\s*(?:imei|meid|deviceId|simSerialNumber|subscriberId|line1Number)\b|"
+    r"\b\w*(?:[Tt]elephony|[Pp]hone)\w*\s*\??\s*\.\s*(?:imei|meid|deviceId|simSerialNumber|subscriberId)\b|"
     r"\b\w*[Aa]dapter\s*\??\s*\.\s*(?:address\b|getAddress\s*\(\s*\))")
 
 
@@ -2931,7 +3302,7 @@ def hardware_id(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if _is_import(blank, m.start()) or blank[m.start()] == " ":
                 continue
             text = m.group(0)
-            if re.search(r"get(?:DeviceId|Imei|Meid|SimSerialNumber|SubscriberId|Line1Number)", text) and not tele:
+            if re.search(r"get(?:DeviceId|Imei|Meid|SimSerialNumber|SubscriberId)", text) and not tele:
                 continue
             if text.startswith(")") and not re.search(r"TelephonyManager|TELEPHONY_SERVICE",
                                                       code[max(0, m.start() - 150):m.start()]):
@@ -2940,7 +3311,8 @@ def hardware_id(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             kind = "ANDROID_ID" if "ANDROID_ID" in text or "android_id" in text else "a hardware identifier"
             yield _hit(ctx, path, ctx.line_of(code, m.start()),
-                       f"The app reads {kind} ({text.strip()[:40]}), which can track the user across apps or resets.")
+                       f"The app reads {kind} ({text.lstrip(').').strip()[:40]}), which can track the user across "
+                       "apps or resets.")
 
 
 # ---------------------------------------------------------------------------- input from other apps
@@ -3600,10 +3972,10 @@ DANGEROUS_PERMISSIONS = {
     "BLUETOOTH_SCAN": "nearby Bluetooth devices (and location)",
     "USE_FULL_SCREEN_INTENT": "full-screen notifications over the lock screen",
 }
-# Play-restricted or fraud-relevant (OTP interception, overlays, sideloading).
-HIGH_RISK_PERMISSIONS = {"READ_SMS", "RECEIVE_SMS", "SEND_SMS", "READ_CALL_LOG", "ACCESS_BACKGROUND_LOCATION",
-                         "QUERY_ALL_PACKAGES", "SYSTEM_ALERT_WINDOW", "MANAGE_EXTERNAL_STORAGE",
-                         "REQUEST_INSTALL_PACKAGES"}
+# Fraud-relevant: OTP interception, overlays, package visibility, sideloading. Background location and
+# all-files access are Play-restricted too, but they are privacy surface (AND-033), not fraud tooling.
+HIGH_RISK_PERMISSIONS = {"READ_SMS", "RECEIVE_SMS", "SEND_SMS", "READ_CALL_LOG", "QUERY_ALL_PACKAGES",
+                         "SYSTEM_ALERT_WINDOW", "REQUEST_INSTALL_PACKAGES"}
 _LEGACY_ONLY = {"READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "ACCESS_FINE_LOCATION", "BLUETOOTH_SCAN"}
 _LINT_PERMISSION = ("QueryAllPackagesPermission", "ScopedStorage", "PhotoAndVideoPolicy")
 

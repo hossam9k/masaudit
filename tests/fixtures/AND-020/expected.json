@@ -1,1 +1,1 @@
-{"vulnerable": 3, "clean": 0, "vulnerable_values": 4, "clean_identifiers_and_numbers": 0}
+{"vulnerable": 3, "clean": 0, "vulnerable_values": 4, "clean_identifiers_and_numbers": 0, "clean_migration": 0, "vulnerable_provider_uri": 1, "vulnerable_migration_db_value": 1}

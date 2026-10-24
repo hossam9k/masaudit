@@ -311,7 +311,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** high · **Profiles:** MAS-L1 · **Confidence:** high · **Effort:** hours
 
-**Why it matters:** If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out.
+**Why it matters:** If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out. A WebView that loads only web pages is reported as low.
 
 **Fix:** Remove `allowFileAccess = true` and never enable `allowFileAccessFromFileURLs` or `allowUniversalAccessFromFileURLs`. Serve bundled HTML with `WebViewAssetLoader` over `https://appassets.androidplatform.net/`.
 
@@ -337,7 +337,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** high · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** hours
 
-**Why it matters:** `addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code.
+**Why it matters:** `addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code. A WebView that loads only fixed https or bundled pages is reported as medium.
 
 **Fix:** Use `WebViewCompat.addWebMessageListener` with an allowlist of origins, and validate every message. If you must keep `addJavascriptInterface`, expose one narrow method and treat its input as untrusted.
 
@@ -379,7 +379,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** high · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** hours
 
-**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly.
+**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.
 
 **Fix:** Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
 
@@ -393,7 +393,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** high · **Profiles:** MAS-L1 · **Confidence:** high · **Effort:** minutes
 
-**Why it matters:** `<root-path>` or `path="."` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences.
+**Why it matters:** `<root-path>` or `path="."` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences. External storage paths are reported as medium: those files aren't private to the app anyway.
 
 **Fix:** Scope each entry in `file_paths.xml` to the narrowest folder that works, such as `<cache-path name="shared_exports" path="exports/" />`. Remove `<root-path>`. Grant read, not write, unless the recipient must write.
 
@@ -449,7 +449,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** high · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** hours
 
-**Why it matters:** When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider.
+**Why it matters:** When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider. One-time migrations over values the app owns aren't reported.
 
 **Fix:** Use `?` placeholders and pass values as `selectionArgs`, or Room `@Query` with bound parameters. Allowlist column names and sort orders.
 
@@ -613,7 +613,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** high · **Profiles:** MAS-L1 · **Confidence:** manual · **Effort:** hours
 
-**Why it matters:** `ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code.
+**Why it matters:** `ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code. A class-allowlist subclass and in-memory deep copies aren't reported; reading an app file is medium.
 
 **Fix:** Parse into declared types instead: JSON with `kotlinx.serialization`, or Protocol Buffers. For intent extras, use the typed `IntentCompat.getParcelableExtra(intent, name, Class)`.
 
@@ -995,7 +995,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** medium · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** minutes
 
-**Why it matters:** `allowContentAccess` is on by default on every Android version. A page script in a WebView with JavaScript on can then read `content://` URIs the app can open, including its own providers.
+**Why it matters:** `allowContentAccess` is on by default on every Android version. A page script in a WebView with JavaScript on can then read `content://` URIs the app can open, including its own providers. A WebView that loads only web pages is reported as low, since a web page can't open `content://` URLs.
 
 **Fix:** Set `settings.allowContentAccess = false`, and load local content through `WebViewAssetLoader` over https.
 
@@ -1009,7 +1009,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** medium · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** hours
 
-**Why it matters:** Files in shared storage (Downloads, Documents, the external storage root) are outside the app sandbox. Other apps with storage access can read them, and they stay after the app is uninstalled.
+**Why it matters:** Files in shared storage (Downloads, Documents, the external storage root) are outside the app sandbox. Other apps with storage access can read them, and they stay after the app is uninstalled. A write with no sign of sensitive data, such as a download the user asked for, is reported as low.
 
 **Fix:** Keep sensitive files in `filesDir`, and let the user choose where exports go with the Storage Access Framework.
 
@@ -2511,7 +2511,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** critical · **Profiles:** MAS-L1 · **Confidence:** high · **Effort:** hours
 
-**Why it matters:** `pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high.
+**Why it matters:** `pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high, or medium when no later step runs the checked-out code.
 
 **Fix:** Use `pull_request` for anything that builds or tests contributed code. If you need `pull_request_target`, never check out or run the fork's code in that job, and never let it write a cache or artifact another workflow uses.
 
@@ -2547,7 +2547,7 @@ Rules version 2.0.0, 172 rules. Severity applies when the app's profile includes
 
 **Severity:** critical · **Profiles:** MAS-L1 · **Confidence:** high · **Effort:** hours
 
-**Why it matters:** Anyone who can read the repository, or any of its forks and clones, can sign builds as you. Deleting the file later doesn't help: it stays in git history. Nightly or QA keys are reported as high, and debug keystores go to notes.
+**Why it matters:** Anyone who can read the repository, or any of its forks and clones, can sign builds as you. Deleting the file later doesn't help: it stays in git history. Nightly or QA keys are reported as high, and debug keystores go to notes. A keystore whose password stays out of the repository is reported one level lower.
 
 **Fix:** Rotate first: request an upload key reset in Play Console, or revoke the certificate or API key. Then remove the file from history, store the keystore base64-encoded in the CI secret store, decode it at build time, and read passwords from environment variables.
 

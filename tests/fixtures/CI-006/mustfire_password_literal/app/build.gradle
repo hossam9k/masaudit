@@ -1,0 +1,8 @@
+android {
+    signingConfigs {
+        qa {
+            storeFile file("qa.keystore")
+            storePassword "hunter2"
+        }
+    }
+}

@@ -9,8 +9,9 @@ import unittest
 from unittest import mock
 
 from helpers import FIXTURES, scan_dir
-from masaudit import engine, profile
+from masaudit import engine, profile, safety
 from masaudit.detectors import ci
+from masaudit.model import Project
 from masaudit.parsers import workflows as wf
 
 PROFILE = profile.make("banking", "flag")
@@ -159,6 +160,17 @@ class ParserAdditions(unittest.TestCase):
         self.assertIsNone(wf.parse_action("steps:\n  - uses: a/b@v1\n"))
         self.assertIsNone(wf.parse_action("runs: node\n"))
 
+    def test_snippet_keeps_a_public_action_name(self):
+        tmp = tempfile.mkdtemp(prefix="masaudit-ci-")
+        self.addCleanup(shutil.rmtree, tmp)
+        os.makedirs(os.path.join(tmp, ".github", "workflows"))
+        with open(os.path.join(tmp, ".github", "workflows", "a.yml"), "w", encoding="utf-8") as fh:
+            fh.write("on: push\njobs:\n  a:\n    runs-on: x\n    steps:\n"
+                     "      - uses: davidSchuppa/base64Secret-toFile-action@v2\n")
+        got = calibrated(tmp, "CI-001")
+        self.assertEqual(got[(".github/workflows/a.yml", 6)].location.snippet,
+                         "- uses: davidSchuppa/base64Secret-toFile-action@v2")
+
     def test_zizmor_policies(self):
         text = "rules:\n  unpinned-uses:\n    config:\n      policies:\n        Acme/*: Ref-Pin\n        '*': hash-pin\n"
         self.assertEqual(wf.unpinned_uses_policies(text), {"acme/*": "ref-pin", "*": "hash-pin"})
@@ -177,8 +189,9 @@ class PrtCheckout(unittest.TestCase):
         self.assertEqual(got, {
             (".github/workflows/bot.yml", 9): "high",       # job if: head.repo.full_name == github.repository
             (".github/workflows/bot.yml", 16): "critical",  # refs/pull/N/merge, no gate
-            (".github/workflows/bot.yml", 26): "high",      # an earlier step exits for forks
+            (".github/workflows/bot.yml", 26): "medium",    # exits for forks, then only `gh pr merge`
             (".github/workflows/bot.yml", 33): "critical",  # `!=` lets forks in; merge_commit_sha fetched
+            (".github/workflows/bot.yml", 41): "medium",    # gated, and nothing runs the checkout
         })
         self.assertEqual(calibrated(fixture("CI-003", "nearmiss"), "CI-003"), {})
 
@@ -218,6 +231,24 @@ class PersistCredentials(unittest.TestCase):
         })
         self.assertEqual(got[(".github/workflows/a.yml", 36)].acknowledged, "persist-credentials: true")
 
+    def test_fastlane_and_token_remote_count_as_pushes(self):
+        got = calibrated(fixture("CI-005", "mustfire_fastlane"), "CI-005")
+        self.assertEqual(severities(got), {
+            (".github/workflows/release.yml", 8): "low",     # fastlane tag_and_push_release pushes
+            (".github/workflows/release.yml", 15): "high",   # the PAT is written into the remote URL
+        })
+        for f in got.values():
+            self.assertNotIn("nothing in this job pushes", f.message)
+        self.assertIn("secrets.PAT", got[(".github/workflows/release.yml", 15)].message)
+        self.assertIn(".git/config whatever `persist-credentials` says",
+                      got[(".github/workflows/release.yml", 15)].message)
+        self.assertTrue(ci._pushes("bundle exec fastlane android tag_and_push_release_version app_version:1"))
+        self.assertFalse(ci._pushes("bundle exec fastlane deploy_playstore"))
+        self.assertFalse(ci._pushes("bundle exec fastlane update_release_notes_playstore release_number:1"))
+        self.assertFalse(ci._pushes("os.makedirs(f'fastlane/metadata/{code}'); open('release_notes.txt')"))
+        self.assertTrue(ci._pushes("bundle exec fastlane hotfix-finish"))
+        self.assertFalse(ci._pushes('gh release create v1 --notes "x"'))     # the API, not git credentials
+
     def test_push_detection_is_linear(self):
         for text in ("git " + "-c x " * 20000 + "nope", "git tag v1 " + "&& " * 50000, "git -" + "-" * 100000):
             start = time.monotonic()
@@ -236,10 +267,38 @@ class SigningMaterial(unittest.TestCase):
         got = severities(calibrated(fixture("CI-006", "mustfire"), "CI-006"))
         self.assertEqual(got, {
             ("app/release.jks", 0): "critical",
-            ("app/upload.keystore", 0): "critical",       # create("release") below getByName("debug")
+            # create("release") below getByName("debug"); its password comes from the environment (one lower),
+            # and the debug block's "android" password doesn't count for it
+            ("app/upload.keystore", 0): "high",
             ("keystores/debugger-tools.jks", 0): "critical",
             ("app/nightly.keystore", 0): "high",
         })
+
+    def test_password_kept_out_of_the_repository_is_one_level_lower(self):
+        got = calibrated(fixture("CI-006", "mustfire_password_env"), "CI-006")
+        self.assertEqual(severities(got), {("app/qa.keystore", 0): "medium"})
+        self.assertIn("brute-forced offline", got[("app/qa.keystore", 0)].message)
+        self.assertEqual(severities(calibrated(fixture("CI-006", "mustfire_password_literal"), "CI-006")),
+                         {("app/qa.keystore", 0): "high"})
+        workflow = "on: push\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: {}\n"
+        for name, text, want in (
+                ("qa.yml", workflow.format('apksigner sign --ks-pass pass:"$KS_PASS" --ks qa.keystore'), "external"),
+                ("qa.yml", workflow.format("apksigner sign --ks-pass pass:hunter2 --ks qa.keystore"), "literal"),
+                ("build.gradle.kts", 'create("qa") {\n  storeFile = file("qa.keystore")\n  storePassword = '
+                                     'environmentOrGradleValue("PASS", "signing.qa.storePassword")\n}\n', "external"),
+                ("build.gradle.kts", 'getByName("debug") {\n  storePassword = "android"\n}\ncreate("qa") {\n'
+                                     '  storeFile = file("qa.keystore")\n}\n', "")):
+            self.assertEqual(self._password(name, text), want, text)
+
+    def _password(self, name, text):
+        tmp = tempfile.mkdtemp(prefix="masaudit-ci-")
+        self.addCleanup(shutil.rmtree, tmp)
+        folder = os.path.join(tmp, ".github", "workflows") if name.endswith(".yml") else os.path.join(tmp, "app")
+        os.makedirs(folder)
+        with open(os.path.join(folder, name), "w", encoding="utf-8") as fh:
+            fh.write(text)
+        project = Project(root=tmp, platforms=["ci"], files=safety.walk(tmp))
+        return ci._keystore_password(engine.Context(project), "qa.keystore")
 
 
 class MissingLockfile(unittest.TestCase):

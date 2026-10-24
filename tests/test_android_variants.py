@@ -216,9 +216,13 @@ class Findings(unittest.TestCase):
         messages = " | ".join(f.message for f in found.values())
         self.assertIn("no intent filter", messages)
         self.assertIn("com.example.intents.OPEN_FEED next to its public intent filters", messages)
-        self.assertIn("android.intent.action.QUICKBOOT_POWERON", messages)
+        self.assertNotIn("QUICKBOOT_POWERON", messages)     # a vendor boot broadcast, not app-specific
         self.assertIn("private scheme k9mail:", messages)
         self.assertIn("BROADCAST_SMS", messages)
+        # A custom action next to public filters is medium; no filter, a private scheme or a provider stays high.
+        self.assertEqual({line: f.effective_severity for line, f in found.items()},
+                         {6: "high", 7: "medium", 18: "medium", 27: "high", 34: "high", 35: "high", 36: "medium",
+                          38: "high"})
         acked = [f for f in found.values() if f.acknowledged]
         self.assertEqual([f.acknowledged for f in acked], ["tools:ignore=ExportedContentProvider"])
 

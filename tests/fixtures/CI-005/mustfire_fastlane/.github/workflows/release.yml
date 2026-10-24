@@ -1,0 +1,22 @@
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+      - run: bundle exec fastlane tag_and_push_release
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+      - run: |
+          git remote set-url origin https://${{ secrets.PAT }}@github.com/acme/app.git/
+          git config --local user.name "bot"
+      - uses: someone/notify-action@v2
+      - run: bundle exec fastlane deploy_playstore

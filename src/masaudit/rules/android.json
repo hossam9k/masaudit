@@ -262,7 +262,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out.",
+      "why": "If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out. A WebView that loads only web pages is reported as low.",
       "fix": "Remove `allowFileAccess = true` and never enable `allowFileAccessFromFileURLs` or `allowUniversalAccessFromFileURLs`. Serve bundled HTML with `WebViewAssetLoader` over `https://appassets.androidplatform.net/`.",
       "verify": "Load a test page that tries to fetch a `file:///data/data/<package>/` URL and confirm it's blocked.",
       "effort": "hours",
@@ -281,18 +281,7 @@
         "code": "webView.settings.apply {\n    javaScriptEnabled = false            // turn on only if the page needs it\n    allowFileAccess = false              // default false only when targeting API 30+\n    allowContentAccess = false           // defaults to true on every version\n    // allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs are deprecated\n    // and already false when targeting API 16+. Never set them to true.\n}"
       },
       "confidence": "high",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "",
-        "regex": "\\b(?:setAllowFileAccess|setAllowFileAccessFromFileURLs|setAllowUniversalAccessFromFileURLs)\\s*\\(\\s*true\\s*\\)|\\b(?:allowFileAccess|allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\\s*=\\s*true\\b",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "This WebView setting lets page content read local files."
-      }
+      "detector": "android_webview_file_access"
     },
     {
       "id": "AND-011",
@@ -331,7 +320,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code.",
+      "why": "`addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code. A WebView that loads only fixed https or bundled pages is reported as medium.",
       "fix": "Use `WebViewCompat.addWebMessageListener` with an allowlist of origins, and validate every message. If you must keep `addJavascriptInterface`, expose one narrow method and treat its input as untrusted.",
       "verify": "Load a page with a third-party iframe and confirm the iframe can't reach the bridge.",
       "effort": "hours",
@@ -412,7 +401,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly.",
+      "why": "Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.",
       "fix": "Set `android:exported=\"false\"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel=\"signature\"` and validate every input.",
       "verify": "Run `adb shell am start -n <package>/<component>` (or `am startservice`, `am broadcast`) from a shell and confirm it's refused.",
       "effort": "hours",
@@ -441,7 +430,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`<root-path>` or `path=\".\"` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences.",
+      "why": "`<root-path>` or `path=\".\"` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences. External storage paths are reported as medium: those files aren't private to the app anyway.",
       "fix": "Scope each entry in `file_paths.xml` to the narrowest folder that works, such as `<cache-path name=\"shared_exports\" path=\"exports/\" />`. Remove `<root-path>`. Grant read, not write, unless the recipient must write.",
       "verify": "Ask the provider for a URI that points at `../databases/` and confirm it fails.",
       "effort": "minutes",
@@ -545,7 +534,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider.",
+      "why": "When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider. One-time migrations over values the app owns aren't reported.",
       "fix": "Use `?` placeholders and pass values as `selectionArgs`, or Room `@Query` with bound parameters. Allowlist column names and sort orders.",
       "verify": "Pass `' OR '1'='1` into the code path and confirm it's treated as plain text.",
       "effort": "hours",
@@ -856,7 +845,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code.",
+      "why": "`ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code. A class-allowlist subclass and in-memory deep copies aren't reported; reading an app file is medium.",
       "fix": "Parse into declared types instead: JSON with `kotlinx.serialization`, or Protocol Buffers. For intent extras, use the typed `IntentCompat.getParcelableExtra(intent, name, Class)`.",
       "verify": "Feed the decoder a payload that names a class you didn't expect and confirm it's rejected.",
       "effort": "hours",
@@ -872,18 +861,7 @@
         "code": "// Only a ShareRequest can come out. Anything else returns null.\nval request: ShareRequest? =\n    IntentCompat.getParcelableExtra(intent, \"request\", ShareRequest::class.java)"
       },
       "confidence": "manual",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "ObjectInputStream",
-        "regex": "\\bObjectInputStream\\s*\\(",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "ObjectInputStream deserializes arbitrary classes. Check where the bytes come from."
-      }
+      "detector": "android_object_input_stream"
     },
     {
       "id": "AND-033",
@@ -1528,7 +1506,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`allowContentAccess` is on by default on every Android version. A page script in a WebView with JavaScript on can then read `content://` URIs the app can open, including its own providers.",
+      "why": "`allowContentAccess` is on by default on every Android version. A page script in a WebView with JavaScript on can then read `content://` URIs the app can open, including its own providers. A WebView that loads only web pages is reported as low, since a web page can't open `content://` URLs.",
       "fix": "Set `settings.allowContentAccess = false`, and load local content through `WebViewAssetLoader` over https.",
       "verify": "Load a test page that fetches a `content://` URI of your app and confirm the request fails.",
       "effort": "minutes",
@@ -1555,7 +1533,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "Files in shared storage (Downloads, Documents, the external storage root) are outside the app sandbox. Other apps with storage access can read them, and they stay after the app is uninstalled.",
+      "why": "Files in shared storage (Downloads, Documents, the external storage root) are outside the app sandbox. Other apps with storage access can read them, and they stay after the app is uninstalled. A write with no sign of sensitive data, such as a download the user asked for, is reported as low.",
       "fix": "Keep sensitive files in `filesDir`, and let the user choose where exports go with the Storage Access Framework.",
       "verify": "Run the export and download flows and confirm no file with personal data appears under `/sdcard`.",
       "effort": "hours",

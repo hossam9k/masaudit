@@ -32,3 +32,11 @@ jobs:
       - run: |
           git fetch origin "${{ github.event.pull_request.merge_commit_sha }}"
           ./gradlew test
+  renovate-merge:
+    if: github.event.pull_request.user.login == 'renovate[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+      - run: gh pr merge --merge --auto

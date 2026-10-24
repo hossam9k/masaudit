@@ -27,6 +27,7 @@ class Element:
     children: List["Element"] = field(default_factory=list)
     parent: Optional["Element"] = None
     text: str = ""
+    end_line: int = 0                         # line of the end tag (or of `/>`); 0 if unknown
     # Only on the root: every XML comment as (first line, last line, text, alone on its line), so a
     # finding can quote the rationale written next to a Lint `tools:ignore`.
     comments: List[Tuple[int, int, str, bool]] = field(default_factory=list)
@@ -75,7 +76,7 @@ def parse(text: str) -> Optional[Element]:
         stack.append(el)
 
     def end(_tag: str) -> None:
-        stack.pop()
+        stack.pop().end_line = parser.CurrentLineNumber
 
     def chars(data: str) -> None:
         if stack:
@@ -133,7 +134,8 @@ _NOT_A_REASON = re.compile(r"(?i)copyright|licen[cs]e|SPDX|apache|\bGPL\b")
 
 def comment_near(el: Element) -> str:
     """The XML comment written next to `el`: one on its own line ending in the 3 lines above it, or one
-    that starts on its lines (a trailing comment) before the next element. Empty if there is none."""
+    that starts inside the element (a trailing comment, or one before its first child) before the next
+    element. A comment after the element's end tag belongs to what follows. Empty if there is none."""
     root = el
     while root.parent is not None:
         root = root.parent
@@ -142,6 +144,8 @@ def comment_near(el: Element) -> str:
     lines = [e.line for e in root.iter()]
     later = [n for n in lines if n > el.line]
     next_line = min(later) if later else el.line + 1
+    if el.end_line >= el.line:
+        next_line = min(next_line, el.end_line + 1)
     best = ""
     best_gap = None
     for first, last, text, alone in root.comments:

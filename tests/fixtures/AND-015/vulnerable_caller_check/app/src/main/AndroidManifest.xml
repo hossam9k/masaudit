@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <provider android:name="com.example.SettingsProvider" android:authorities="com.example.settings"
+            android:exported="true" />
+    </application>
+</manifest>

@@ -1,1 +1,1 @@
-{"vulnerable": 2, "clean": 0}
+{"vulnerable": 2, "clean": 0, "clean_hardened_and_clone": 0, "clean_dead_code": 0, "vulnerable_sources": 3}
