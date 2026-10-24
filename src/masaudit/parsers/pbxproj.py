@@ -234,6 +234,10 @@ class Target:
     def is_test(self) -> bool:
         return "test" in self.product_type
 
+    @property
+    def is_extension(self) -> bool:
+        return "extension" in self.product_type
+
 
 class Project:
     """A parsed project.pbxproj plus its location, so paths resolve repo-relative."""
@@ -371,9 +375,14 @@ class Project:
 
 
 def is_debug_config(name: str) -> bool:
-    """Configurations that never ship to users: Debug, Development, Test, ..."""
-    low = name.lower()
-    return "debug" in low or low in ("dev", "development", "test", "testing") or low.endswith(" dev")
+    """Configurations that never ship to users: Debug, Development, Test, UITests, Profile, ...
+
+    Only a fallback: when a project has shared schemes, the Archive action's configuration
+    decides what ships (see xcscheme.py)."""
+    low = name.lower().strip()
+    return ("debug" in low or "test" in low
+            or low in ("dev", "development", "profile", "profiling", "local")
+            or low.endswith((" dev", "-dev", "_dev")))
 
 
 def _join(base: Optional[str], rel: str) -> Optional[str]:

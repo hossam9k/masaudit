@@ -136,15 +136,15 @@
     },
     {
       "id": "XPL-007",
-      "title": "MD5 or SHA-1 used (fine only as a non-security checksum)",
+      "title": "MD5 or SHA-1 used to protect a password, signature, or token",
       "platform": "cross",
       "severity": "medium",
       "profiles": [
         "L1"
       ],
-      "why": "Attackers can build two different inputs with the same MD5 or SHA-1 hash. Anything that relies on these hashes for integrity, signatures, or identity can be forged.",
+      "why": "Attackers can build two different inputs with the same MD5 or SHA-1 hash, and both are fast to brute-force. Code that relies on them for passwords, signatures, or integrity can be forged or cracked.",
       "fix": "Use SHA-256 or stronger. If the hash is only a non-security checksum, such as detecting a corrupted download, add a comment saying so.",
-      "verify": "For each hit, confirm it uses SHA-256 or is commented as a non-security checksum.",
+      "verify": "For each hit, confirm it now uses SHA-256 or stronger, or a password hash such as Argon2id for passwords.",
       "effort": "minutes",
       "book": "Chapter 0.2",
       "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
@@ -241,6 +241,749 @@
       },
       "confidence": "manual",
       "detector": "xpl_sensitive_log"
+    },
+    {
+      "id": "XPL-011",
+      "title": "Encryption key is hardcoded in the app",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anything in the app package is public. A key written in the code can be read from the APK or IPA in minutes, and then every copy of the encrypted data can be decrypted. It also can't be rotated without an app update.",
+      "fix": "Generate the key on the device inside the Android Keystore or the iOS Keychain or Secure Enclave, and never export it. Tink with a Keystore-protected keyset does this for you. If a server must decrypt, wrap a random per-session key with the server's public key instead of sharing one symmetric key.",
+      "verify": "For every `SecretKeySpec(`, `SymmetricKey(data:`, and `Key.from…(` call, confirm the key bytes come from the Keystore, the Keychain, Tink, or a secure random source, never from a string or byte literal.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0003",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0212",
+        "MASTG-TEST-0213"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import android.security.keystore.KeyGenParameterSpec\nimport android.security.keystore.KeyProperties\nimport java.security.KeyStore\nimport javax.crypto.KeyGenerator\nimport javax.crypto.SecretKey\n\nprivate const val KEY_ALIAS = \"app_data_key\"\n\n// The key is created inside the Keystore and its bytes never leave it.\nfun dataKey(): SecretKey {\n    val keyStore = KeyStore.getInstance(\"AndroidKeyStore\").apply { load(null) }\n    (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }\n    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, \"AndroidKeyStore\")\n    generator.init(\n        KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)\n            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)\n            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)\n            .setKeySize(256)\n            .build(),\n    )\n    return generator.generateKey()\n}"
+      },
+      "confidence": "medium",
+      "detector": "xpl_hardcoded_key"
+    },
+    {
+      "id": "XPL-012",
+      "title": "Secret copied to the clipboard without the sensitive flag",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Any app that reads the clipboard, and the keyboard, can see a copied password, code, or token. Android 13 and later show the copied text in a preview unless the clip is marked sensitive.",
+      "fix": "Don't copy secrets. If the user asks to copy one, set `ClipDescription.EXTRA_IS_SENSITIVE` in the clip's extras (API 33+) and clear the clip after a short timeout.",
+      "verify": "Copy the value on an Android 13 device and confirm the system preview shows dots instead of the text.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0030",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val clip = ClipData.newPlainText(\"one-time code\", code).apply {\n    description.extras = PersistableBundle().apply {\n        putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)   // API 33+\n    }\n}\nclipboardManager.setPrimaryClip(clip)"
+      },
+      "confidence": "medium",
+      "detector": "xpl_clipboard_secret"
+    },
+    {
+      "id": "XPL-013",
+      "title": "Broken cipher (DES, 3DES, RC4, RC2, or Blowfish)",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "DES keys can be brute-forced, 3DES and Blowfish use 64-bit blocks that leak data after a few gigabytes (Sweet32), and RC4's output is biased. Data encrypted with them should be treated as readable.",
+      "fix": "Use AES-GCM through the Keystore, CryptoKit, or Tink. Re-encrypt stored legacy data with the new scheme the first time you read it.",
+      "verify": "Search for `DES`, `RC4`, `RC2`, `Blowfish`, and `kCCAlgorithm`; only AES-GCM or ChaCha20-Poly1305 should remain.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0221",
+        "MASTG-TEST-0210",
+        "MASTG-BEST-0009"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")\ncipher.init(Cipher.ENCRYPT_MODE, keystoreKey)          // the Keystore picks a random IV\nval stored = cipher.iv + cipher.doFinal(plaintext)"
+      },
+      "confidence": "high",
+      "detector": "xpl_broken_cipher"
+    },
+    {
+      "id": "XPL-014",
+      "title": "Encryption key is too small",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "RSA, DSA, and DH keys below 2,048 bits, curves below 224 bits, and symmetric keys below 128 bits can be broken with today's hardware, which exposes everything they protect or sign.",
+      "fix": "Use P-256 (EC) keys generated in the Keystore or Secure Enclave. If you need RSA, use at least 2,048 bits, and 3,072 for keys that must last beyond 2030.",
+      "verify": "For each key generator, confirm the size is at least 2,048 bits for RSA, a curve of at least P-256, or at least 128 bits for AES.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0013",
+      "masvs": "MASVS-CRYPTO-2",
+      "mastg": [
+        "MASTG-TEST-0208",
+        "MASTG-TEST-0209"
+      ],
+      "confidence": "high",
+      "detector": "xpl_small_key"
+    },
+    {
+      "id": "XPL-015",
+      "title": "PBKDF2 uses too few iterations",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A password-derived key is only as strong as the work an attacker must repeat per guess. With few PBKDF2 iterations, a stolen salt and hash or ciphertext falls to a GPU dictionary attack in hours.",
+      "fix": "Prefer Argon2id. If PBKDF2 is required, use HMAC-SHA-256 with at least 600,000 iterations. For a short PIN, gate a Keystore or Secure Enclave key with user authentication instead.",
+      "verify": "Confirm the iteration count meets OWASP's minimum for the PRF: 600,000 for HMAC-SHA-256, 210,000 for HMAC-SHA-512, 1,300,000 for HMAC-SHA-1.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0014",
+      "masvs": "MASVS-CRYPTO-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val spec = PBEKeySpec(password, salt, 600_000, 256)   // salt: 16 random bytes per secret\nval key = SecretKeyFactory.getInstance(\"PBKDF2WithHmacSHA256\").generateSecret(spec)\nspec.clearPassword()"
+      },
+      "confidence": "high",
+      "detector": "xpl_pbkdf2_iterations"
+    },
+    {
+      "id": "XPL-016",
+      "title": "Password hashing uses a fixed salt",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A salt written in the code is the same for every user and install, so one precomputed table or one GPU run attacks every derived key at once, and equal passwords give equal keys.",
+      "fix": "Generate a random 16-byte salt per secret with `SecureRandom` or `SecRandomCopyBytes`, and store it next to the derived data.",
+      "verify": "For each PBKDF2 call, confirm the salt comes from a secure random source or from storage, never from a literal.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0014",
+      "masvs": "MASVS-CRYPTO-2",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_fixed_salt"
+    },
+    {
+      "id": "XPL-017",
+      "title": "gRPC channel sends traffic in plain text",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A plaintext gRPC channel skips TLS entirely, and Network Security Config and ATS don't cover gRPC sockets. Anyone on the network can read and change every call, including auth metadata.",
+      "fix": "Use `useTransportSecurity()` (grpc-java), `.tls` (grpc-swift), or `ChannelCredentials.secure()` (grpc-dart). Keep plaintext only for a local test server in debug builds.",
+      "verify": "Capture the app's gRPC traffic with a proxy and confirm it is a TLS handshake, not readable HTTP/2 frames.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val channel = ManagedChannelBuilder.forAddress(\"api.example.com\", 443)\n    .useTransportSecurity()\n    .build()"
+      },
+      "confidence": "high",
+      "detector": "xpl_grpc_plaintext"
+    },
+    {
+      "id": "XPL-018",
+      "title": "Biometric check falls back to the device passcode",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "When the prompt also accepts the device PIN or passcode, anyone who has watched the user unlock the phone can approve the action. For a payment or a vault unlock, that removes the point of the biometric.",
+      "fix": "For high-value actions, require `BIOMETRIC_STRONG` or `.biometryCurrentSet` with a key bound to it. Make the fallback a server-side step-up (password, passkey, or OTP), not the device PIN.",
+      "verify": "Trigger the sensitive action and confirm the prompt offers no \"Use PIN\" or \"Enter Passcode\" option.",
+      "effort": "hours",
+      "book": "§11.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#114-fallbacks-and-the-tension-inside-them",
+      "maswe": "MASWE-0021",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0326",
+        "MASTG-TEST-0268",
+        "MASTG-BEST-0031"
+      ],
+      "app_types": [
+        "banking",
+        "identity",
+        "health"
+      ],
+      "not_needed_reason": "A device-passcode fallback is fine for unlocking an app that holds no high-value data.",
+      "confidence": "high",
+      "detector": "xpl_biometric_fallback"
+    },
+    {
+      "id": "XPL-019",
+      "title": "Private key or client certificate ships inside the app",
+      "platform": "cross",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anything in the app package is public. A bundled private key, or a client-certificate keystore with its password in the code, lets anyone impersonate the app to your mTLS server or sign as you.",
+      "fix": "Remove the key and rotate it. For mTLS, have each device generate its key pair in the Keystore or Secure Enclave and enroll it with your server.",
+      "verify": "Unpack the release APK or IPA and search it for `PRIVATE KEY` and for `.p12`, `.pfx`, `.pem`, and `.key` files; nothing should be found.",
+      "effort": "days",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0003",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0214"
+      ],
+      "confidence": "high",
+      "detector": "xpl_bundled_private_key"
+    },
+    {
+      "id": "XPL-020",
+      "title": "Zip entry name is used as a path without a containment check (Zip Slip)",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An archive entry named `../../shared_prefs/x.xml` writes outside the folder you meant. A malicious download or a shared file can then overwrite app code, preferences, or databases.",
+      "fix": "Resolve the canonical path of each output file and reject the entry unless it starts with the target folder's canonical path plus a separator.",
+      "verify": "Extract an archive whose entry is named `../evil.txt` and confirm the app refuses it and nothing is written outside the target folder.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val target = File(destDir, entry.name).canonicalFile\nrequire(target.path.startsWith(destDir.canonicalPath + File.separator)) {\n    \"Blocked zip entry outside the target folder: ${entry.name}\"\n}"
+      },
+      "confidence": "medium",
+      "detector": "xpl_zip_slip"
+    },
+    {
+      "id": "XPL-021",
+      "title": "No root or jailbreak detection found",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "A rooted or jailbroken device lets other code read the app's memory and storage and hook its checks. Without any signal, your backend can't weigh that risk for a payment or sign-in.",
+      "fix": "Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally.",
+      "verify": "Run the app on a rooted emulator or a jailbroken device and confirm the backend receives the signal.",
+      "effort": "days",
+      "book": "§14.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code",
+      "maswe": "MASWE-0051",
+      "masvs": "MASVS-RESILIENCE-1",
+      "mastg": [
+        "MASTG-TEST-0324",
+        "MASTG-TEST-0240",
+        "MASTG-BEST-0030"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_no_root_detection"
+    },
+    {
+      "id": "XPL-022",
+      "title": "No debugger detection found",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "An attached debugger can read keys from memory and skip any client-side check. Without a debugger signal, the backend can't tell a tampered session from a normal one.",
+      "fix": "Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup.",
+      "verify": "Attach a debugger to a release build and confirm the signal reaches the backend.",
+      "effort": "hours",
+      "book": "§14.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code",
+      "maswe": "MASWE-0064",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-TEST-0352",
+        "MASTG-TEST-0401",
+        "MASTG-BEST-0047",
+        "MASTG-BEST-0074"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_no_debugger_detection"
+    },
+    {
+      "id": "XPL-023",
+      "title": "RSA encryption uses PKCS #1 v1.5 or no padding",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "PKCS #1 v1.5 encryption padding is open to padding-oracle attacks that recover the plaintext, and raw RSA with no padding is deterministic and malleable. `Cipher.getInstance(\"RSA\")` picks PKCS #1 v1.5.",
+      "fix": "Use `RSA/ECB/OAEPWithSHA-256AndMGF1Padding` (on the Keystore, set the MGF1 digest to SHA-1), or better, ECDH with AES-GCM.",
+      "verify": "Search for `\"RSA\"`, `PKCS1Padding`, `NoPadding`, and `rsaEncryptionPKCS1`; only OAEP should remain.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "xpl_rsa_pkcs1"
+    },
+    {
+      "id": "XPL-024",
+      "title": "Signature uses SHA-1 or MD5",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A signature over a SHA-1 or MD5 hash can be forged by finding a colliding message. Anything that trusts the signature, such as a license, an update, or a request, can then be faked.",
+      "fix": "Sign with SHA-256 or stronger, for example `SHA256withECDSA` on a P-256 key.",
+      "verify": "Search for `SHA1with`, `MD5with`, `NONEwith`, and `SHA1` signature algorithms; none should remain.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0010",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "xpl_weak_signature"
+    },
+    {
+      "id": "XPL-025",
+      "title": "MAC or signature compared with an ordinary equality check",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`Arrays.equals`, `contentEquals`, and `==` stop at the first byte that differs, so response time reveals how much of a guessed MAC is right. An attacker can then forge a valid tag byte by byte.",
+      "fix": "Compare MACs with `MessageDigest.isEqual` on the JVM, `HMAC.isValidAuthenticationCode` in CryptoKit, or a constant-time compare in Dart.",
+      "verify": "For each MAC or signature check, confirm it uses a constant-time comparison.",
+      "effort": "minutes",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0009",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val expected = mac.doFinal(data)\nif (!MessageDigest.isEqual(expected, receivedTag)) {\n    throw SecurityException(\"MAC mismatch\")\n}"
+      },
+      "confidence": "medium",
+      "detector": "xpl_mac_compare"
+    },
+    {
+      "id": "XPL-026",
+      "title": "Generated key is saved next to the data it protects",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A key generated in app memory and written to preferences or a file sits beside its ciphertext. Anyone who can copy the app's storage, from a backup or a rooted device, gets both.",
+      "fix": "Generate the key inside the Android Keystore or the Secure Enclave, or use Tink with an `android-keystore://` master key, so the raw key never reaches storage.",
+      "verify": "For each generated key, confirm its bytes are never written to preferences, DataStore, UserDefaults, or a file, unless wrapped by a Keystore or Keychain key.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0003",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_key_beside_data"
+    },
+    {
+      "id": "XPL-027",
+      "title": "SecRandomCopyBytes result is not checked",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`SecRandomCopyBytes` reports failure through its return status. If it fails and the status is ignored, the buffer keeps its initial zeros and becomes a predictable key, nonce, or salt.",
+      "fix": "Check the status: `guard status == errSecSuccess else { throw … }`. For keys, `SymmetricKey(size:)` handles this for you.",
+      "verify": "Search for `SecRandomCopyBytes` and confirm every call's return value is compared with `errSecSuccess`.",
+      "effort": "minutes",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0012",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0311"
+      ],
+      "confidence": "high",
+      "detector": "xpl_secrandom_unchecked"
+    },
+    {
+      "id": "XPL-028",
+      "title": "App never checks that the device has a screen lock",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "L2"
+      ],
+      "why": "On a device with no PIN, pattern, or passcode, the Keystore and Keychain protect nothing from someone holding the phone. Without a check, the app can't warn the user or bind secrets to the lock.",
+      "fix": "Bind secrets to keys that need a screen lock (`setUserAuthenticationRequired`, `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`), and check `isDeviceSecure` or `canEvaluatePolicy`.",
+      "verify": "Remove the screen lock on a test device and confirm the app warns the user or refuses the sensitive feature.",
+      "effort": "hours",
+      "book": "§4.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#46-key-authorizations-the-conditions-the-hardware-enforces",
+      "maswe": "MASWE-0017",
+      "masvs": "MASVS-CRYPTO-2",
+      "mastg": [
+        "MASTG-TEST-0247",
+        "MASTG-TEST-0248"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_no_screen_lock_check"
+    },
+    {
+      "id": "XPL-029",
+      "title": "Native code writes a secret into the WebView's DOM",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Once a code, token, or balance is in the page's DOM, every script on the page can read it, including third-party or injected scripts. The native side has no control over it afterward.",
+      "fix": "Render the value in a native view over the WebView, or pass it through a narrow, origin-checked message channel that never writes it into the DOM.",
+      "verify": "Inspect the WebView with remote debugging on a debug build and confirm the secret never appears in the DOM.",
+      "effort": "hours",
+      "book": "§16.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#165-sensitive-ui-inside-a-webview",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0380",
+        "MASTG-BEST-0059"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_webview_dom_secret"
+    },
+    {
+      "id": "XPL-030",
+      "title": "Embedded TLS library skips certificate checks or allows old TLS",
+      "platform": "cross",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "libcurl, OpenSSL, BoringSSL, wolfSSL, and mbedTLS bypass the platform's TLS settings. With verification off, anyone on the network can impersonate the server; below TLS 1.2, old protocol attacks apply.",
+      "fix": "Verify the peer and the host name (`CURLOPT_SSL_VERIFYPEER` and `VERIFYHOST` on, `SSL_VERIFY_PEER`), and set TLS 1.2 as the minimum version.",
+      "verify": "Send the native traffic through a proxy whose CA the device doesn't trust and confirm the handshake fails.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0345",
+        "MASTG-BEST-0043"
+      ],
+      "confidence": "high",
+      "detector": "xpl_native_tls"
+    },
+    {
+      "id": "XPL-031",
+      "title": "Local database stores credentials without encryption",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Room, Realm, and Hive write plain files in the app sandbox. They reach backups and anyone with file access, so a token or password column there can be lifted and replayed.",
+      "fix": "Keep tokens out of the database, or encrypt it: SQLCipher through `SupportOpenHelperFactory` with a Keystore-wrapped passphrase, Realm's `encryptionKey`, or Hive's `encryptionCipher`.",
+      "verify": "Pull the database file from a test device and open it with `sqlite3`; no token or password should be readable.",
+      "effort": "days",
+      "book": "§6.7",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#67-encrypting-a-local-database",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0304",
+        "MASTG-TEST-0306"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_db_plain_credentials"
+    },
+    {
+      "id": "XPL-032",
+      "title": "Notification shows a one-time code or a balance on the lock screen",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Lock-screen notifications are readable by anyone holding the phone. A one-time code there lets a thief finish a sign-in or a transfer without unlocking the device.",
+      "fix": "Set `VISIBILITY_PRIVATE` with a redacted `setPublicVersion` on Android. On iOS, send a generic message and fetch the detail after unlock.",
+      "verify": "Trigger the notification with the phone locked and confirm the code or balance is hidden.",
+      "effort": "hours",
+      "book": "§17.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget",
+      "maswe": "MASWE-0037",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0315",
+        "MASTG-BEST-0027"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_notification_secret"
+    },
+    {
+      "id": "XPL-033",
+      "title": "Password or PIN field shows the typed text",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "An unmasked password or PIN field shows the secret to anyone looking at the screen and to screen recording, and the keyboard may learn and suggest it later.",
+      "fix": "Use a password input type (`textPassword`, `numberPassword`), `PasswordVisualTransformation`, `SecureField`, or `obscureText: true`. A show-password toggle is fine.",
+      "verify": "Type into the field and confirm the characters are masked, and that the keyboard offers no suggestions.",
+      "effort": "hours",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0036",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0316",
+        "MASTG-TEST-0346",
+        "MASTG-BEST-0019",
+        "MASTG-BEST-0044"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_unmasked_secret_field"
+    },
+    {
+      "id": "XPL-034",
+      "title": "Analytics SDK receives personal data",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "P"
+      ],
+      "why": "Email addresses and phone numbers sent to analytics or crash SDKs leave your control, end up in third-party dashboards, and must be declared in Data safety and privacy labels.",
+      "fix": "Send a pseudonymous ID instead, and keep personal data out of event parameters and custom keys.",
+      "verify": "Capture the SDK's traffic or check its dashboard and confirm no email, phone number, or name appears.",
+      "effort": "hours",
+      "book": "§18.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#184-third-party-sdks-are-your-responsibility",
+      "maswe": "MASWE-0073",
+      "masvs": "MASVS-PRIVACY-3",
+      "mastg": [
+        "MASTG-TEST-0318"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_analytics_pii"
+    },
+    {
+      "id": "XPL-035",
+      "title": "Native code is built without compiler protections",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Stack canaries, position-independent code, RELRO, FORTIFY_SOURCE, and ARC are free defaults that make memory-corruption bugs much harder to exploit. These flags turn them off.",
+      "fix": "Remove the flags; the toolchain defaults are safe. Migrate files compiled with `-fno-objc-arc` to ARC.",
+      "verify": "Check the release binary: `checksec` or `readelf` on the `.so`, `otool -hv` and `otool -Iv` on the Mach-O, should show PIE, canaries, and RELRO.",
+      "effort": "minutes",
+      "book": "§19.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency",
+      "maswe": "MASWE-0045",
+      "masvs": "MASVS-CODE-3",
+      "mastg": [
+        "MASTG-TEST-0222",
+        "MASTG-TEST-0223",
+        "MASTG-TEST-0228",
+        "MASTG-TEST-0229",
+        "MASTG-TEST-0230"
+      ],
+      "confidence": "high",
+      "detector": "xpl_compiler_protections"
+    },
+    {
+      "id": "XPL-036",
+      "title": "Staging, test, or private-network endpoint in release code",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "A staging or development host in the release build points attackers at systems that are usually less protected, and a private address or the emulator's host address means debug wiring shipped.",
+      "fix": "Inject endpoints per build type or flavor, and keep non-production hosts out of the release variant.",
+      "verify": "Unpack the release build and search its strings for `staging`, `dev.`, `10.0.2.2`, and private addresses; none should remain.",
+      "effort": "minutes",
+      "book": "§15.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code",
+      "maswe": "MASWE-0061",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_nonprod_endpoint"
+    },
+    {
+      "id": "XPL-037",
+      "title": "OAuth sign-in uses a flow RFC 8252 rules out",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "The implicit flow puts tokens in a redirect any app can intercept, the password grant hands the user's password to the app, `plain` PKCE adds no protection, and a WebView sign-in page lets the app read the password.",
+      "fix": "Use the authorization code flow with PKCE (S256) in Custom Tabs, Auth Tab, or `ASWebAuthenticationSession`, for example through AppAuth.",
+      "verify": "Sign in and confirm the browser, not a WebView, shows the login page, and that the request carries `response_type=code` and `code_challenge_method=S256`.",
+      "effort": "hours",
+      "book": "Chapter 0.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-03-authentication-sessions-and-tokens",
+      "masvs": "MASVS-AUTH-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val request = AuthorizationRequest.Builder(\n    serviceConfig, clientId, ResponseTypeValues.CODE, redirectUri,\n).setScope(\"openid profile\").build()     // AppAuth adds PKCE S256 by default\nstartActivityForResult(authService.getAuthorizationRequestIntent(request), RC_AUTH)"
+      },
+      "confidence": "high",
+      "detector": "xpl_oauth_flow"
+    },
+    {
+      "id": "XPL-038",
+      "title": "No emulator detection found",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "Fraud and cheating at scale run on emulators. Without an emulator signal, the backend can't tell a farm of virtual devices from real users.",
+      "fix": "Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal.",
+      "verify": "Run a release build on an emulator and confirm the signal reaches the backend.",
+      "effort": "hours",
+      "book": "§14.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code",
+      "maswe": "MASWE-0053",
+      "masvs": "MASVS-RESILIENCE-1",
+      "mastg": [
+        "MASTG-BEST-0046",
+        "MASTG-BEST-0053"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_no_emulator_detection"
+    },
+    {
+      "id": "XPL-039",
+      "title": "No hooking or instrumentation detection found",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "Frida, Xposed, and Substrate rewrite the app's checks at runtime. Without a hooking signal, the backend trusts results that the attacker computed.",
+      "fix": "Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal.",
+      "verify": "Attach Frida to a release build and confirm the signal reaches the backend.",
+      "effort": "hours",
+      "book": "§14.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code",
+      "maswe": "MASWE-0065",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-BEST-0041",
+        "MASTG-BEST-0048"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_no_hook_detection"
+    },
+    {
+      "id": "XPL-040",
+      "title": "App has no way to force an update",
+      "platform": "cross",
+      "severity": "low",
+      "profiles": [
+        "L2"
+      ],
+      "why": "When a security bug ships, users on the old version stay exposed until they update. Without a forced update path, you can't retire a vulnerable version.",
+      "fix": "Keep a server-side minimum version and enforce it with Play's in-app updates (`IMMEDIATE`) or an App Store redirect.",
+      "verify": "Raise the minimum version on the server and confirm an older build blocks sensitive features until the user updates.",
+      "effort": "days",
+      "book": "§19.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency",
+      "maswe": "MASWE-0043",
+      "masvs": "MASVS-CODE-2",
+      "mastg": [
+        "MASTG-TEST-0392",
+        "MASTG-TEST-0383"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_no_forced_update"
+    },
+    {
+      "id": "XPL-041",
+      "title": "Jackson accepts attacker-chosen classes",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Default typing and `JsonTypeInfo.Id.CLASS` let the JSON name the class to build. With a gadget class on the classpath, crafted input becomes code execution or file access.",
+      "fix": "Use `JsonTypeInfo.Id.NAME` with registered subtypes, or kotlinx.serialization with sealed classes.",
+      "verify": "Search for `enableDefaultTyping`, `activateDefaultTyping`, and `Id.CLASS`; none should remain.",
+      "effort": "hours",
+      "book": "§19.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#194-deserialization",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-TEST-0337"
+      ],
+      "confidence": "high",
+      "detector": "xpl_jackson_typing"
+    },
+    {
+      "id": "XPL-042",
+      "title": "Shell command built from a variable",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A command string with input in it lets that input add its own commands. On a phone, that runs with the app's identity and reaches its files and keys.",
+      "fix": "Don't run shell commands with input. If you must start a process, pass a fixed program and an argument array, and validate each argument.",
+      "verify": "For each process call, confirm the program is a constant and no argument comes from input.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_shell_command"
     }
   ]
 }

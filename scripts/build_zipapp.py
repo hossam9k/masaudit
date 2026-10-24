@@ -79,7 +79,7 @@ def build(output: str) -> str:
                 with open(full, "rb") as fh:
                     data = fh.read()
                 zf.writestr(_info(name, date_time), data, compresslevel=9)
-    os.chmod(tmp, 0o755)
+    os.chmod(tmp, 0o700)          # runnable by its owner; git records only the executable bit
     os.replace(tmp, output)
     return output
 

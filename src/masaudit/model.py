@@ -59,6 +59,8 @@ class Finding:
     effective_severity: str = ""       # filled in by calibration
     bucket: str = ""                   # fix-before-release | fix-soon | notes | not-needed
     bucket_reason: str = ""
+    acknowledged: str = ""             # the team marked it intentional in the source (e.g. Lint tools:ignore)
+    severity: str = ""                 # this hit's own severity when it differs from the rule's; "" = rule's
 
     def fingerprint(self) -> str:
         import hashlib

@@ -67,6 +67,83 @@
       },
       "confidence": "manual",
       "detector": "kmp_ktor_pinning"
+    },
+    {
+      "id": "KMP-004",
+      "title": "Ktor client logs headers or bodies in every build",
+      "platform": "kmp",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Ktor's Logging plugin at `HEADERS`, `BODY`, or `ALL` writes the `Authorization` header or login responses to logcat and the iOS console in release builds too, unless headers are sanitized or the level depends on a debug flag.",
+      "fix": "Use `LogLevel.NONE` in release builds, and add `sanitizeHeader { it == HttpHeaders.Authorization }` wherever headers are logged.",
+      "verify": "Install a release build, sign in, and watch `adb logcat` or Console.app: no `Authorization` header or response body should appear.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0231",
+        "MASTG-TEST-0297"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "install(Logging) {\n    level = if (isDebugBuild) LogLevel.HEADERS else LogLevel.NONE\n    sanitizeHeader { it == HttpHeaders.Authorization || it == HttpHeaders.Cookie }\n}"
+      },
+      "confidence": "high",
+      "detector": "kmp_ktor_logging"
+    },
+    {
+      "id": "KMP-005",
+      "title": "Kotlin iOS code accepts any server certificate",
+      "platform": "kmp",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Answering the server-trust challenge with `NSURLCredential` for the presented trust, without evaluating it first, accepts any certificate. Anyone on the network can then read and change the app's traffic on iOS.",
+      "fix": "Call `SecTrustEvaluateWithError` on `challenge.protectionSpace.serverTrust` and cancel the challenge when it fails, or use Ktor's Darwin `CertificatePinner`, which validates the chain first.",
+      "verify": "Route an iPhone through a proxy whose CA it doesn't trust; every request from the shared client should fail.",
+      "effort": "hours",
+      "book": "§8.10",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0396"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "handleChallenge { _, _, challenge, completionHandler ->\n    val trust = challenge.protectionSpace.serverTrust\n    if (trust != null && SecTrustEvaluateWithError(trust, null)) {\n        completionHandler(NSURLSessionAuthChallengeUseCredential, NSURLCredential.create(trust = trust))\n    } else {\n        completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, null)\n    }\n}"
+      },
+      "confidence": "high",
+      "detector": "kmp_darwin_trust_all"
+    },
+    {
+      "id": "KMP-006",
+      "title": "Shared settings library stores a token in plain storage",
+      "platform": "kmp",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "multiplatform-settings writes to SharedPreferences on Android and NSUserDefaults on iOS. Both are plain files that backups copy, so a token or password stored there can be read and replayed.",
+      "fix": "Put secrets behind an `expect` interface backed by `KeychainSettings` on Apple and a Keystore-backed store (Tink with DataStore) on Android. Keep only non-secret settings in plain storage.",
+      "verify": "Sign in on an emulator and run `adb shell run-as <package> cat shared_prefs/*.xml`; no token or password should appear. On iOS, check the app's Preferences plist the same way.",
+      "effort": "hours",
+      "book": "§21.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#212-the-mistake-that-will-bite-you",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// commonMain\ninterface SecretStore { fun put(key: String, value: String); fun get(key: String): String? }\n\n// iosMain\nclass IosSecretStore : SecretStore {\n    private val settings = KeychainSettings(service = \"com.example.secrets\")\n    override fun put(key: String, value: String) = settings.putString(key, value)\n    override fun get(key: String) = settings.getStringOrNull(key)\n}\n// androidMain: Tink AEAD with an android-keystore:// master key over DataStore (§6.6)."
+      },
+      "confidence": "high",
+      "detector": "kmp_settings_token"
     }
   ]
 }

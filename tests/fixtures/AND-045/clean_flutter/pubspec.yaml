@@ -1,0 +1,3 @@
+name: bank
+dependencies:
+  screen_protector: ^1.4.0

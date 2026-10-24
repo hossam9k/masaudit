@@ -4,15 +4,15 @@
 
 These snippets are released under MIT-0: use them in any app, no attribution needed. Adapt names to the project, keep the logic.
 
-## CI-001: Third-party action is pinned to a tag or branch, not a commit SHA
+## CI-001: Action is pinned to a tag or branch, not a commit SHA
 
-Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current.
+Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current. Reference this repository's own actions as `./…` or `$/…`.
 
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 ```
 
-Verify: Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` should end in a 40-character SHA.
+Verify: Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` in workflows and composite `action.yml` files should end in a 40-character SHA.
 
 Book: [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
 
@@ -78,7 +78,7 @@ Book: [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06
 
 ## CI-005: actions/checkout leaves the job token on disk
 
-Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token, and it can pass it explicitly to that one command.
+Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token: set `persist-credentials: true` there on purpose, or pass the token to that one command.
 
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,7 +132,7 @@ Book: [§15.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/06
 
 ## CI-008: No dependency lockfile is committed
 
-Enable Gradle dependency locking and commit each module's `gradle.lockfile`. For Swift packages, commit `Package.resolved`. Libraries that others depend on may leave `Package.resolved` out on purpose.
+Enable Gradle dependency locking and commit each module's `gradle.lockfile`, or commit `gradle/verification-metadata.xml` with `<verify-metadata>true</verify-metadata>`. For Swift packages, commit `Package.resolved`; libraries others depend on may leave it out on purpose.
 
 ```kotlin
 // build.gradle.kts (each module, or once in a convention plugin)

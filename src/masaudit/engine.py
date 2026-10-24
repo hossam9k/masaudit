@@ -27,6 +27,9 @@ class Hit:
     line: int = 0
     snippet: str = ""
     message: str = ""
+    scope: str = ""          # set by a detector that knows better than the path (e.g. "debug" under #if DEBUG)
+    acknowledged: str = ""   # how the source marks it intentional, e.g. "tools:ignore=AcceptsUserCertificates"
+    severity: str = ""       # this hit's own severity when it differs from the rule's (e.g. a same-org action)
 
 
 DetectorFn = Callable[["Context", Rule], Iterable[Hit]]
@@ -67,7 +70,12 @@ class Context:
 
     def text(self, path: str) -> Optional[str]:
         if path not in self._text:
-            self._text[path] = safety.read_text(self.root, path)
+            text = safety.read_text(self.root, path)
+            # Detectors see one line ending. Files committed with CRLF (common from Windows) would
+            # otherwise leave a `\r` before every `$` in a pattern.
+            if text is not None and "\r" in text:
+                text = text.replace("\r\n", "\n").replace("\r", "\n")
+            self._text[path] = text
         return self._text[path]
 
     def code(self, path: str, keep_strings: bool = True) -> Optional[str]:
@@ -176,7 +184,9 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                     rule=rule,
                     location=Location(path=h.path, line=h.line, snippet=h.snippet),
                     message=h.message,
-                    scope=scope_of(h.path) if h.path else "main",
+                    scope=h.scope or (scope_of(h.path) if h.path else "main"),
+                    acknowledged=h.acknowledged,
+                    severity=h.severity,
                 )
             )
     return _dedupe(findings)
@@ -259,7 +269,8 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
                 f"This belongs to {wanted}, which a {profile.app_type} app doesn't need."
             )
             continue
-        rank = SEVERITY_RANK[rule.severity] + SCOPE_DOWNGRADE.get(f.scope, 0)
+        base = f.severity if f.severity in SEVERITY_RANK else rule.severity
+        rank = SEVERITY_RANK[base] + SCOPE_DOWNGRADE.get(f.scope, 0) + (1 if f.acknowledged else 0)
         f.effective_severity = SEVERITIES[min(rank, len(SEVERITIES) - 1)]
         if f.effective_severity in ("critical", "high"):
             f.bucket = "fix-before-release"
@@ -269,4 +280,11 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
             f.bucket = "notes"
         if f.scope in ("debug", "test"):
             f.bucket_reason = f"Lowered because it's in {f.scope} code."
+        elif f.acknowledged:
+            f.bucket_reason = (f"Lowered one level: the source marks this as intentional ({f.acknowledged}). "
+                               "Confirm the reason is written down.")
+        elif base != rule.severity:
+            higher = SEVERITY_RANK[base] < SEVERITY_RANK[rule.severity]
+            f.bucket_reason = (f"Rated {base} for this case ({'above' if higher else 'below'} the rule's usual "
+                               f"{rule.severity}); the finding says why.")
     return findings

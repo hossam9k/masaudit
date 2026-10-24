@@ -1,0 +1,3 @@
+export const key = `-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7
+-----END PRIVATE KEY-----`;

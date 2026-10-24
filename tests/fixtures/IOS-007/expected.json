@@ -1,1 +1,1 @@
-{"vulnerable": 1, "vulnerable_flutter": 1, "clean": 0, "clean_trustkit": 0, "clean_delegate": 0, "clean_flutter": 0, "clean_flutter_native_pins": 0, "clean_react_native": 0}
+{"vulnerable": 1, "vulnerable_flutter": 1, "clean": 0, "clean_trustkit": 0, "clean_delegate": 0, "clean_flutter": 0, "clean_flutter_native_pins": 0, "clean_react_native": 0, "vulnerable_tofu": 1, "clean_anchor": 0, "vulnerable_xcodegen": 2, "clean_kmp_scaffold": 0}

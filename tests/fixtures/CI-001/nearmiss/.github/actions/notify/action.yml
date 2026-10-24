@@ -1,0 +1,5 @@
+name: notify
+description: A JavaScript action and a Dockerfile action have no `uses:` steps to pin.
+runs:
+  using: node24
+  main: dist/index.js

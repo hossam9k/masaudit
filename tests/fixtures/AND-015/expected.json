@@ -1,1 +1,1 @@
-{"vulnerable": 5, "clean": 0}
+{"vulnerable": 5, "clean": 0, "clean_public_contracts": 0, "clean_app_permission": 0, "vulnerable_private_surfaces": 8, "clean_interop": 0, "vulnerable_must_stay_high": 3, "vulnerable_caller_check": 1}

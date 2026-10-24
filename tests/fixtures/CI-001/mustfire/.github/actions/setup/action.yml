@@ -1,0 +1,14 @@
+name: setup
+description: Composite action; its steps run inside every workflow that calls it.
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+    - name: Decode the keystore
+      uses: davidSchuppa/base64Secret-toFile-action@v2
+    - uses: ./.github/actions/other
+    - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+    - run: echo "uses: some/thing@main is only text here"
+      shell: bash

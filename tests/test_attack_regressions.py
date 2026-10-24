@@ -73,7 +73,7 @@ class AttackRegressions(unittest.TestCase):
             path = os.path.join(hooks, hook)
             with open(path, "w") as fh:
                 fh.write(f"#!/bin/sh\ntouch '{marker}'\n")
-            os.chmod(path, 0o755)
+            os.chmod(path, 0o700)
         subprocess.run([git, "config", "core.hooksPath", hooks], cwd=self.tmp, check=True, env=env)
         with open(os.path.join(self.tmp, "a.txt"), "w") as fh:
             fh.write("x")
@@ -90,6 +90,15 @@ class AttackRegressions(unittest.TestCase):
             start = time.monotonic()
             workflows.load(crafted)
             self.assertLess(time.monotonic() - start, 2.0, crafted[:20])
+
+
+    def test_unclosed_flow_collection_in_a_large_workflow_is_fast(self):
+        # Found by the fuzz test on a slow CI runner: an unclosed `{` made the parser rescan the
+        # growing text for every following line, which was quadratic in the file size.
+        crafted = "jobs: {\n" + "x: \n" * 200_000
+        start = time.monotonic()
+        workflows.load(crafted)
+        self.assertLess(time.monotonic() - start, 2.0)
 
 
 class FuzzSmoke(unittest.TestCase):

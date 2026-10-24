@@ -65,7 +65,8 @@
       "maswe": "MASWE-0026",
       "masvs": "MASVS-NETWORK-1",
       "mastg": [
-        "MASTG-TEST-0342"
+        "MASTG-TEST-0342",
+        "MASTG-TEST-0343"
       ],
       "fix_code": {
         "lang": "swift",
@@ -226,8 +227,8 @@
       "profiles": [
         "L2"
       ],
-      "why": "Without ThisDeviceOnly, the item can be restored from a backup onto another device. A session token then travels with the backup instead of staying on the phone it was issued to.",
-      "fix": "Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. Skip this for items you sync on purpose with kSecAttrSynchronizable.",
+      "why": "Without ThisDeviceOnly, the item can be restored from a backup onto another device. A session token then travels with the backup instead of staying on the phone it was issued to. KeychainAccess defaults to .afterFirstUnlock, which has the same problem.",
+      "fix": "Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. With KeychainAccess, call .accessibility(.whenUnlockedThisDeviceOnly). Skip this for items you sync on purpose with kSecAttrSynchronizable.",
       "verify": "Back up a test device, restore it onto a second device, and confirm the app asks the user to sign in again.",
       "effort": "minutes",
       "book": "§4.4",
@@ -240,19 +241,7 @@
         "code": "let attributes: [String: Any] = [\n    kSecValueData as String: token,\n    // WhenUnlocked: needs an unlocked device. ThisDeviceOnly: never migrates\n    // to another device. See §4.4.\n    kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,\n]\n// Background refresh while locked? Use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,\n// never kSecAttrAccessibleAlways."
       },
       "confidence": "medium",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "ccessib",
-        "strings": "blank",
-        "regex": "\\bkSecAttrAccessible(?:WhenUnlocked|AfterFirstUnlock)\\b|\\.accessibility\\(\\s*\\.(?:whenUnlocked|afterFirstUnlock)\\s*\\)",
-        "unless_file": "kSecAttrSynchronizable\\b[^\\n]{0,40}\\b(?:true|kCFBooleanTrue|YES)\\b|\\.synchronizable\\(\\s*true\\s*\\)",
-        "message": "This Keychain accessibility class has no ThisDeviceOnly suffix."
-      }
+      "detector": "ios_keychain_migratable"
     },
     {
       "id": "IOS-010",
@@ -297,7 +286,7 @@
       "profiles": [
         "L2"
       ],
-      "why": "UserDefaults is a plain plist in the app container. It is copied into backups and is readable by anyone with access to the device's files. A long-lived token there can be lifted and replayed.",
+      "why": "UserDefaults is a plain plist in the app container (or in the shared App Group container for UserDefaults(suiteName:)). It is copied into backups and is readable by anyone with access to the device's files. A long-lived token there can be lifted and replayed.",
       "fix": "Keep short-lived tokens in memory. Store long-lived tokens and credentials in the Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly. Leave only non-secret settings in UserDefaults.",
       "verify": "On the simulator, sign in, then run `grep -rl \"eyJ\" \"$(xcrun simctl get_app_container booted <bundle id> data)/Library/Preferences\"` and confirm there is no output. UserDefaults is a binary plist, so don't add `-I`. If your tokens aren't JWTs, search for a known part of one instead.",
       "effort": "hours",
@@ -307,25 +296,15 @@
       "masvs": "MASVS-STORAGE-1",
       "mastg": [
         "MASTG-TEST-0300",
-        "MASTG-TEST-0302"
+        "MASTG-TEST-0302",
+        "MASTG-TEST-0388"
       ],
       "fix_code": {
         "lang": "swift",
         "code": "func storeToken(_ token: Data, account: String,\n                service: String = \"com.example.app.session\") throws {\n    let query: [String: Any] = [\n        kSecClass as String: kSecClassGenericPassword,\n        kSecAttrService as String: service,\n        kSecAttrAccount as String: account,\n    ]\n    let attributes: [String: Any] = [\n        kSecValueData as String: token,\n        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,\n    ]\n\n    // Update in place if it exists; add it if not. No delete-then-add window.\n    var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)\n    if status == errSecItemNotFound {\n        let newItem = query.merging(attributes) { _, new in new }\n        status = SecItemAdd(newItem as CFDictionary, nil)\n    }\n    guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }\n}"
       },
       "confidence": "manual",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "flags": "i",
-        "strings": "keep",
-        "regex": "(?:UserDefaults|NSUserDefaults)\\b[^\\n;]{0,120}?\\b(?:set|setValue|setObject)\\s*[(:][^\\n]{0,160}?forKey\\s*:\\s*@?\\\"(?![^\\\"]*(?:fcm|apns|push|device))[^\\\"]*(?:token|password|passwd|secret|jwt|credential|api_?key)[^\\\"]*\\\"|@AppStorage\\(\\s*\\\"(?![^\\\"]*(?:fcm|apns|push|device))[^\\\"]*(?:token|password|passwd|secret|jwt|credential|api_?key)[^\\\"]*\\\"",
-        "message": "A value whose key names a token or secret is written to UserDefaults."
-      }
+      "detector": "ios_userdefaults_secret"
     },
     {
       "id": "IOS-012",
@@ -343,25 +322,15 @@
       "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real",
       "maswe": "MASWE-0020",
       "masvs": "MASVS-AUTH-2",
-      "mastg": [],
+      "mastg": [
+        "MASTG-TEST-0266"
+      ],
       "fix_code": {
         "lang": "swift",
         "code": "// Create the key with [.privateKeyUsage, .biometryCurrentSet] (book §6.6), register its\n// public key with your server, then sign the server's challenge. The Face ID / Touch ID sheet\n// appears as part of using the key: there is no boolean to hook.\nlet context = LAContext()\ncontext.localizedReason = reason\nlet query: [String: Any] = [\n    kSecClass as String: kSecClassKey,\n    kSecAttrApplicationTag as String: tag,\n    kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,\n    kSecReturnRef as String: true,\n    kSecUseAuthenticationContext as String: context\n]\nvar item: CFTypeRef?\nlet status = SecItemCopyMatching(query as CFDictionary, &item)\nguard status == errSecSuccess, let item else { throw BiometricKeyError.keyMissing(status) }\nlet privateKey = item as! SecKey\n\nvar error: Unmanaged<CFError>?\nguard let signature = SecKeyCreateSignature(\n    privateKey, .ecdsaSignatureMessageX962SHA256, message as CFData, &error\n) as Data? else {\n    throw BiometricKeyError.signingFailed(error?.takeRetainedValue())\n}\n// Send `signature` with the request; the server verifies it with the enrolled public key."
       },
       "confidence": "manual",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "evaluatePolicy",
-        "strings": "blank",
-        "regex": "\\.evaluatePolicy\\s*\\(|\\bevaluatePolicy\\s*:",
-        "unless_file": "kSecAttrAccessControl|SecAccessControlCreateWithFlags|kSecUseAuthenticationContext|SecKeyCreateSignature",
-        "message": "evaluatePolicy is used, and this file never touches a key protected by SecAccessControl."
-      }
+      "detector": "ios_biometric_boolean"
     },
     {
       "id": "IOS-013",
@@ -533,18 +502,7 @@
         "code": "// Best for new code: Codable builds only the types you declared.\nlet order = try JSONDecoder().decode(Order.self, from: data)\n\n// If you must read NSKeyedArchiver data: secure coding with an explicit class.\nlet legacyOrder = try NSKeyedUnarchiver.unarchivedObject(ofClass: LegacyOrder.self, from: data)"
       },
       "confidence": "medium",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "Unarchiver",
-        "strings": "blank",
-        "regex": "\\bNSKeyedUnarchiver\\s*\\.\\s*unarchiveObject\\s*\\(\\s*(?:with|withFile)\\s*:|\\bunarchiveTopLevelObjectWithData\\b|\\[\\s*NSKeyedUnarchiver\\s+unarchiveObjectWith(?:Data|File)\\s*:|\\brequiresSecureCoding\\s*=\\s*(?:false|NO)\\b",
-        "message": "This NSKeyedUnarchiver call doesn't restrict which classes it builds."
-      }
+      "detector": "ios_insecure_unarchiver"
     },
     {
       "id": "IOS-019",
@@ -589,27 +547,17 @@
       "masvs": "MASVS-PLATFORM-1",
       "mastg": [
         "MASTG-TEST-0276",
-        "MASTG-TEST-0277"
+        "MASTG-TEST-0277",
+        "MASTG-TEST-0278",
+        "MASTG-TEST-0279",
+        "MASTG-TEST-0280"
       ],
       "fix_code": {
         "lang": "swift",
         "code": "import UniformTypeIdentifiers\n\nUIPasteboard.general.setItems(\n    [[UTType.plainText.identifier: sensitiveValue]],\n    options: [\n        .localOnly: true,                                // do not sync to other devices\n        .expirationDate: Date().addingTimeInterval(60)   // clears itself\n    ]\n)"
       },
       "confidence": "medium",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "asteboard",
-        "flags": "i",
-        "strings": "keep",
-        "regex": "(?:UIPasteboard\\s*\\.\\s*general|\\[\\s*UIPasteboard\\s+generalPasteboard\\s*\\])\\s*(?:\\.\\s*(?:string|strings|url|urls|items)\\s*=|\\.?\\s*(?:setValue|setData|setItems|addItems|setString)\\s*[(:])[^\\n]{0,160}?(?:password|passcode|token|secret|otp|\\bpin\\b|iban|card|cvv|cvc|seed|mnemonic|recovery|private_?key|api_?key)",
-        "unless_file": "localOnly|UIPasteboardOptionLocalOnly",
-        "message": "A value that looks secret goes to the general pasteboard without .localOnly."
-      }
+      "detector": "ios_pasteboard_secret"
     },
     {
       "id": "IOS-021",
@@ -619,8 +567,8 @@
       "profiles": [
         "L1"
       ],
-      "why": "ENABLE_TESTABILITY = YES exports internal symbols and makes Xcode skip stripping; STRIP_INSTALLED_PRODUCT = NO ships the symbol table. Both hand a reverse engineer readable function and type names for free.",
-      "fix": "In the Release configuration set ENABLE_TESTABILITY = NO and STRIP_INSTALLED_PRODUCT = YES, and keep symbols in a separate dSYM (DEBUG_INFORMATION_FORMAT = dwarf-with-dsym) for crash reports.",
+      "why": "ENABLE_TESTABILITY = YES exports internal symbols and makes Xcode skip stripping; STRIP_INSTALLED_PRODUCT = NO, STRIP_SWIFT_SYMBOLS = NO or a partial STRIP_STYLE ship the symbol table. All hand a reverse engineer readable function and type names for free.",
+      "fix": "In every configuration your schemes archive, set ENABLE_TESTABILITY = NO, STRIP_INSTALLED_PRODUCT = YES, STRIP_SWIFT_SYMBOLS = YES and STRIP_STYLE = all for the app, and keep symbols in a separate dSYM (DEBUG_INFORMATION_FORMAT = dwarf-with-dsym).",
       "verify": "Archive the release build and run `nm -U` on the app binary: you should see few or no readable Swift or Objective-C symbol names.",
       "effort": "minutes",
       "book": "§15.8",
@@ -634,6 +582,525 @@
       },
       "confidence": "high",
       "detector": "ios_release_testability"
+    },
+    {
+      "id": "IOS-022",
+      "title": "Debug tool pod or package ships in release builds",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "In-app debug tools such as FLEX, netfox, Wormholy or CocoaDebug show network traffic, the view tree, files and Keychain items to whoever holds the phone. Linked into Release, they ship to every user.",
+      "fix": "Add :configurations => ['Debug'] to the pod, or wrap the import and setup in #if DEBUG. Swift Package Manager can't limit a package to one configuration, so guard every use.",
+      "verify": "Archive the Release build and run `otool -L` and `nm` on the app binary: no FLEX, netfox, Wormholy or CocoaDebug symbols should appear.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "ruby",
+        "code": "target 'MyApp' do\n  # Debug-only tools never link into Release.\n  pod 'FLEX', :configurations => ['Debug']\nend"
+      },
+      "confidence": "high",
+      "detector": "ios_debug_tool_release"
+    },
+    {
+      "id": "IOS-023",
+      "title": "Web view file-origin rules turned off through key-value coding",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "allowFileAccessFromFileURLs and allowUniversalAccessFromFileURLs are private WebKit preferences. Set through setValue(_:forKey:), they let a file:// page read other local files, or any web origin, and send them anywhere.",
+      "fix": "Remove the setValue calls. Load bundled pages with loadFileURL(_:allowingReadAccessTo:) scoped to one folder, or serve them through a WKURLSchemeHandler.",
+      "verify": "Load a bundled page that tries `fetch('file:///etc/hosts')` and confirm WebKit blocks it.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0335",
+        "MASTG-BEST-0033"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let config = WKWebViewConfiguration()\n// No setValue(true, forKey: \"allowFileAccessFromFileURLs\").\nconfig.setURLSchemeHandler(BundleSchemeHandler(), forURLScheme: \"app-bundle\")\nlet webView = WKWebView(frame: .zero, configuration: config)\nwebView.load(URLRequest(url: URL(string: \"app-bundle://local/index.html\")!))"
+      },
+      "confidence": "high",
+      "detector": "ios_webview_file_access_kvc"
+    },
+    {
+      "id": "IOS-024",
+      "title": "Release entitlements let a debugger attach",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "get-task-allow = true lets any debugger attach to the process and read or change memory, keys and tokens. Distribution signing never sets it; a hard-coded true in a release entitlements file does.",
+      "fix": "Delete get-task-allow from the entitlements file. Xcode adds it for development signing only.",
+      "verify": "Run `codesign -d --entitlements - MyApp.app` on the archived build and confirm get-task-allow is absent or false.",
+      "effort": "minutes",
+      "book": "§15.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-TEST-0261"
+      ],
+      "confidence": "high",
+      "detector": "ios_get_task_allow"
+    },
+    {
+      "id": "IOS-025",
+      "title": "Release configuration compiles DEBUG-only code",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "When a shipping configuration defines DEBUG, every #if DEBUG block (test servers, logging, bypass switches) compiles into the App Store build. It also hides those blocks from scanners that assume DEBUG is off in release.",
+      "fix": "Remove DEBUG from SWIFT_ACTIVE_COMPILATION_CONDITIONS, OTHER_SWIFT_FLAGS and GCC_PREPROCESSOR_DEFINITIONS in every configuration your schemes archive.",
+      "verify": "Run `xcodebuild -showBuildSettings -configuration Release` and confirm DEBUG isn't in SWIFT_ACTIVE_COMPILATION_CONDITIONS or GCC_PREPROCESSOR_DEFINITIONS.",
+      "effort": "minutes",
+      "book": "§15.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "xcconfig",
+        "code": "// Release.xcconfig\nSWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited)\nGCC_PREPROCESSOR_DEFINITIONS = $(inherited)"
+      },
+      "confidence": "high",
+      "detector": "ios_release_debug_flag"
+    },
+    {
+      "id": "IOS-026",
+      "title": "Advertising identifier read without App Tracking Transparency",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "P"
+      ],
+      "why": "Since iOS 14.5 the IDFA may be read only after the user allows tracking in the ATT prompt, which needs a purpose string. Reading it without both breaks App Store rules and tracks people who never agreed.",
+      "fix": "Call ATTrackingManager.requestTrackingAuthorization before you read the IDFA, and add NSUserTrackingUsageDescription. Better, use identifierForVendor or a server-side ID.",
+      "verify": "Reset the simulator's privacy settings, launch the app, and confirm the ATT prompt appears before any request carries the IDFA.",
+      "effort": "hours",
+      "book": "§18.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#182-identifiers-and-tracking",
+      "maswe": "MASWE-0068",
+      "masvs": "MASVS-PRIVACY-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "import AppTrackingTransparency\nimport AdSupport\n\nATTrackingManager.requestTrackingAuthorization { status in\n    guard status == .authorized else { return }   // no IDFA otherwise\n    let idfa = ASIdentifierManager.shared().advertisingIdentifier\n    // ...\n}"
+      },
+      "confidence": "high",
+      "detector": "ios_idfa_without_att"
+    },
+    {
+      "id": "IOS-027",
+      "title": "Required-reason API used without a declared reason",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "P"
+      ],
+      "why": "UserDefaults, file timestamps, system boot time, disk space and active keyboards can fingerprint a device. Apple requires each use to be declared with an approved reason in PrivacyInfo.xcprivacy, and App Store Connect rejects uploads that don't.",
+      "fix": "Add an NSPrivacyAccessedAPITypes entry for the category with an approved reason code, such as CA92.1 for UserDefaults or C617.1 for file timestamps.",
+      "verify": "Archive the app, generate the privacy report in Xcode's Organizer, and confirm the category is listed with your reason.",
+      "effort": "minutes",
+      "book": "§18.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#183-transparency-and-control",
+      "maswe": "MASWE-0073",
+      "masvs": "MASVS-PRIVACY-3",
+      "mastg": [],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<key>NSPrivacyAccessedAPITypes</key>\n<array>\n    <dict>\n        <key>NSPrivacyAccessedAPIType</key>\n        <string>NSPrivacyAccessedAPICategoryUserDefaults</string>\n        <key>NSPrivacyAccessedAPITypeReasons</key>\n        <array>\n            <string>CA92.1</string>\n        </array>\n    </dict>\n</array>"
+      },
+      "confidence": "high",
+      "detector": "ios_required_reason_api"
+    },
+    {
+      "id": "IOS-028",
+      "title": "App Attest isn't integrated",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "R"
+      ],
+      "why": "Without App Attest, the server can't tell your genuine app from a repackaged copy, an emulator script or a bot replaying your API. DeviceCheck alone only flags devices, not the app.",
+      "fix": "Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.",
+      "verify": "Call a sensitive endpoint with curl using a valid session and confirm the server rejects it for a missing or invalid assertion.",
+      "effort": "days",
+      "book": "§10.7",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#107-how-to-implement-it",
+      "maswe": "MASWE-0056",
+      "masvs": "MASVS-RESILIENCE-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "import DeviceCheck\n\nlet service = DCAppAttestService.shared\nguard service.isSupported else { return reportUnsupported() }\nlet keyId = try await service.generateKey()\nlet challenge = try await api.fetchAttestationChallenge()          // from your server\nlet attestation = try await service.attestKey(keyId, clientDataHash: Data(SHA256.hash(data: challenge)))\ntry await api.registerAttestation(keyId: keyId, attestation: attestation)\n// Later: service.generateAssertion(keyId, clientDataHash:) on sensitive requests."
+      },
+      "confidence": "high",
+      "detector": "ios_app_attest_missing"
+    },
+    {
+      "id": "IOS-029",
+      "title": "LocalAuthentication accepts a recent unlock",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "touchIDAuthenticationAllowableReuseDuration above zero lets a device unlock from the last few seconds or minutes satisfy the check with no new prompt, so whoever picks up an unlocked phone passes it.",
+      "fix": "Leave touchIDAuthenticationAllowableReuseDuration at 0 for payments, transfers and other sensitive actions.",
+      "verify": "Unlock the device, open the sensitive action right away, and confirm Face ID or Touch ID is requested again.",
+      "effort": "minutes",
+      "book": "§11.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#114-fallbacks-and-the-tension-inside-them",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "ios_biometric_reuse"
+    },
+    {
+      "id": "IOS-030",
+      "title": "App never hides its screen in the app switcher or recordings",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "iOS stores a snapshot of the last screen for the app switcher, and screen recording or mirroring shows everything live. Without an overlay, balances, messages or one-time codes stay visible there.",
+      "fix": "Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.",
+      "verify": "Open a sensitive screen, swipe to the app switcher, and confirm the snapshot shows the cover; start a screen recording and confirm the content is hidden.",
+      "effort": "hours",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0038",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [],
+      "fix_code": {
+        "lang": "swift",
+        "code": "func sceneWillResignActive(_ scene: UIScene) {\n    guard let window = (scene as? UIWindowScene)?.windows.first else { return }\n    let cover = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterial))\n    cover.frame = window.bounds\n    cover.tag = 0x5EC\n    window.addSubview(cover)\n}\n\nfunc sceneDidBecomeActive(_ scene: UIScene) {\n    (scene as? UIWindowScene)?.windows.first?.viewWithTag(0x5EC)?.removeFromSuperview()\n}"
+      },
+      "confidence": "medium",
+      "detector": "ios_app_switcher_snapshot"
+    },
+    {
+      "id": "IOS-031",
+      "title": "Web view can read a whole app container folder",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "loadFileURL(_:allowingReadAccessTo:) with Documents, Library or the home folder lets the page, and any script injected into it, read every file there: databases, caches and downloaded documents.",
+      "fix": "Grant read access only to the folder that holds the page, such as a subfolder of Bundle.main.resourceURL.",
+      "verify": "From the loaded page, try to fetch a file outside its folder (for example a database in Library) and confirm it fails.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0333",
+        "MASTG-BEST-0033"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let pageDir = Bundle.main.resourceURL!.appendingPathComponent(\"help\", isDirectory: true)\nwebView.loadFileURL(pageDir.appendingPathComponent(\"index.html\"), allowingReadAccessTo: pageDir)"
+      },
+      "confidence": "medium",
+      "detector": "ios_webview_broad_file_access"
+    },
+    {
+      "id": "IOS-032",
+      "title": "Deep link URL is loaded into a web view",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Any app or web page can open your URL scheme or universal link. If the URL it carries goes straight into a WKWebView, an attacker's page runs inside your app, next to its bridges and cookies.",
+      "fix": "Parse the incoming URL, require https, and compare its host with an exact allowlist before loading it. Open anything else in Safari or SFSafariViewController.",
+      "verify": "Run `xcrun simctl openurl booted '<scheme>://open?url=https://evil.example'` and confirm the web view doesn't load evil.example.",
+      "effort": "hours",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0332",
+        "MASTG-BEST-0034"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let allowedHosts: Set<String> = [\"www.example.com\", \"help.example.com\"]\n\nfunc open(_ target: URL) {\n    guard target.scheme == \"https\", let host = target.host, allowedHosts.contains(host) else {\n        UIApplication.shared.open(target)        // anything else leaves the app\n        return\n    }\n    webView.load(URLRequest(url: target))\n}"
+      },
+      "confidence": "medium",
+      "detector": "ios_deeplink_webview"
+    },
+    {
+      "id": "IOS-033",
+      "title": "Network.framework connection allows TLS below 1.2",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "ATS doesn't cover Network.framework or Secure Transport connections. Allowing TLS 1.0 or 1.1 there lets an attacker on the network force a protocol with known weaknesses.",
+      "fix": "Set the minimum to .TLSv12 (or .TLSv13) with sec_protocol_options_set_min_tls_protocol_version.",
+      "verify": "Point the connection at a test server that only offers TLS 1.1 (`openssl s_server -tls1_1`) and confirm the handshake fails.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0344",
+        "MASTG-BEST-0043"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let tls = NWProtocolTLS.Options()\nsec_protocol_options_set_min_tls_protocol_version(tls.securityProtocolOptions, .TLSv12)\nlet params = NWParameters(tls: tls)"
+      },
+      "confidence": "high",
+      "detector": "ios_network_framework_tls"
+    },
+    {
+      "id": "IOS-034",
+      "title": "Sensitive files sit in a Documents folder the Files app shows",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "UIFileSharingEnabled exposes Documents in Finder and the Files app. Tokens, databases or exports stored there can be copied off the device by anyone with the phone, and they go into computer backups.",
+      "fix": "Keep app data in Application Support (or Caches), exclude it from backup where it fits, and put only files the user should see in Documents.",
+      "verify": "Connect the device to a Mac, open it in Finder's Files tab, and confirm no database, token or export file is listed for the app.",
+      "effort": "hours",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0002",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0303",
+        "MASTG-BEST-0024"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,\n                                          appropriateFor: nil, create: true)\nlet store = support.appendingPathComponent(\"app.sqlite\")\ntry data.write(to: store, options: .completeFileProtection)"
+      },
+      "confidence": "medium",
+      "detector": "ios_documents_exposed"
+    },
+    {
+      "id": "IOS-035",
+      "title": "Secret written to a file in the App Group container",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "The App Group container is shared with every app and extension in the group and isn't Keychain-protected. A token written there as a file is as exposed as plain storage, and every member can read it.",
+      "fix": "Share secrets through a Keychain access group (kSecAttrAccessGroup) instead, and keep only non-secret data in the group container.",
+      "verify": "On a simulator, open the group container (`xcrun simctl get_app_container booted <bundle id> <group id>`) and confirm no file holds a token or password.",
+      "effort": "hours",
+      "book": "§17.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0388",
+        "MASTG-BEST-0068"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let query: [String: Any] = [\n    kSecClass as String: kSecClassGenericPassword,\n    kSecAttrAccount as String: \"session\",\n    kSecAttrAccessGroup as String: \"TEAMID.com.example.shared\",   // shared with the extension\n    kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,\n    kSecValueData as String: token,\n]\nSecItemAdd(query as CFDictionary, nil)"
+      },
+      "confidence": "medium",
+      "detector": "ios_app_group_secret_file"
+    },
+    {
+      "id": "IOS-036",
+      "title": "App doesn't refuse third-party keyboards",
+      "platform": "ios",
+      "severity": "low",
+      "profiles": [
+        "L2"
+      ],
+      "why": "A third-party keyboard with Full Access can send everything typed into your app, including passwords and card numbers, to its developer. iOS disables custom keyboards only in secure text fields.",
+      "fix": "Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.",
+      "verify": "Install a third-party keyboard, open the app, and confirm only the system keyboard appears in every field.",
+      "effort": "minutes",
+      "book": "§17.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget",
+      "maswe": "MASWE-0031",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-TEST-0389",
+        "MASTG-BEST-0069"
+      ],
+      "app_types": [
+        "banking",
+        "identity"
+      ],
+      "not_needed_reason": "Refusing custom keyboards takes away the user's preferred keyboard everywhere in the app. It pays off where typed credentials and transaction details are the asset; secure text fields already use the system keyboard (§17.6).",
+      "fix_code": {
+        "lang": "swift",
+        "code": "func application(_ application: UIApplication,\n                 shouldAllowExtensionPointIdentifier extensionPointIdentifier: UIApplication.ExtensionPointIdentifier) -> Bool {\n    extensionPointIdentifier != .keyboard\n}"
+      },
+      "confidence": "medium",
+      "detector": "ios_third_party_keyboard"
+    },
+    {
+      "id": "IOS-037",
+      "title": "Bundled keyboard extension requests Full Access",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "P"
+      ],
+      "why": "RequestsOpenAccess gives your keyboard network access and shared storage, so everything users type in any app could leave the device. Users must trust you with all their input.",
+      "fix": "Set RequestsOpenAccess to false unless a feature the user sees needs the network or shared storage.",
+      "verify": "Install the keyboard and confirm Settings doesn't offer an Allow Full Access switch for it.",
+      "effort": "minutes",
+      "book": "§17.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget",
+      "maswe": "MASWE-0066",
+      "masvs": "MASVS-PRIVACY-1",
+      "mastg": [
+        "MASTG-TEST-0390",
+        "MASTG-BEST-0069"
+      ],
+      "confidence": "high",
+      "detector": "ios_keyboard_full_access"
+    },
+    {
+      "id": "IOS-038",
+      "title": "Protected resource used without a usable purpose string",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "P"
+      ],
+      "why": "iOS shows the purpose string in the permission prompt. A missing key makes the request fail (or the app get rejected); an empty or placeholder text gives users no basis for an informed choice.",
+      "fix": "Add the Info.plist usage key with a specific sentence that names the feature, such as \"Scan a check to deposit it.\"",
+      "verify": "Reset privacy settings, trigger the feature, and confirm the prompt shows your specific explanation.",
+      "effort": "minutes",
+      "book": "§18.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why",
+      "maswe": "MASWE-0066",
+      "masvs": "MASVS-PRIVACY-1",
+      "mastg": [
+        "MASTG-TEST-0360",
+        "MASTG-BEST-0051"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<key>NSCameraUsageDescription</key>\n<string>Scan the QR code on your card to link it to your account.</string>"
+      },
+      "confidence": "medium",
+      "detector": "ios_purpose_string"
+    },
+    {
+      "id": "IOS-039",
+      "title": "Entitlement has no matching feature in code",
+      "platform": "ios",
+      "severity": "low",
+      "profiles": [
+        "P"
+      ],
+      "why": "Every entitlement widens what the app may reach (HealthKit, App Groups, iCloud, NFC). One the code never uses only adds attack surface and invites App Review questions.",
+      "fix": "Remove the capability in Xcode's Signing & Capabilities tab, which also deletes the entitlement.",
+      "verify": "Run `codesign -d --entitlements - MyApp.app` on the archive and confirm the entitlement is gone.",
+      "effort": "minutes",
+      "book": "§18.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why",
+      "maswe": "MASWE-0066",
+      "masvs": "MASVS-PRIVACY-1",
+      "mastg": [
+        "MASTG-TEST-0362",
+        "MASTG-BEST-0051"
+      ],
+      "confidence": "medium",
+      "detector": "ios_unused_entitlement"
+    },
+    {
+      "id": "IOS-040",
+      "title": "Tracking domain isn't declared in the privacy manifest",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "P"
+      ],
+      "why": "Apple requires apps that track to set NSPrivacyTracking and list tracking domains in NSPrivacyTrackingDomains. Undeclared, the list misleads users, and iOS can't block those hosts when tracking is denied.",
+      "fix": "Set NSPrivacyTracking to true and add every tracking domain you contact to NSPrivacyTrackingDomains, or stop calling the domain.",
+      "verify": "Archive the app, generate the privacy report in Xcode's Organizer, and confirm the domain appears under tracking domains.",
+      "effort": "hours",
+      "book": "§18.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#183-transparency-and-control",
+      "maswe": "MASWE-0074",
+      "masvs": "MASVS-PRIVACY-3",
+      "mastg": [
+        "MASTG-TEST-0281"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<key>NSPrivacyTracking</key>\n<true/>\n<key>NSPrivacyTrackingDomains</key>\n<array>\n    <string>app-measurement.com</string>\n</array>"
+      },
+      "confidence": "medium",
+      "detector": "ios_tracking_domains"
+    },
+    {
+      "id": "IOS-041",
+      "title": "App Attest uses the development environment in a release build",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "R"
+      ],
+      "why": "With appattest-environment set to development, the shipped app requests development attestations, which your server must accept from Apple's sandbox. Any developer-signed copy of the app can then pass.",
+      "fix": "Set com.apple.developer.devicecheck.appattest-environment to production in the release entitlements.",
+      "verify": "Check the archived app with `codesign -d --entitlements -` and confirm the value is production.",
+      "effort": "minutes",
+      "book": "§10.7",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#107-how-to-implement-it",
+      "maswe": "MASWE-0056",
+      "masvs": "MASVS-RESILIENCE-2",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "ios_appattest_development"
+    },
+    {
+      "id": "IOS-042",
+      "title": "XML parser resolves external entities",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With external entities or DTD loading on, a crafted XML document can make the parser read local files or send requests to other hosts (XXE), and nested entities can exhaust memory.",
+      "fix": "Leave shouldResolveExternalEntities false (the default) and drop XML_PARSE_NOENT and XML_PARSE_DTDLOAD from libxml2 options.",
+      "verify": "Feed the parser a document with `<!ENTITY x SYSTEM \"file:///etc/hosts\">` and confirm the entity stays unresolved.",
+      "effort": "minutes",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "ios_xml_external_entities"
     }
   ]
 }

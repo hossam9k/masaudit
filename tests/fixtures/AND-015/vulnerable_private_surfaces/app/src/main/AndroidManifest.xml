@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="com.example.SYNC" />
+    <application>
+        <activity android:name=".AutofillCallbackActivity" android:exported="true" />
+        <activity android:name=".Feed" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.example.intents.OPEN_FEED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".Poll" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name=".Poll.ACTION_POLL" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".Boot2" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.QUICKBOOT_POWERON" /></intent-filter>
+        </receiver>
+        <activity android:name=".MessageHome" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="k9mail" />
+            </intent-filter>
+        </activity>
+        <service android:name=".Sync" android:exported="true" android:permission="com.example.SYNC" />
+        <provider android:name=".Settings" android:authorities="x.settings" android:exported="true" />
+        <provider android:name=".Mig" android:authorities="x.mig" android:exported="true"
+            tools:ignore="ExportedContentProvider" />
+        <receiver android:name=".SmsReceiver" android:exported="true">
+            <intent-filter><action android:name="android.provider.Telephony.SMS_RECEIVED" /></intent-filter>
+        </receiver>
+    </application>
+</manifest>

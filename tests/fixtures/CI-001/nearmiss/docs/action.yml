@@ -1,0 +1,3 @@
+# Not action metadata: no `runs:` mapping.
+steps:
+  - uses: actions/checkout@v4

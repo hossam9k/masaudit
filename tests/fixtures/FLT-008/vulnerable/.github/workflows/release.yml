@@ -1,0 +1,8 @@
+name: release
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: flutter build appbundle --release
+      - run: flutter build ipa --release --obfuscate

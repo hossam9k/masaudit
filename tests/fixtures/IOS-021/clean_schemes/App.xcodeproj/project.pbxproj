@@ -1,0 +1,114 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+		AA0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA0000000000000000000004 /* UITests */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = "YES";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "UITests";
+		};
+		AA0000000000000000000005 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = "YES";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Profile";
+		};
+		AA0000000000000000000006 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000002,
+				AA0000000000000000000003,
+				AA0000000000000000000004,
+				AA0000000000000000000005,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000007 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA0000000000000000000001 /* App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000006;
+			buildPhases = (
+				AA0000000000000000000007,
+			);
+			name = "App";
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000008 = {
+			isa = PBXGroup;
+			children = (
+			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Debug";
+		};
+		AA000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Release";
+		};
+		AA000000000000000000000B /* UITests */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "UITests";
+		};
+		AA000000000000000000000C /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Profile";
+		};
+		AA000000000000000000000D = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000009,
+				AA000000000000000000000A,
+				AA000000000000000000000B,
+				AA000000000000000000000C,
+			);
+		};
+		AA000000000000000000000E /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = AA000000000000000000000D;
+			mainGroup = AA0000000000000000000008;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0000000000000000000001,
+			);
+		};
+	};
+	rootObject = AA000000000000000000000E /* Project object */;
+}

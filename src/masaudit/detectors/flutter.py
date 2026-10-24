@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Flutter (Dart) detectors: TLS bypass in `badCertificateCallback`, tokens in shared_preferences,
-and the Dart-side pinning evidence the Android and iOS pinning rules use. Book: §7.1, §6.4, §8.10.
+the Dart-side pinning evidence the Android and iOS pinning rules use, Dio logging, web view settings,
+biometric checks, and release obfuscation. Book: §7.1, §6.4, §6.6, §8.10, §11.1, §14.3, §16.3-16.6.
 
 Dart's `HttpClient` brings its own TLS stack, so `<pin-set>` and NSPinnedDomains don't cover it
 (book §8.10, MASTG-KNOW-0015). Every detector runs on code with comments blanked.
@@ -9,8 +10,9 @@ Dart's `HttpClient` brings its own TLS stack, so `<pin-set>` and NSPinnedDomains
 from __future__ import annotations
 
 import re
-from typing import Iterable, Optional, Set
+from typing import Iterable, Optional, Set, Tuple
 
+from masaudit import guards, safety
 from masaudit.detect import scope_of
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
@@ -124,3 +126,326 @@ def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
             seen.add(line)
             yield Hit(path, line, ctx.snippet(path, line),
                       f"`{what}` looks like a token or secret and is written to shared_preferences.")
+
+
+# ---------------------------------------------------------------------------- shared helpers
+
+_ASSERT = re.compile(r"\bassert\s*\(")
+
+
+def _release_off(blank: str, idx: int) -> bool:
+    """Debug-only Dart code: `if (kDebugMode)`, `if (kProfileMode)`, `if (!kReleaseMode)`, or inside
+    `assert(...)`, whose body is compiled out of release builds."""
+    if guards.dart_debug_guarded(blank, idx):
+        return True
+    if guards.guarded_by(blank, idx, lambda c: "!kReleaseMode" in c and "&&" not in c):
+        return True
+    for m in _ASSERT.finditer(blank, max(0, idx - 4000), idx):
+        if guards.match(blank, m.end() - 1, "(", ")") > idx:
+            return True
+    return False
+
+
+def _args_of(blank: str, open_paren: int) -> str:
+    return blank[open_paren:guards.match(blank, open_paren, "(", ")") + 1]
+
+
+def _hit_at(ctx: Context, path: str, blank: str, idx: int, message: str) -> Hit:
+    line = ctx.line_of(blank, idx)
+    scope = "debug" if _release_off(blank, idx) else ""
+    return Hit(path, line, ctx.snippet(path, line), message, scope=scope)
+
+
+def _pubspec_dir_of(ctx: Context, path: str) -> Optional[str]:
+    """Directory (relative, '' for the root) of the nearest pubspec.yaml above `path`."""
+    dirs = {p.rsplit("/", 1)[0] if "/" in p else "" for p in ctx.files(name="pubspec.yaml")}
+    cur = path.rsplit("/", 1)[0] if "/" in path else ""
+    while True:
+        if cur in dirs:
+            return cur
+        if not cur:
+            return None
+        cur = cur.rsplit("/", 1)[0] if "/" in cur else ""
+
+
+def _locked_version(ctx: Context, pubspec_dir: Optional[str], package: str) -> Tuple[int, ...]:
+    """The version pubspec.lock resolves for `package`, or () when there is no lock or no entry.
+    safety.walk skips .lock files, so the lock is read by name next to its pubspec.yaml."""
+    if pubspec_dir is None:
+        return ()
+    rel = (pubspec_dir + "/" if pubspec_dir else "") + "pubspec.lock"
+    text = safety.read_text(ctx.root, rel)
+    if not text:
+        return ()
+    in_pkg = False
+    for line in text.splitlines():
+        if re.match(r"^  \S", line):
+            in_pkg = line.strip() == package + ":"
+        elif in_pkg:
+            m = re.match(r'^    version:\s*"?(\d+)\.(\d+)\.(\d+)', line)
+            if m:
+                return tuple(int(x) for x in m.groups())
+    return ()
+
+
+def _arg(args: str, name: str, value: str) -> bool:
+    return bool(re.search(r"\b" + name + r"\s*:\s*" + value + r"\b", args))
+
+
+# ---------------------------------------------------------------------------- FLT-003
+
+_PRETTY = re.compile(r"\bPrettyDioLogger\s*\(")
+_LOG_INTERCEPTOR = re.compile(r"\bLogInterceptor\s*\(")
+
+
+@detector("flutter_dio_logger")
+def dio_logger(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if "PrettyDioLogger" not in raw and "LogInterceptor" not in raw:
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        for m in _PRETTY.finditer(blank):
+            args = _args_of(blank, m.end() - 1)
+            # Defaults: response bodies on; headers and request bodies off.
+            if (_arg(args, "responseBody", "false") and not _arg(args, "requestHeader", "true")
+                    and not _arg(args, "requestBody", "true") and not _arg(args, "responseHeader", "true")):
+                continue
+            yield _hit_at(ctx, path, blank, m.start(),
+                          "PrettyDioLogger prints requests and responses with `print`, which reaches the "
+                          "device log in release builds.")
+        version: Optional[Tuple[int, ...]] = None
+        for m in _LOG_INTERCEPTOR.finditer(blank):
+            args = _args_of(blank, m.end() - 1)
+            # Defaults: request and response headers on; bodies off.
+            if (_arg(args, "requestHeader", "false") and _arg(args, "responseHeader", "false")
+                    and not _arg(args, "requestBody", "true") and not _arg(args, "responseBody", "true")):
+                continue
+            if re.search(r"\blogPrint\s*:", args):
+                msg = ("LogInterceptor sends headers, including `Authorization`, to a custom `logPrint` "
+                       "that also runs in release builds.")
+            else:
+                if version is None:
+                    version = _locked_version(ctx, _pubspec_dir_of(ctx, path), "dio")
+                if not version or version[0] >= 5:
+                    continue                     # dio 5 prints only inside assert(), so not in release
+                msg = (f"LogInterceptor on dio {'.'.join(map(str, version))} prints headers, including "
+                       "`Authorization`, with `print` in release builds.")
+            yield _hit_at(ctx, path, blank, m.start(), msg)
+
+
+# ---------------------------------------------------------------------------- FLT-004
+
+_INAPP_SETTINGS = re.compile(
+    r"\b(?:InAppWebViewSettings|InAppWebViewOptions|AndroidInAppWebViewOptions|InAppWebViewGroupOptions|"
+    r"InAppBrowserClassSettings)\s*\("
+)
+_FILE_ORIGIN = re.compile(r"\b(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\s*[:=]\s*true\b")
+_FILE_ACCESS = re.compile(r"\ballowFileAccess\s*[:=]\s*true\b")
+_MIXED = re.compile(r"\bmixedContentMode\s*[:=]\s*(?:Android)?MixedContentMode\s*\.\s*MIXED_CONTENT_ALWAYS_ALLOW\b")
+
+
+def _enclosing_settings(blank: str, idx: int) -> str:
+    """Arguments of the flutter_inappwebview settings call around `idx`, or '' when there is none."""
+    best = ""
+    for m in _INAPP_SETTINGS.finditer(blank, max(0, idx - 6000), idx):
+        args = _args_of(blank, m.end() - 1)
+        if m.end() - 1 + len(args) > idx:
+            best = args
+    return best
+
+
+@detector("flutter_webview_file_access")
+def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if not any(k in raw for k in ("allowFileAccess", "allowUniversalAccess", "MIXED_CONTENT_ALWAYS_ALLOW")):
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        found = []
+        for m in _FILE_ORIGIN.finditer(blank):
+            found.append((m.start(), f"`{m.group(1)}` is on, so a page loaded from a file can read other "
+                                     "local files and send them anywhere."))
+        for m in _MIXED.finditer(blank):
+            found.append((m.start(), "`MIXED_CONTENT_ALWAYS_ALLOW` lets an HTTPS page load scripts over plain "
+                                     "HTTP, which anyone on the network can replace."))
+        for m in _FILE_ACCESS.finditer(blank):
+            if _arg(_enclosing_settings(blank, m.start()), "javaScriptEnabled", "false"):
+                continue                         # JavaScript is on by default in flutter_inappwebview
+            found.append((m.start(), "`allowFileAccess` is on with JavaScript enabled, so page scripts can "
+                                     "read local files through `file://` URLs."))
+        seen: Set[int] = set()
+        for idx, msg in sorted(found):
+            line = ctx.line_of(blank, idx)
+            if line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, blank, idx, msg)
+
+
+# ---------------------------------------------------------------------------- FLT-005
+
+_TRUST_HANDLER = re.compile(
+    r"\b(onReceivedServerTrustAuthRequest|androidOnReceivedServerTrustAuthRequest|onReceivedSslError|"
+    r"onSslAuthError)\s*:\s*"
+)
+_PROCEEDS = re.compile(r"\bServerTrustAuthResponseAction\s*\.\s*PROCEED\b|\.\s*proceed\s*\(\s*\)")
+_CONDITION = re.compile(r"\bif\s*\(|\bswitch\s*\(|\?\s*[^.?\s]|==|!=|&&|\|\||\bcase\b")
+_BODY_START = re.compile(r"\s*(?:async\s*)?(\{|=>)")
+
+
+def _closure_body(blank: str, start: int) -> str:
+    """Body of the closure, or of the named function, passed as a handler at `start`."""
+    ref = re.compile(r"([A-Za-z_]\w*)\s*[,)]").match(blank, start)
+    if ref:                                      # a function reference: find its declaration
+        decl = re.search(r"\b" + re.escape(ref.group(1)) + r"\s*\([^()]*\)\s*(?:async\s*)?(\{|=>)", blank)
+        if not decl:
+            return ""
+        at = decl.start(1)
+    else:
+        if not blank.startswith("(", start):
+            return ""
+        m = _BODY_START.match(blank, guards.match(blank, start, "(", ")") + 1)
+        if not m:
+            return ""
+        at = m.start(1)
+    if blank.startswith("{", at):
+        return blank[at:guards.match(blank, at, "{", "}") + 1]
+    depth = 0                                    # arrow body: up to the `,` or `)` that ends it
+    for j in range(at + 2, min(len(blank), at + 3000)):
+        c = blank[j]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                return blank[at:j]
+            depth -= 1
+        elif c in ",;" and depth == 0:
+            return blank[at:j]
+    return blank[at:at + 3000]
+
+
+@detector("flutter_webview_trust_all")
+def webview_trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if "PROCEED" not in raw and "proceed" not in raw:
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        for m in _TRUST_HANDLER.finditer(blank):
+            body = _closure_body(blank, m.end())
+            if not _PROCEEDS.search(body) or _CONDITION.search(body):
+                continue
+            yield _hit_at(ctx, path, blank, m.start(),
+                          f"`{m.group(1)}` proceeds without checking the certificate, so the web view "
+                          "trusts any server, including an attacker's.")
+
+
+# ---------------------------------------------------------------------------- FLT-006
+
+_WEB_DEBUG = re.compile(
+    r"\b(?:Android)?InAppWebViewController\s*\.\s*setWebContentsDebuggingEnabled\s*\(\s*true\s*\)"
+    r"|\bisInspectable\s*[:=]\s*true\b"
+    r"|\bAndroidWebViewController\s*\.\s*enableDebugging\s*\(\s*true\s*\)"
+    r"|\.\s*setInspectable\s*\(\s*true\s*\)"
+)
+
+
+@detector("flutter_webview_debugging")
+def webview_debugging(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if not any(k in raw for k in ("DebuggingEnabled", "isInspectable", "enableDebugging", "setInspectable")):
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        for m in _WEB_DEBUG.finditer(blank):
+            yield _hit_at(ctx, path, blank, m.start(),
+                          "Web view debugging is on, so anyone holding the device can attach DevTools or "
+                          "Safari and read or change the page, including its tokens.")
+
+
+# ---------------------------------------------------------------------------- FLT-007
+
+_LOCAL_AUTH_CALL = re.compile(
+    r"\bLocalAuthentication\s*\(\s*\)\s*\.\s*authenticate\s*\(|\.\s*authenticate\s*\(\s*localizedReason\s*:"
+)
+_DART_BOUND = re.compile(
+    r"\bBiometricStorage\b|\bauthenticationRequired\s*:\s*true\b|\baccessControlFlags\s*:"
+    r"|\bAndroidOptions\s*\.\s*biometric\b|\benforceBiometrics\s*:\s*true\b"
+)
+_NATIVE_BOUND = re.compile(r"\bCryptoObject\b|\bSecAccessControlCreateWithFlags\b|\bkSecAttrAccessControl\b")
+
+
+def _bound_evidence(ctx: Context) -> bool:
+    if re.search(r"^[ \t]+biometric_storage[ \t]*:", _pubspec_deps(ctx), re.MULTILINE):
+        return True
+    for path in ctx.files(".dart", ".kt", ".java", ".swift", ".m", ".mm"):
+        regex = _DART_BOUND if path.endswith(".dart") else _NATIVE_BOUND
+        if scope_of(path) == "test" or not regex.search(ctx.text(path) or ""):
+            continue
+        if regex.search(ctx.code(path, keep_strings=False) or ""):
+            return True
+    return False
+
+
+@detector("flutter_biometric_boolean")
+def biometric_boolean(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    hits = []
+    for path in ctx.files(*DART):
+        raw = ctx.text(path) or ""
+        if "authenticate" not in raw or ("local_auth" not in raw and "LocalAuthentication" not in raw):
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        for m in _LOCAL_AUTH_CALL.finditer(blank):
+            line = ctx.line_of(blank, m.start())
+            hits.append(Hit(path, line, ctx.snippet(path, line),
+                            "local_auth's `authenticate()` only returns true or false. A hooked app returns "
+                            "true and nothing needs decrypting, so the check protects nothing."))
+    if hits and not _bound_evidence(ctx):
+        yield from hits
+
+
+# ---------------------------------------------------------------------------- FLT-008
+
+_FLUTTER_BUILD = re.compile(r"\bflutter\s+build\s+(apk|appbundle|ipa|ios)\b([^\n]*)")
+_BUILD_CMD = re.compile(r"\bflutter\s+build\b")
+_YAML_COMMENT = re.compile(r"(^|[ \t])#[^\n]*", re.MULTILINE)
+
+
+@detector("flutter_obfuscation")
+def obfuscation(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    if not is_flutter(ctx):
+        return
+    scripted = False
+    for path in ctx.files(".yml", ".yaml"):
+        raw = ctx.text(path) or ""
+        if "flutter" not in raw or not _BUILD_CMD.search(raw):
+            continue
+        text = _YAML_COMMENT.sub(lambda m: m.group(1) + " " * (len(m.group(0)) - len(m.group(1))), raw)
+        if not _BUILD_CMD.search(text):
+            continue
+        scripted = True
+        missing = []
+        for m in _FLUTTER_BUILD.finditer(text):
+            args = m.group(2)
+            end = m.end()
+            while args.rstrip().endswith("\\") and end < len(text):    # shell line continuations
+                nxt = text.find("\n", end + 1)
+                nxt = len(text) if nxt < 0 else nxt
+                args = args.rstrip()[:-1] + " " + text[end + 1:nxt]
+                end = nxt
+            if re.search(r"--(?:debug|profile|config-only)\b|\$\{\{", args):
+                continue
+            if re.search(r"(?:^|\s)\"?\$\{?[A-Za-z_]", args):
+                continue                         # flags passed through a variable can't be read
+            if "--obfuscate" in args and "--split-debug-info" in args:
+                continue
+            missing.append(m)
+        if missing:
+            line = ctx.line_of(text, missing[0].start())
+            more = f" ({len(missing)} build commands in this file)" if len(missing) > 1 else ""
+            yield Hit(path, line, ctx.snippet(path, line),
+                      f"`flutter build {missing[0].group(1)}` runs without `--obfuscate "
+                      f"--split-debug-info`{more}, so class and function names ship readable.")
+    if not scripted:
+        ctx.note_unknown("No `flutter build` command was found in the scanned workflow files; check that "
+                         "release builds pass `--obfuscate --split-debug-info`.")

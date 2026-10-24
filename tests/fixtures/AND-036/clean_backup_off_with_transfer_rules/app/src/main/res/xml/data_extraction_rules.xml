@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="sharedpref" path="session.xml" />
+        <exclude domain="database" path="vault.db" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="session.xml" />
+        <exclude domain="database" path="vault.db" />
+    </device-transfer>
+</data-extraction-rules>

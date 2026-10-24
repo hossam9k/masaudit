@@ -1,1 +1,3 @@
-let digest = Insecure.SHA1.hash(data: data)
+func signature(for payload: Data) -> Data {
+    Data(Insecure.MD5.hash(data: payload))
+}

@@ -1,0 +1,22 @@
+on:
+  pull_request:
+    types: [opened, closed]
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      variant:
+        type: choice
+        options: [playRelease, playDebug]
+      dry-run:
+        type: boolean
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./gradlew assemble${{ github.event.inputs.variant }} -PdryRun=${{ github.event.inputs.dry-run }}
+      - run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          HEAD="${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
+          git config gitflow.branch.develop ${{ github.event.repository.default_branch }}
+          msg="${{ github.event.action }} ${{ github.event.pull_request._links.html.href }}"
+          echo "repo=${{ github.event.pull_request.head.repo.full_name }}"

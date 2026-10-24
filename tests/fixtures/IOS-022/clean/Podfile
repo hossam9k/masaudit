@@ -1,0 +1,5 @@
+target 'Bank' do
+  pod 'FLEX', :configurations => ['Debug']
+  pod 'netfox', :configuration => 'Debug'
+  # pod 'Wormholy'
+end

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application android:label="Bank">
+        <provider android:name=".DocsProvider" android:authorities="com.example.bank.docs" android:exported="false"
+            android:grantUriPermissions="false">
+            <grant-uri-permission android:path="/" />
+            <grant-uri-permission android:pathPattern=".*" />
+        </provider>
+    </application>
+</manifest>

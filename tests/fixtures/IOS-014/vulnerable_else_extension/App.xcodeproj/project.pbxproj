@@ -1,0 +1,122 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+		AA0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA0000000000000000000004 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000002,
+				AA0000000000000000000003,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000005 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA0000000000000000000001 /* App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000004;
+			buildPhases = (
+				AA0000000000000000000005,
+			);
+			name = "App";
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG EXTENSION";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "EXTENSION";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA0000000000000000000009 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000007,
+				AA0000000000000000000008,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA000000000000000000000A = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA0000000000000000000006 /* Share */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000009;
+			buildPhases = (
+				AA000000000000000000000A,
+			);
+			name = "Share";
+			productType = "com.apple.product-type.app-extension";
+		};
+		AA000000000000000000000B = {
+			isa = PBXGroup;
+			children = (
+			);
+			sourceTree = "<group>";
+		};
+		AA000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Debug";
+		};
+		AA000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Release";
+		};
+		AA000000000000000000000E = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000000000000000000000C,
+				AA000000000000000000000D,
+			);
+		};
+		AA000000000000000000000F /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = AA000000000000000000000E;
+			mainGroup = AA000000000000000000000B;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0000000000000000000001,
+				AA0000000000000000000006,
+			);
+		};
+	};
+	rootObject = AA000000000000000000000F /* Project object */;
+}

@@ -1,0 +1,7 @@
+workflows:
+  android:
+    scripts:
+      - name: Build
+        script: |
+          flutter build apk --release \
+            --build-number=42

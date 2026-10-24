@@ -203,7 +203,7 @@ Book: [§4.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-
 
 ## IOS-009: Keychain item can migrate to another device
 
-Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. Skip this for items you sync on purpose with kSecAttrSynchronizable.
+Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. With KeychainAccess, call .accessibility(.whenUnlockedThisDeviceOnly). Skip this for items you sync on purpose with kSecAttrSynchronizable.
 
 ```swift
 let attributes: [String: Any] = [
@@ -461,7 +461,7 @@ Book: [§6.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-
 
 ## IOS-021: Release build keeps symbols or testability
 
-In the Release configuration set ENABLE_TESTABILITY = NO and STRIP_INSTALLED_PRODUCT = YES, and keep symbols in a separate dSYM (DEBUG_INFORMATION_FORMAT = dwarf-with-dsym) for crash reports.
+In every configuration your schemes archive, set ENABLE_TESTABILITY = NO, STRIP_INSTALLED_PRODUCT = YES, STRIP_SWIFT_SYMBOLS = YES and STRIP_STYLE = all for the app, and keep symbols in a separate dSYM (DEBUG_INFORMATION_FORMAT = dwarf-with-dsym).
 
 ```xcconfig
 // Release.xcconfig
@@ -476,3 +476,257 @@ ENABLE_TESTABILITY = NO
 Verify: Archive the release build and run `nm -U` on the app binary: you should see few or no readable Swift or Objective-C symbol names.
 
 Book: [§15.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code)
+
+## IOS-022: Debug tool pod or package ships in release builds
+
+Add :configurations => ['Debug'] to the pod, or wrap the import and setup in #if DEBUG. Swift Package Manager can't limit a package to one configuration, so guard every use.
+
+```ruby
+target 'MyApp' do
+  # Debug-only tools never link into Release.
+  pod 'FLEX', :configurations => ['Debug']
+end
+```
+
+Verify: Archive the Release build and run `otool -L` and `nm` on the app binary: no FLEX, netfox, Wormholy or CocoaDebug symbols should appear.
+
+Book: [§14.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do)
+
+## IOS-023: Web view file-origin rules turned off through key-value coding
+
+Remove the setValue calls. Load bundled pages with loadFileURL(_:allowingReadAccessTo:) scoped to one folder, or serve them through a WKURLSchemeHandler.
+
+```swift
+let config = WKWebViewConfiguration()
+// No setValue(true, forKey: "allowFileAccessFromFileURLs").
+config.setURLSchemeHandler(BundleSchemeHandler(), forURLScheme: "app-bundle")
+let webView = WKWebView(frame: .zero, configuration: config)
+webView.load(URLRequest(url: URL(string: "app-bundle://local/index.html")!))
+```
+
+Verify: Load a bundled page that tries `fetch('file:///etc/hosts')` and confirm WebKit blocks it.
+
+Book: [§16.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing)
+
+## IOS-025: Release configuration compiles DEBUG-only code
+
+Remove DEBUG from SWIFT_ACTIVE_COMPILATION_CONDITIONS, OTHER_SWIFT_FLAGS and GCC_PREPROCESSOR_DEFINITIONS in every configuration your schemes archive.
+
+```xcconfig
+// Release.xcconfig
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited)
+GCC_PREPROCESSOR_DEFINITIONS = $(inherited)
+```
+
+Verify: Run `xcodebuild -showBuildSettings -configuration Release` and confirm DEBUG isn't in SWIFT_ACTIVE_COMPILATION_CONDITIONS or GCC_PREPROCESSOR_DEFINITIONS.
+
+Book: [§15.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code)
+
+## IOS-026: Advertising identifier read without App Tracking Transparency
+
+Call ATTrackingManager.requestTrackingAuthorization before you read the IDFA, and add NSUserTrackingUsageDescription. Better, use identifierForVendor or a server-side ID.
+
+```swift
+import AppTrackingTransparency
+import AdSupport
+
+ATTrackingManager.requestTrackingAuthorization { status in
+    guard status == .authorized else { return }   // no IDFA otherwise
+    let idfa = ASIdentifierManager.shared().advertisingIdentifier
+    // ...
+}
+```
+
+Verify: Reset the simulator's privacy settings, launch the app, and confirm the ATT prompt appears before any request carries the IDFA.
+
+Book: [§18.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#182-identifiers-and-tracking)
+
+## IOS-027: Required-reason API used without a declared reason
+
+Add an NSPrivacyAccessedAPITypes entry for the category with an approved reason code, such as CA92.1 for UserDefaults or C617.1 for file timestamps.
+
+```xml
+<key>NSPrivacyAccessedAPITypes</key>
+<array>
+    <dict>
+        <key>NSPrivacyAccessedAPIType</key>
+        <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+        <key>NSPrivacyAccessedAPITypeReasons</key>
+        <array>
+            <string>CA92.1</string>
+        </array>
+    </dict>
+</array>
+```
+
+Verify: Archive the app, generate the privacy report in Xcode's Organizer, and confirm the category is listed with your reason.
+
+Book: [§18.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#183-transparency-and-control)
+
+## IOS-028: App Attest isn't integrated
+
+Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.
+
+```swift
+import DeviceCheck
+
+let service = DCAppAttestService.shared
+guard service.isSupported else { return reportUnsupported() }
+let keyId = try await service.generateKey()
+let challenge = try await api.fetchAttestationChallenge()          // from your server
+let attestation = try await service.attestKey(keyId, clientDataHash: Data(SHA256.hash(data: challenge)))
+try await api.registerAttestation(keyId: keyId, attestation: attestation)
+// Later: service.generateAssertion(keyId, clientDataHash:) on sensitive requests.
+```
+
+Verify: Call a sensitive endpoint with curl using a valid session and confirm the server rejects it for a missing or invalid assertion.
+
+Book: [§10.7](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#107-how-to-implement-it)
+
+## IOS-030: App never hides its screen in the app switcher or recordings
+
+Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.
+
+```swift
+func sceneWillResignActive(_ scene: UIScene) {
+    guard let window = (scene as? UIWindowScene)?.windows.first else { return }
+    let cover = UIVisualEffectView(effect: UIBlurEffect(style: .systemThickMaterial))
+    cover.frame = window.bounds
+    cover.tag = 0x5EC
+    window.addSubview(cover)
+}
+
+func sceneDidBecomeActive(_ scene: UIScene) {
+    (scene as? UIWindowScene)?.windows.first?.viewWithTag(0x5EC)?.removeFromSuperview()
+}
+```
+
+Verify: Open a sensitive screen, swipe to the app switcher, and confirm the snapshot shows the cover; start a screen recording and confirm the content is hidden.
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## IOS-031: Web view can read a whole app container folder
+
+Grant read access only to the folder that holds the page, such as a subfolder of Bundle.main.resourceURL.
+
+```swift
+let pageDir = Bundle.main.resourceURL!.appendingPathComponent("help", isDirectory: true)
+webView.loadFileURL(pageDir.appendingPathComponent("index.html"), allowingReadAccessTo: pageDir)
+```
+
+Verify: From the loaded page, try to fetch a file outside its folder (for example a database in Library) and confirm it fails.
+
+Book: [§16.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing)
+
+## IOS-032: Deep link URL is loaded into a web view
+
+Parse the incoming URL, require https, and compare its host with an exact allowlist before loading it. Open anything else in Safari or SFSafariViewController.
+
+```swift
+let allowedHosts: Set<String> = ["www.example.com", "help.example.com"]
+
+func open(_ target: URL) {
+    guard target.scheme == "https", let host = target.host, allowedHosts.contains(host) else {
+        UIApplication.shared.open(target)        // anything else leaves the app
+        return
+    }
+    webView.load(URLRequest(url: target))
+}
+```
+
+Verify: Run `xcrun simctl openurl booted '<scheme>://open?url=https://evil.example'` and confirm the web view doesn't load evil.example.
+
+Book: [§16.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content)
+
+## IOS-033: Network.framework connection allows TLS below 1.2
+
+Set the minimum to .TLSv12 (or .TLSv13) with sec_protocol_options_set_min_tls_protocol_version.
+
+```swift
+let tls = NWProtocolTLS.Options()
+sec_protocol_options_set_min_tls_protocol_version(tls.securityProtocolOptions, .TLSv12)
+let params = NWParameters(tls: tls)
+```
+
+Verify: Point the connection at a test server that only offers TLS 1.1 (`openssl s_server -tls1_1`) and confirm the handshake fails.
+
+Book: [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
+
+## IOS-034: Sensitive files sit in a Documents folder the Files app shows
+
+Keep app data in Application Support (or Caches), exclude it from backup where it fits, and put only files the user should see in Documents.
+
+```swift
+let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                          appropriateFor: nil, create: true)
+let store = support.appendingPathComponent("app.sqlite")
+try data.write(to: store, options: .completeFileProtection)
+```
+
+Verify: Connect the device to a Mac, open it in Finder's Files tab, and confirm no database, token or export file is listed for the app.
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## IOS-035: Secret written to a file in the App Group container
+
+Share secrets through a Keychain access group (kSecAttrAccessGroup) instead, and keep only non-secret data in the group container.
+
+```swift
+let query: [String: Any] = [
+    kSecClass as String: kSecClassGenericPassword,
+    kSecAttrAccount as String: "session",
+    kSecAttrAccessGroup as String: "TEAMID.com.example.shared",   // shared with the extension
+    kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+    kSecValueData as String: token,
+]
+SecItemAdd(query as CFDictionary, nil)
+```
+
+Verify: On a simulator, open the group container (`xcrun simctl get_app_container booted <bundle id> <group id>`) and confirm no file holds a token or password.
+
+Book: [§17.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget)
+
+## IOS-036: App doesn't refuse third-party keyboards
+
+Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.
+
+```swift
+func application(_ application: UIApplication,
+                 shouldAllowExtensionPointIdentifier extensionPointIdentifier: UIApplication.ExtensionPointIdentifier) -> Bool {
+    extensionPointIdentifier != .keyboard
+}
+```
+
+Verify: Install a third-party keyboard, open the app, and confirm only the system keyboard appears in every field.
+
+Book: [§17.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget)
+
+## IOS-038: Protected resource used without a usable purpose string
+
+Add the Info.plist usage key with a specific sentence that names the feature, such as "Scan a check to deposit it."
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>Scan the QR code on your card to link it to your account.</string>
+```
+
+Verify: Reset privacy settings, trigger the feature, and confirm the prompt shows your specific explanation.
+
+Book: [§18.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why)
+
+## IOS-040: Tracking domain isn't declared in the privacy manifest
+
+Set NSPrivacyTracking to true and add every tracking domain you contact to NSPrivacyTrackingDomains, or stop calling the domain.
+
+```xml
+<key>NSPrivacyTracking</key>
+<true/>
+<key>NSPrivacyTrackingDomains</key>
+<array>
+    <string>app-measurement.com</string>
+</array>
+```
+
+Verify: Archive the app, generate the privacy report in Xcode's Organizer, and confirm the domain appears under tracking domains.
+
+Book: [§18.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#183-transparency-and-control)

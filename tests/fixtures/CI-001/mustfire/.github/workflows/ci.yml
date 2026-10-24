@@ -1,0 +1,14 @@
+on: push
+permissions: {}
+jobs:
+  version:
+    uses: acmecorp/app/.github/workflows/_version.yml@main
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: acme-evil/gh-actions/azure-login@main
+      - uses: acme/gh-actions-fork/azure-login@main
+      - uses: acme/app-tools/lint@main
+      - uses: actions/checkout@v4
+      - uses: tj-actions/changed-files@v45
+      - uses: acme/app

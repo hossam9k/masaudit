@@ -18,7 +18,10 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
 from masaudit import lexer, safety, suppress  # noqa: E402
-from masaudit.parsers import gradle, manifest, pbxproj, plist, workflows, xcconfig, xmlsafe  # noqa: E402
+from masaudit.detectors import ios  # noqa: E402
+from masaudit.parsers import (  # noqa: E402
+    gradle, manifest, pbxproj, plist, proguard, workflows, xcconfig, xcscheme, xmlsafe,
+)
 
 LANGS = sorted(set(lexer.LANG_BY_SUFFIX.values()))
 
@@ -27,18 +30,35 @@ def check(data: bytes) -> None:
     """Run one input through every parser. Raises only if a parser has a bug."""
     plist.loads(data)
     text = data.decode("utf-8", "replace")
-    xmlsafe.parse(text)
+    root = xmlsafe.parse(text)
+    if root is not None:
+        for el in list(root.iter())[:200]:
+            xmlsafe.ack_text(el, "AcceptsUserCertificates", "ExportedService")
     manifest.parse(text)
     pbxproj.parse(text)
     xcconfig.parse(text)
+    xcscheme.parse(text)
+    if len(ios._blank_debug(text)) != len(text):
+        raise AssertionError("#if blanking changed the length of the text")
+    for line in text.splitlines()[:20]:
+        ios._eval_cond(line[:300], ios.CondEnv(known={"A", "DEBUG"}, defined={"B": "1"}))
     workflows.parse_workflow(text)
+    workflows.parse_action(text)
+    workflows.unpinned_uses_policies(text)
+    workflows.github_origin(text)
     gradle.toml_versions(text)
+    gradle.toml_libraries(text)
+    proguard.parse(text)
     for lang in LANGS:
         code = lexer.strip(text, lang)
         blank = lexer.strip(text, lang, keep_strings=False)
         if len(code) != len(text) or len(blank) != len(text):
             raise AssertionError(f"lexer changed the length of the text for {lang}")
-    gradle.blocks(lexer.strip(text, "kotlin"), lexer.strip(text, "kotlin", keep_strings=False))
+    kt_code, kt_blank = lexer.strip(text, "kotlin"), lexer.strip(text, "kotlin", keep_strings=False)
+    gradle.blocks(kt_code, kt_blank)
+    gradle.build_types(kt_code, kt_blank)
+    gradle.product_flavors(kt_code, kt_blank)
+    gradle.dependencies(kt_code)
     safety.mask(text)
     safety.reject_xml_entities(text)
     for line in text.splitlines()[:50]:

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">legacy-partner.com</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">media.example-bank.com</domain>
+        <domain-config>
+            <domain includeSubdomains="false">cdn.example-bank.com</domain>
+        </domain-config>
+    </domain-config>
+</network-security-config>

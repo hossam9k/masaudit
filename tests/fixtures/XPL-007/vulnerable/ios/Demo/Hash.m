@@ -1,1 +1,4 @@
-CC_MD5(data.bytes, (CC_LONG)data.length, result);
+- (NSData *)hashPassword:(NSData *)password {
+    CC_MD5(password.bytes, (CC_LONG)password.length, result);
+    return nil;
+}

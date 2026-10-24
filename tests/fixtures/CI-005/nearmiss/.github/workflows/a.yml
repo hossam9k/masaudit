@@ -1,0 +1,28 @@
+on: workflow_dispatch
+permissions: {}
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+      - run: |
+          ./scripts/bump.sh
+          git commit -am bump
+          git push
+  tag:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: true }
+      - run: git tag v1.2.3 && git push origin v1.2.3
+  scoped:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          token: ${{ secrets.BOT_PAT }}

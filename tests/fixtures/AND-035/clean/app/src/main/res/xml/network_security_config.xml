@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- <domain-config cleartextTrafficPermitted="true"><domain>api.bank.com</domain></domain-config> -->
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">192.168.1.20</domain>
+        <domain includeSubdomains="true">home.arpa</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- CRL and OCSP responses are signed -->
+        <domain includeSubdomains="true">ocsp.digicert.com</domain>
+        <domain includeSubdomains="true">c.lencr.org</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.example-bank.com</domain>
+    </domain-config>
+</network-security-config>

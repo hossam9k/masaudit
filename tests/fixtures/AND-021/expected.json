@@ -1,1 +1,1 @@
-{"vulnerable": 2, "clean": 0}
+{"vulnerable": 2, "clean": 0, "clean_agent": 0, "clean_overlay_and_library": 0, "vulnerable_from_library": 1, "vulnerable_full_backup_agent": 1, "vulnerable_acknowledged": 1}

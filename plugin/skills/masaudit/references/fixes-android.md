@@ -597,6 +597,214 @@ Verify: Feed the decoder a payload that names a class you didn't expect and conf
 
 Book: [§19.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#194-deserialization)
 
+## AND-034: Token or password stored in plain SharedPreferences or DataStore
+
+Keep short-lived tokens in memory. Encrypt long-lived tokens before storing them, with a key held in the Android Keystore: for example Tink's AEAD with an `AndroidKeysetManager` master key, checking `isUsingKeystore()`. Keep only non-secret settings in plain preferences.
+
+```kotlin
+import com.google.crypto.tink.Aead
+
+// `aead` comes from Tink's AndroidKeysetManager with a Keystore master key (see AND-024).
+class TokenStore(private val prefs: android.content.SharedPreferences, private val aead: Aead) {
+    fun save(token: String) {
+        val sealed = aead.encrypt(token.toByteArray(), "refresh_token".toByteArray())
+        prefs.edit().putString("refresh_token", android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)).apply()
+    }
+
+    fun load(): String? = prefs.getString("refresh_token", null)?.let {
+        String(aead.decrypt(android.util.Base64.decode(it, android.util.Base64.NO_WRAP), "refresh_token".toByteArray()))
+    }
+}
+```
+
+Verify: Sign in on an emulator, then run `adb shell run-as <package> ls -R shared_prefs files/datastore` and print each file with `cat`. Confirm no token or password appears in readable form.
+
+Book: [§6.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked)
+
+## AND-035: Network security config allows plain HTTP for a domain
+
+Remove the `domain-config` or set `cleartextTrafficPermitted="false"`. If a legacy host needs HTTP, put it behind HTTPS on your side first.
+
+```xml
+<!-- res/xml/network_security_config.xml -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <!-- Local development only; never a production host -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
+```
+
+Verify: Build a release APK, call the listed host over `http://`, and confirm the request fails with a cleartext error.
+
+Book: [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
+
+## AND-036: Backup rules don't keep sensitive data out of device-to-device transfer
+
+Add `android:dataExtractionRules` with matching `<exclude>` entries in both `<cloud-backup>` and `<device-transfer>` for tokens, keysets and databases.
+
+```xml
+<!-- res/xml/data_extraction_rules.xml -->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="file" path="datastore/session.enc" />
+        <exclude domain="sharedpref" path="tink_keysets.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore/session.enc" />
+        <exclude domain="sharedpref" path="tink_keysets.xml" />
+    </device-transfer>
+</data-extraction-rules>
+```
+
+Verify: Check that the rules file excludes the same files in both sections, then move the app to a second phone with the setup wizard and confirm the excluded files are absent (`adb shell run-as <package> ls -R`).
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## AND-037: Debug tool library ships in the release build
+
+Use `debugImplementation` (or the library's `-no-op` artifact with `releaseImplementation`) and start the tool from code in `src/debug/`.
+
+```kotlin
+dependencies {
+    debugImplementation("com.github.chuckerteam.chucker:library:4.1.0")
+    releaseImplementation("com.github.chuckerteam.chucker:library-no-op:4.1.0")
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
+}
+```
+
+Verify: Run `./gradlew :app:dependencies --configuration releaseRuntimeClasspath` and confirm none of these libraries appear.
+
+Book: [§14.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do)
+
+## AND-039: Timber logs everything in release builds
+
+Plant `DebugTree` only under `if (BuildConfig.DEBUG)`. In release, plant a tree that keeps only warnings and errors and never logs request data.
+
+```kotlin
+if (BuildConfig.DEBUG) {
+    Timber.plant(Timber.DebugTree())
+} else {
+    Timber.plant(object : Timber.Tree() {
+        override fun isLoggable(tag: String?, priority: Int) = priority >= Log.WARN
+        override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+            crashReporter.log(priority, tag, message, t)   // never request data
+        }
+    })
+}
+```
+
+Verify: Install the release build, sign in, and confirm `adb logcat --pid=$(adb shell pidof <package>)` shows no debug or info lines from the app.
+
+Book: [§6.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it)
+
+## AND-043: File name from another app is used as a path (Dirty Stream)
+
+Ignore the supplied name and generate your own, or keep only `File(name).name`, and check that the canonical path stays inside your directory.
+
+```kotlin
+fun saveShared(uri: Uri): File {
+    val target = File(context.filesDir, "shared/${UUID.randomUUID()}")   // ignore the supplied name
+    val dir = File(context.filesDir, "shared").canonicalPath + File.separator
+    require(target.canonicalPath.startsWith(dir))
+    context.contentResolver.openInputStream(uri)!!.use { input ->
+        target.outputStream().use { input.copyTo(it) }
+    }
+    return target
+}
+```
+
+Verify: Share a file from a test provider whose display name is `../../shared_prefs/evil.xml` and confirm nothing is written outside the target directory.
+
+Book: [§17.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#172-intents-explicit-versus-implicit)
+
+## AND-045: App never blocks screenshots or the recents thumbnail
+
+Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.
+
+```kotlin
+class StatementActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+    }
+}
+
+// Compose dialog that shows a one-time code
+Dialog(onDismissRequest = onDismiss, properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn)) { OtpCard(code) }
+```
+
+Verify: Open a sensitive screen, take a screenshot and open the recents screen; confirm both show a blank or blocked view.
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## AND-046: App has no overlay (tapjacking) protection
+
+On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.
+
+```kotlin
+// AndroidManifest.xml: <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    if (Build.VERSION.SDK_INT >= 31) window.setHideOverlayWindows(true)
+    binding.confirmTransfer.filterTouchesWhenObscured = true
+}
+```
+
+Verify: Run a test app that draws a partial overlay over the confirm button and confirm the tap is ignored or the overlay is hidden.
+
+Book: [§17.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget)
+
+## AND-054: Implicit Intent carries a token or password
+
+Make the Intent explicit with `setPackage(packageName)` or a component, and don't put credentials in extras.
+
+```kotlin
+val intent = Intent(ACTION_COMPLETE_LOGIN).apply {
+    setPackage(context.packageName)        // only this app can receive it
+    putExtra("session_ref", sessionRef)    // a reference, never the token itself
+}
+context.startActivity(intent)
+```
+
+Verify: Install a test app with a matching intent filter and confirm it doesn't receive the Intent or its extras.
+
+Book: [§17.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#172-intents-explicit-versus-implicit)
+
+## AND-056: Receiver registered in code is exported
+
+Use `ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)`, or pass a signature permission if your other apps must send it.
+
+```kotlin
+ContextCompat.registerReceiver(
+    context,
+    sessionReceiver,
+    IntentFilter(ACTION_SESSION_EXPIRED),
+    ContextCompat.RECEIVER_NOT_EXPORTED,
+)
+```
+
+Verify: Send the action with `adb shell am broadcast -a <action>` and confirm the receiver doesn't run.
+
+Book: [§17.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#171-android-app-components-and-the-word-exported)
+
+## AND-059: WebView runs JavaScript with content access on
+
+Set `settings.allowContentAccess = false`, and load local content through `WebViewAssetLoader` over https.
+
+```kotlin
+webView.settings.apply {
+    javaScriptEnabled = true
+    allowContentAccess = false
+    allowFileAccess = false
+}
+```
+
+Verify: Load a test page that fetches a `content://` URI of your app and confirm the request fails.
+
+Book: [§16.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing)
+
 ## XPL-004: AES in ECB mode, or with no mode named
 
 Use AES-GCM (`AES/GCM/NoPadding`) with a Keystore key, or Tink's AEAD, or CryptoKit's `AES.GCM` on iOS. Re-encrypt existing data under the new scheme.
@@ -699,7 +907,7 @@ Verify: For each encryption call, confirm the IV comes from `cipher.iv` after `i
 
 Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
 
-## XPL-007: MD5 or SHA-1 used (fine only as a non-security checksum)
+## XPL-007: MD5 or SHA-1 used to protect a password, signature, or token
 
 Use SHA-256 or stronger. If the hash is only a non-security checksum, such as detecting a corrupted download, add a comment saying so.
 
@@ -711,7 +919,7 @@ val digest = MessageDigest.getInstance("SHA-256")
 // Data(SHA256.hash(data: Data(verifier.utf8)))
 ```
 
-Verify: For each hit, confirm it uses SHA-256 or is commented as a non-security checksum.
+Verify: For each hit, confirm it now uses SHA-256 or stronger, or a password hash such as Argon2id for passwords.
 
 Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
 
@@ -753,3 +961,140 @@ if (BuildConfig.DEBUG) {
 Verify: Install a release build, sign in, and watch `adb logcat` (or Console.app on iOS): no token or password should appear.
 
 Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## XPL-011: Encryption key is hardcoded in the app
+
+Generate the key on the device inside the Android Keystore or the iOS Keychain or Secure Enclave, and never export it. Tink with a Keystore-protected keyset does this for you. If a server must decrypt, wrap a random per-session key with the server's public key instead of sharing one symmetric key.
+
+```kotlin
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+
+private const val KEY_ALIAS = "app_data_key"
+
+// The key is created inside the Keystore and its bytes never leave it.
+fun dataKey(): SecretKey {
+    val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+    val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    generator.init(
+        KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build(),
+    )
+    return generator.generateKey()
+}
+```
+
+Verify: For every `SecretKeySpec(`, `SymmetricKey(data:`, and `Key.from…(` call, confirm the key bytes come from the Keystore, the Keychain, Tink, or a secure random source, never from a string or byte literal.
+
+Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
+
+## XPL-012: Secret copied to the clipboard without the sensitive flag
+
+Don't copy secrets. If the user asks to copy one, set `ClipDescription.EXTRA_IS_SENSITIVE` in the clip's extras (API 33+) and clear the clip after a short timeout.
+
+```kotlin
+val clip = ClipData.newPlainText("one-time code", code).apply {
+    description.extras = PersistableBundle().apply {
+        putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)   // API 33+
+    }
+}
+clipboardManager.setPrimaryClip(clip)
+```
+
+Verify: Copy the value on an Android 13 device and confirm the system preview shows dots instead of the text.
+
+Book: [§6.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it)
+
+## XPL-013: Broken cipher (DES, 3DES, RC4, RC2, or Blowfish)
+
+Use AES-GCM through the Keystore, CryptoKit, or Tink. Re-encrypt stored legacy data with the new scheme the first time you read it.
+
+```kotlin
+val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+cipher.init(Cipher.ENCRYPT_MODE, keystoreKey)          // the Keystore picks a random IV
+val stored = cipher.iv + cipher.doFinal(plaintext)
+```
+
+Verify: Search for `DES`, `RC4`, `RC2`, `Blowfish`, and `kCCAlgorithm`; only AES-GCM or ChaCha20-Poly1305 should remain.
+
+Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
+
+## XPL-015: PBKDF2 uses too few iterations
+
+Prefer Argon2id. If PBKDF2 is required, use HMAC-SHA-256 with at least 600,000 iterations. For a short PIN, gate a Keystore or Secure Enclave key with user authentication instead.
+
+```kotlin
+val spec = PBEKeySpec(password, salt, 600_000, 256)   // salt: 16 random bytes per secret
+val key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec)
+spec.clearPassword()
+```
+
+Verify: Confirm the iteration count meets OWASP's minimum for the PRF: 600,000 for HMAC-SHA-256, 210,000 for HMAC-SHA-512, 1,300,000 for HMAC-SHA-1.
+
+Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
+
+## XPL-017: gRPC channel sends traffic in plain text
+
+Use `useTransportSecurity()` (grpc-java), `.tls` (grpc-swift), or `ChannelCredentials.secure()` (grpc-dart). Keep plaintext only for a local test server in debug builds.
+
+```kotlin
+val channel = ManagedChannelBuilder.forAddress("api.example.com", 443)
+    .useTransportSecurity()
+    .build()
+```
+
+Verify: Capture the app's gRPC traffic with a proxy and confirm it is a TLS handshake, not readable HTTP/2 frames.
+
+Book: [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
+
+## XPL-020: Zip entry name is used as a path without a containment check (Zip Slip)
+
+Resolve the canonical path of each output file and reject the entry unless it starts with the target folder's canonical path plus a separator.
+
+```kotlin
+val target = File(destDir, entry.name).canonicalFile
+require(target.path.startsWith(destDir.canonicalPath + File.separator)) {
+    "Blocked zip entry outside the target folder: ${entry.name}"
+}
+```
+
+Verify: Extract an archive whose entry is named `../evil.txt` and confirm the app refuses it and nothing is written outside the target folder.
+
+Book: [§19.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug)
+
+## XPL-025: MAC or signature compared with an ordinary equality check
+
+Compare MACs with `MessageDigest.isEqual` on the JVM, `HMAC.isValidAuthenticationCode` in CryptoKit, or a constant-time compare in Dart.
+
+```kotlin
+val expected = mac.doFinal(data)
+if (!MessageDigest.isEqual(expected, receivedTag)) {
+    throw SecurityException("MAC mismatch")
+}
+```
+
+Verify: For each MAC or signature check, confirm it uses a constant-time comparison.
+
+Book: [Chapter 0.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need)
+
+## XPL-037: OAuth sign-in uses a flow RFC 8252 rules out
+
+Use the authorization code flow with PKCE (S256) in Custom Tabs, Auth Tab, or `ASWebAuthenticationSession`, for example through AppAuth.
+
+```kotlin
+val request = AuthorizationRequest.Builder(
+    serviceConfig, clientId, ResponseTypeValues.CODE, redirectUri,
+).setScope("openid profile").build()     // AppAuth adds PKCE S256 by default
+startActivityForResult(authService.getAuthorizationRequestIntent(request), RC_AUTH)
+```
+
+Verify: Sign in and confirm the browser, not a WebView, shows the login page, and that the request carries `response_type=code` and `code_challenge_method=S256`.
+
+Book: [Chapter 0.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-03-authentication-sessions-and-tokens)

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <permission android:name="com.example.bank.READ" android:protectionLevel="signature" />
+    <application android:label="Bank">
+        <provider android:name=".NotesProvider" android:authorities="com.example.bank.notes" android:exported="true"
+            android:readPermission="com.example.bank.READ" android:writePermission="com.example.bank.READ" />
+        <provider android:name=".ReadOnlyProvider" android:authorities="com.example.bank.ro" android:exported="true"
+            android:readPermission="com.example.bank.READ" />
+        <provider android:name=".PrivateProvider" android:authorities="com.example.bank.private"
+            android:exported="false" android:readPermission="com.example.bank.READ" />
+    </application>
+</manifest>

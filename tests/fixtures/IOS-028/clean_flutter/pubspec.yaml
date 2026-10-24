@@ -1,0 +1,3 @@
+name: bank
+dependencies:
+  firebase_app_check: ^0.3.0

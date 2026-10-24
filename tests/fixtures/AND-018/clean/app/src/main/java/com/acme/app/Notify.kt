@@ -7,3 +7,15 @@ fun open(context: Context): PendingIntent {
     return PendingIntent.getActivity(context, 0, intent,
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 }
+
+fun replyAction(context: Context): PendingIntent {
+    val intent = Intent(context, ReplyReceiver::class.java)
+    return PendingIntent.getBroadcast(context, 1, intent, PendingIntent.FLAG_MUTABLE)
+}
+
+fun packaged(context: Context): PendingIntent {
+    val intent = Intent("com.example.REPLY").setPackage(context.packageName)
+    return PendingIntent.getBroadcast(context, 2, intent, PendingIntent.FLAG_MUTABLE)
+}
+
+fun mutableFlags(mutable: Boolean) = if (mutable) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE

@@ -1,0 +1,3 @@
+[libraries]
+chucker = "com.github.chuckerteam.chucker:library:4.1.0"
+chucker-noop = "com.github.chuckerteam.chucker:library-no-op:4.1.0"

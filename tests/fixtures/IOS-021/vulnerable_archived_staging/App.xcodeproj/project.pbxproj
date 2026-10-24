@@ -1,0 +1,98 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+		AA0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Release";
+		};
+		AA0000000000000000000004 /* Staging */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = "YES";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Staging";
+		};
+		AA0000000000000000000005 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000002,
+				AA0000000000000000000003,
+				AA0000000000000000000004,
+			);
+			defaultConfigurationName = Release;
+		};
+		AA0000000000000000000006 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		AA0000000000000000000001 /* App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0000000000000000000005;
+			buildPhases = (
+				AA0000000000000000000006,
+			);
+			name = "App";
+			productType = "com.apple.product-type.application";
+		};
+		AA0000000000000000000007 = {
+			isa = PBXGroup;
+			children = (
+			);
+			sourceTree = "<group>";
+		};
+		AA0000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Debug";
+		};
+		AA0000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Release";
+		};
+		AA000000000000000000000A /* Staging */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Staging";
+		};
+		AA000000000000000000000B = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000008,
+				AA0000000000000000000009,
+				AA000000000000000000000A,
+			);
+		};
+		AA000000000000000000000C /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = AA000000000000000000000B;
+			mainGroup = AA0000000000000000000007;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA0000000000000000000001,
+			);
+		};
+	};
+	rootObject = AA000000000000000000000C /* Project object */;
+}

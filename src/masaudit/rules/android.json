@@ -165,11 +165,11 @@
           ".java"
         ],
         "prefilter": "",
-        "regex": "ConnectionSpec\\.(?:CLEARTEXT|COMPATIBLE_TLS)\\b|TlsVersion\\.(?:TLS_1_0|TLS_1_1|SSL_3_0)\\b|SSLContext\\.getInstance\\(\\s*\\\"(?:SSL|SSLv3|TLSv1|TLSv1\\.1)\\\"",
+        "regex": "ConnectionSpec\\.(?:CLEARTEXT|COMPATIBLE_TLS)\\b|TlsVersion\\.(?:TLS_1_0|TLS_1_1|SSL_3_0)\\b|SSLContext\\.getInstance\\(\\s*\\\"(?:SSL|SSLv3|TLSv1|TLSv1\\.1)\\\"|setEnabledProtocols\\s*\\([^;]{0,300}?\\\"(?:SSLv3|TLSv1|TLSv1\\.1)\\\"|setEnabledCipherSuites\\s*\\([^;]{0,300}?_(?:RC4|DES|NULL|EXPORT|anon)_",
         "flags": "",
         "strings": "keep",
         "unless_file": "",
-        "message": "This allows plain HTTP or a TLS version older than 1.2."
+        "message": "This allows plain HTTP, a TLS version older than 1.2, or a broken cipher suite."
       }
     },
     {
@@ -262,7 +262,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out.",
+      "why": "If a WebView with file access loads a page an attacker can influence, that page can read the app's private files and send them out. A WebView that loads only web pages is reported as low.",
       "fix": "Remove `allowFileAccess = true` and never enable `allowFileAccessFromFileURLs` or `allowUniversalAccessFromFileURLs`. Serve bundled HTML with `WebViewAssetLoader` over `https://appassets.androidplatform.net/`.",
       "verify": "Load a test page that tries to fetch a `file:///data/data/<package>/` URL and confirm it's blocked.",
       "effort": "hours",
@@ -281,18 +281,7 @@
         "code": "webView.settings.apply {\n    javaScriptEnabled = false            // turn on only if the page needs it\n    allowFileAccess = false              // default false only when targeting API 30+\n    allowContentAccess = false           // defaults to true on every version\n    // allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs are deprecated\n    // and already false when targeting API 16+. Never set them to true.\n}"
       },
       "confidence": "high",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "",
-        "regex": "\\b(?:setAllowFileAccess|setAllowFileAccessFromFileURLs|setAllowUniversalAccessFromFileURLs)\\s*\\(\\s*true\\s*\\)|\\b(?:allowFileAccess|allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\\s*=\\s*true\\b",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "This WebView setting lets page content read local files."
-      }
+      "detector": "android_webview_file_access"
     },
     {
       "id": "AND-011",
@@ -331,7 +320,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code.",
+      "why": "`addJavascriptInterface` exposes native methods to every frame in the WebView, including iframes and ads, with no origin check. Any script that runs there can call your code. A WebView that loads only fixed https or bundled pages is reported as medium.",
       "fix": "Use `WebViewCompat.addWebMessageListener` with an allowlist of origins, and validate every message. If you must keep `addJavascriptInterface`, expose one narrow method and treat its input as untrusted.",
       "verify": "Load a page with a third-party iframe and confirm the iframe can't reach the bridge.",
       "effort": "hours",
@@ -348,18 +337,7 @@
         "code": "if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {\n    WebViewCompat.addWebMessageListener(\n        webView,\n        \"AppBridge\",                                   // window.AppBridge in the page\n        setOf(\"https://app.example.com\"),              // the platform enforces this\n    ) { _, message, sourceOrigin, isMainFrame, replyProxy ->\n        if (!isMainFrame || sourceOrigin.host != \"app.example.com\") return@addWebMessageListener\n        val code = message.data ?: return@addWebMessageListener\n        if (!Regex(\"^[A-Z0-9]{8}$\").matches(code)) return@addWebMessageListener\n        redeemVoucher(code)                            // the server authorizes; the bridge does not\n        replyProxy.postMessage(\"received\")\n    }\n}"
       },
       "confidence": "medium",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "addJavascriptInterface",
-        "regex": "\\.addJavascriptInterface\\s*\\(",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "addJavascriptInterface exposes native methods to every frame in this WebView."
-      }
+      "detector": "android_js_bridge"
     },
     {
       "id": "AND-013",
@@ -423,7 +401,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly.",
+      "why": "Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.",
       "fix": "Set `android:exported=\"false\"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel=\"signature\"` and validate every input.",
       "verify": "Run `adb shell am start -n <package>/<component>` (or `am startservice`, `am broadcast`) from a shell and confirm it's refused.",
       "effort": "hours",
@@ -452,7 +430,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`<root-path>` or `path=\".\"` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences.",
+      "why": "`<root-path>` or `path=\".\"` in `file_paths.xml` lets a caller ask for files outside the folder you meant to share, including your databases and preferences. External storage paths are reported as medium: those files aren't private to the app anyway.",
       "fix": "Scope each entry in `file_paths.xml` to the narrowest folder that works, such as `<cache-path name=\"shared_exports\" path=\"exports/\" />`. Remove `<root-path>`. Grant read, not write, unless the recipient must write.",
       "verify": "Ask the provider for a URI that points at `../databases/` and confirm it fails.",
       "effort": "minutes",
@@ -502,7 +480,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "A mutable `PendingIntent` lets the app that receives it change the destination or data, and the result runs with your app's identity and permissions.",
+      "why": "A mutable `PendingIntent` lets the app that receives it fill in the destination or data. With an implicit base Intent, it can redirect the Intent, which then runs with your app's identity and permissions.",
       "fix": "Use `PendingIntent.FLAG_IMMUTABLE` with an explicit Intent. Keep `FLAG_MUTABLE` only where you need it, such as inline replies, and make the base Intent explicit there.",
       "verify": "Check each place that creates a `PendingIntent` and confirm it's immutable or has an explicit component.",
       "effort": "minutes",
@@ -518,19 +496,8 @@
         "lang": "kotlin",
         "code": "val intent = Intent(context, ResultReceiverActivity::class.java)   // explicit\nval pendingIntent = PendingIntent.getActivity(\n    context, 0, intent,\n    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT\n)"
       },
-      "confidence": "manual",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "FLAG_MUTABLE",
-        "regex": "^(?!\\s*import\\b).*?\\bFLAG_MUTABLE\\b",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "A PendingIntent is created mutable. Confirm the base Intent is explicit."
-      }
+      "confidence": "medium",
+      "detector": "android_pending_intent_mutable"
     },
     {
       "id": "AND-019",
@@ -567,7 +534,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider.",
+      "why": "When part of a SQL string comes from input, that input can change the query: read other users' rows, or the whole database through a content provider. One-time migrations over values the app owns aren't reported.",
       "fix": "Use `?` placeholders and pass values as `selectionArgs`, or Room `@Query` with bound parameters. Allowlist column names and sort orders.",
       "verify": "Pass `' OR '1'='1` into the code path and confirm it's treated as plain text.",
       "effort": "hours",
@@ -878,7 +845,7 @@
       "profiles": [
         "L1"
       ],
-      "why": "`ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code.",
+      "why": "`ObjectInputStream` builds whatever classes the bytes name. If the data comes from another app, a file, or the network, crafted bytes can construct objects you never intended and sometimes run code. A class-allowlist subclass and in-memory deep copies aren't reported; reading an app file is medium.",
       "fix": "Parse into declared types instead: JSON with `kotlinx.serialization`, or Protocol Buffers. For intent extras, use the typed `IntentCompat.getParcelableExtra(intent, name, Class)`.",
       "verify": "Feed the decoder a payload that names a class you didn't expect and confirm it's rejected.",
       "effort": "hours",
@@ -894,28 +861,17 @@
         "code": "// Only a ShareRequest can come out. Anything else returns null.\nval request: ShareRequest? =\n    IntentCompat.getParcelableExtra(intent, \"request\", ShareRequest::class.java)"
       },
       "confidence": "manual",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "ObjectInputStream",
-        "regex": "\\bObjectInputStream\\s*\\(",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "ObjectInputStream deserializes arbitrary classes. Check where the bytes come from."
-      }
+      "detector": "android_object_input_stream"
     },
     {
       "id": "AND-033",
-      "title": "App requests a sensitive permission",
+      "title": "App requests sensitive permissions",
       "platform": "android",
-      "severity": "low",
+      "severity": "info",
       "profiles": [
         "P"
       ],
-      "why": "Each sensitive permission is attack surface and a privacy promise to users. Third-party SDKs can use it too, and Play restricts some of them, such as broad photo access.",
+      "why": "Each sensitive permission is attack surface and a privacy promise to users. Third-party SDKs can use it too, and Play restricts some of them, such as broad photo access. This is the app's merged inventory to review.",
       "fix": "Ask only for what a feature needs, at the point of use, with a rationale. Prefer narrower options: the photo picker, approximate location, or `READ_MEDIA_VISUAL_USER_SELECTED`.",
       "verify": "Check the merged manifest in Android Studio and confirm every sensitive permission maps to a feature.",
       "effort": "hours",
@@ -928,6 +884,799 @@
       ],
       "confidence": "manual",
       "detector": "android_dangerous_permissions"
+    },
+    {
+      "id": "AND-034",
+      "title": "Token or password stored in plain SharedPreferences or DataStore",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "SharedPreferences and DataStore write plain files in the app's private folder. They are copied into backups and are readable by anyone with root or physical access to the device, so a long-lived token there can be lifted and replayed.",
+      "fix": "Keep short-lived tokens in memory. Encrypt long-lived tokens before storing them, with a key held in the Android Keystore: for example Tink's AEAD with an `AndroidKeysetManager` master key, checking `isUsingKeystore()`. Keep only non-secret settings in plain preferences.",
+      "verify": "Sign in on an emulator, then run `adb shell run-as <package> ls -R shared_prefs files/datastore` and print each file with `cat`. Confirm no token or password appears in readable form.",
+      "effort": "hours",
+      "book": "§6.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0287",
+        "MASTG-TEST-0305"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "import com.google.crypto.tink.Aead\n\n// `aead` comes from Tink's AndroidKeysetManager with a Keystore master key (see AND-024).\nclass TokenStore(private val prefs: android.content.SharedPreferences, private val aead: Aead) {\n    fun save(token: String) {\n        val sealed = aead.encrypt(token.toByteArray(), \"refresh_token\".toByteArray())\n        prefs.edit().putString(\"refresh_token\", android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)).apply()\n    }\n\n    fun load(): String? = prefs.getString(\"refresh_token\", null)?.let {\n        String(aead.decrypt(android.util.Base64.decode(it, android.util.Base64.NO_WRAP), \"refresh_token\".toByteArray()))\n    }\n}"
+      },
+      "confidence": "manual",
+      "detector": "android_prefs_token"
+    },
+    {
+      "id": "AND-035",
+      "title": "Network security config allows plain HTTP for a domain",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A `domain-config` with `cleartextTrafficPermitted=\"true\"` lets the app talk to that host over plain HTTP, so anyone on the network path can read or change the traffic, including tokens sent to it.",
+      "fix": "Remove the `domain-config` or set `cleartextTrafficPermitted=\"false\"`. If a legacy host needs HTTP, put it behind HTTPS on your side first.",
+      "verify": "Build a release APK, call the listed host over `http://`, and confirm the request fails with a cleartext error.",
+      "effort": "minutes",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0235"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<!-- res/xml/network_security_config.xml -->\n<network-security-config>\n    <base-config cleartextTrafficPermitted=\"false\" />\n    <!-- Local development only; never a production host -->\n    <domain-config cleartextTrafficPermitted=\"true\">\n        <domain includeSubdomains=\"false\">10.0.2.2</domain>\n    </domain-config>\n</network-security-config>"
+      },
+      "confidence": "high",
+      "detector": "android_nsc_domain_cleartext"
+    },
+    {
+      "id": "AND-036",
+      "title": "Backup rules don't keep sensitive data out of device-to-device transfer",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Android 12+ copies app files to a new phone through device-to-device transfer, which only `<device-transfer>` in `dataExtractionRules` controls. A cloud-backup exclusion, or `allowBackup=\"false\"` on some devices, doesn't keep a file out of that copy.",
+      "fix": "Add `android:dataExtractionRules` with matching `<exclude>` entries in both `<cloud-backup>` and `<device-transfer>` for tokens, keysets and databases.",
+      "verify": "Check that the rules file excludes the same files in both sections, then move the app to a second phone with the setup wizard and confirm the excluded files are absent (`adb shell run-as <package> ls -R`).",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0006",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0262",
+        "MASTG-BEST-0004"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<!-- res/xml/data_extraction_rules.xml -->\n<data-extraction-rules>\n    <cloud-backup disableIfNoEncryptionCapabilities=\"true\">\n        <exclude domain=\"file\" path=\"datastore/session.enc\" />\n        <exclude domain=\"sharedpref\" path=\"tink_keysets.xml\" />\n    </cloud-backup>\n    <device-transfer>\n        <exclude domain=\"file\" path=\"datastore/session.enc\" />\n        <exclude domain=\"sharedpref\" path=\"tink_keysets.xml\" />\n    </device-transfer>\n</data-extraction-rules>"
+      },
+      "confidence": "high",
+      "detector": "android_backup_device_transfer"
+    },
+    {
+      "id": "AND-037",
+      "title": "Debug tool library ships in the release build",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Tools such as Stetho, Flipper, Chucker and LeakCanary expose the app's databases, preferences, network traffic or heap dumps. Added with `implementation`, they ship to every user, and anyone holding the phone can read that data.",
+      "fix": "Use `debugImplementation` (or the library's `-no-op` artifact with `releaseImplementation`) and start the tool from code in `src/debug/`.",
+      "verify": "Run `./gradlew :app:dependencies --configuration releaseRuntimeClasspath` and confirm none of these libraries appear.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-BEST-0007"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "dependencies {\n    debugImplementation(\"com.github.chuckerteam.chucker:library:4.1.0\")\n    releaseImplementation(\"com.github.chuckerteam.chucker:library-no-op:4.1.0\")\n    debugImplementation(\"com.squareup.leakcanary:leakcanary-android:2.14\")\n}"
+      },
+      "confidence": "high",
+      "detector": "android_debug_tool_release"
+    },
+    {
+      "id": "AND-038",
+      "title": "Release build turns on native debugging or is marked test-only",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`jniDebuggable` lets a debugger attach to the app's native code, `testCoverageEnabled` ships coverage instrumentation, and `android:testOnly=\"true\"` marks the APK as a test build. None of these belong in a build users install.",
+      "fix": "Remove these settings from release build types and the main manifest. Keep native debugging in `debug {}` only.",
+      "verify": "Run `aapt2 dump badging app-release.apk` and confirm it shows no `testOnly` flag, and check that the release build type sets none of these options.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-TEST-0226",
+        "MASTG-BEST-0007"
+      ],
+      "confidence": "high",
+      "detector": "android_release_native_debug"
+    },
+    {
+      "id": "AND-039",
+      "title": "Timber logs everything in release builds",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`Timber.DebugTree` sends every log call to logcat. Planted in release, any debug log of a request, token or user field is readable over adb and in bug reports.",
+      "fix": "Plant `DebugTree` only under `if (BuildConfig.DEBUG)`. In release, plant a tree that keeps only warnings and errors and never logs request data.",
+      "verify": "Install the release build, sign in, and confirm `adb logcat --pid=$(adb shell pidof <package>)` shows no debug or info lines from the app.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0231",
+        "MASTG-BEST-0002"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "if (BuildConfig.DEBUG) {\n    Timber.plant(Timber.DebugTree())\n} else {\n    Timber.plant(object : Timber.Tree() {\n        override fun isLoggable(tag: String?, priority: Int) = priority >= Log.WARN\n        override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {\n            crashReporter.log(priority, tag, message, t)   // never request data\n        }\n    })\n}"
+      },
+      "confidence": "high",
+      "detector": "android_timber_debug_tree"
+    },
+    {
+      "id": "AND-040",
+      "title": "WebView Safe Browsing is turned off",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Safe Browsing warns users before a WebView loads a known phishing or malware page. Turning it off removes that check for every page the WebView shows, including links from messages or ads.",
+      "fix": "Remove the `EnableSafeBrowsing` meta-data set to false and any `setSafeBrowsingEnabled(false)` call. Safe Browsing is on by default.",
+      "verify": "Load `chrome://safe-browsing/match?type=malware` in the WebView and confirm the warning page appears.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0399"
+      ],
+      "confidence": "high",
+      "detector": "android_safe_browsing_off"
+    },
+    {
+      "id": "AND-041",
+      "title": "Keystore key accepts caller-chosen IVs",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "By default a Keystore key refuses an IV the caller supplies and generates a fresh one. `setRandomizedEncryptionRequired(false)` removes that guard, so a reused IV with AES-GCM can reveal plaintext and allow forgeries.",
+      "fix": "Remove the call. Let the Keystore pick the IV, then store `cipher.iv` next to the ciphertext.",
+      "verify": "Encrypt the same value twice and confirm the IVs and the ciphertexts differ.",
+      "effort": "hours",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0309"
+      ],
+      "confidence": "high",
+      "detector": "android_keystore_caller_iv"
+    },
+    {
+      "id": "AND-042",
+      "title": "App reads a hardware identifier",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "P"
+      ],
+      "why": "IMEI, serial number, MAC address and ANDROID_ID identify the device across apps or survive a reset of the advertising ID. Using them to profile users breaks store policy and takes away the user's ability to reset tracking.",
+      "fix": "Use a server-generated or app-scoped ID (the app set ID, or a UUID you store), and the advertising ID only with consent.",
+      "verify": "Search the release code for these APIs and confirm each remaining use has a purpose other than tracking.",
+      "effort": "hours",
+      "book": "§18.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#182-identifiers-and-tracking",
+      "maswe": "MASWE-0068",
+      "masvs": "MASVS-PRIVACY-2",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "android_hardware_id"
+    },
+    {
+      "id": "AND-043",
+      "title": "File name from another app is used as a path (Dirty Stream)",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A content provider controls the display name it returns. If the app saves a shared file under that name, a name such as `../shared_prefs/x.xml` overwrites the app's own files, which can leak tokens or run attacker code.",
+      "fix": "Ignore the supplied name and generate your own, or keep only `File(name).name`, and check that the canonical path stays inside your directory.",
+      "verify": "Share a file from a test provider whose display name is `../../shared_prefs/evil.xml` and confirm nothing is written outside the target directory.",
+      "effort": "hours",
+      "book": "§17.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#172-intents-explicit-versus-implicit",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-BEST-0057"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "fun saveShared(uri: Uri): File {\n    val target = File(context.filesDir, \"shared/${UUID.randomUUID()}\")   // ignore the supplied name\n    val dir = File(context.filesDir, \"shared\").canonicalPath + File.separator\n    require(target.canonicalPath.startsWith(dir))\n    context.contentResolver.openInputStream(uri)!!.use { input ->\n        target.outputStream().use { input.copyTo(it) }\n    }\n    return target\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_dirty_stream"
+    },
+    {
+      "id": "AND-044",
+      "title": "SafetyNet Attestation is still called",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Google shut down SafetyNet Attestation in January 2025. Calls now fail, so any login, payment or fraud decision that relies on its verdict either breaks or is skipped.",
+      "fix": "Migrate to Play Integrity standard requests and verify the verdict on your server (§9.6).",
+      "verify": "Confirm no code path calls `SafetyNet.getClient(...).attest(` and that the server checks Play Integrity verdicts instead.",
+      "effort": "days",
+      "book": "Chapter 9",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#chapter-9-play-integrity--what-it-proves-and-what-it-does-not",
+      "maswe": "MASWE-0046",
+      "masvs": "MASVS-CODE-3",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "android_safetynet"
+    },
+    {
+      "id": "AND-045",
+      "title": "App never blocks screenshots or the recents thumbnail",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Without `FLAG_SECURE`, screenshots, screen recording, casting and the recents-screen thumbnail capture whatever is on screen, including balances, card numbers and one-time codes.",
+      "fix": "Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.",
+      "verify": "Open a sensitive screen, take a screenshot and open the recents screen; confirm both show a blank or blocked view.",
+      "effort": "hours",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0038",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0291",
+        "MASTG-BEST-0014",
+        "MASTG-BEST-0016"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "class StatementActivity : AppCompatActivity() {\n    override fun onCreate(savedInstanceState: Bundle?) {\n        super.onCreate(savedInstanceState)\n        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)\n    }\n}\n\n// Compose dialog that shows a one-time code\nDialog(onDismissRequest = onDismiss, properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn)) { OtpCard(code) }"
+      },
+      "confidence": "high",
+      "detector": "android_no_screenshot_protection"
+    },
+    {
+      "id": "AND-046",
+      "title": "App has no overlay (tapjacking) protection",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Android 12+ blocks touches through most full-screen overlays from other apps, but not a partial overlay that covers everything except your button. A malicious overlay can then trick the user into approving a transfer or a permission.",
+      "fix": "On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.",
+      "verify": "Run a test app that draws a partial overlay over the confirm button and confirm the tap is ignored or the overlay is hidden.",
+      "effort": "hours",
+      "book": "§17.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#176-the-other-channels-people-forget",
+      "maswe": "MASWE-0039",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0340",
+        "MASTG-BEST-0040"
+      ],
+      "app_types": [
+        "banking",
+        "identity",
+        "health",
+        "ecommerce-cards",
+        "device-control"
+      ],
+      "not_needed_reason": "Overlay tricks matter where one tap moves money, shares health or identity data, or controls a device.",
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// AndroidManifest.xml: <uses-permission android:name=\"android.permission.HIDE_OVERLAY_WINDOWS\" />\noverride fun onCreate(savedInstanceState: Bundle?) {\n    super.onCreate(savedInstanceState)\n    if (Build.VERSION.SDK_INT >= 31) window.setHideOverlayWindows(true)\n    binding.confirmTransfer.filterTouchesWhenObscured = true\n}"
+      },
+      "confidence": "high",
+      "detector": "android_no_overlay_protection"
+    },
+    {
+      "id": "AND-047",
+      "title": "R8 keep rules undo obfuscation",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "R"
+      ],
+      "why": "R8 renames classes so the release build is harder to read. `-dontobfuscate`, a keep rule for every class, or keep rules for your security checks put the readable names back and show an attacker which code to patch.",
+      "fix": "Remove broad and security-class keep rules. Keep only what reflection or serialization reaches, by exact name or annotation.",
+      "verify": "Open the release APK in jadx and confirm your packages and your root or tamper checks have obfuscated names.",
+      "effort": "hours",
+      "book": "§15.8",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code",
+      "maswe": "MASWE-0059",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [
+        "MASTG-TEST-0368",
+        "MASTG-BEST-0029"
+      ],
+      "confidence": "high",
+      "detector": "android_keep_rules"
+    },
+    {
+      "id": "AND-048",
+      "title": "Play Integrity is not integrated",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "R"
+      ],
+      "why": "Without Play Integrity the backend can't tell a request from your genuine app on a genuine device from one sent by a modified APK, an emulator farm or a script.",
+      "fix": "Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2).",
+      "verify": "Send a sensitive request from a re-signed build and confirm the server rejects it or lowers its trust score.",
+      "effort": "days",
+      "book": "§9.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#96-how-to-implement-it",
+      "maswe": "MASWE-0056",
+      "masvs": "MASVS-RESILIENCE-2",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "android_no_play_integrity"
+    },
+    {
+      "id": "AND-049",
+      "title": "Keystore key may both encrypt and sign",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A key used for both encryption and signatures (or key wrapping) links the two uses: a weakness in one can forge or decrypt in the other. Each key should have one job.",
+      "fix": "Create one Keystore key per role: one with `PURPOSE_ENCRYPT or PURPOSE_DECRYPT`, another with `PURPOSE_SIGN or PURPOSE_VERIFY`.",
+      "verify": "List each `KeyGenParameterSpec.Builder` and confirm its purposes are either encryption or signing, not both.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0307"
+      ],
+      "confidence": "high",
+      "detector": "android_key_multi_purpose"
+    },
+    {
+      "id": "AND-050",
+      "title": "Crypto call names an explicit provider",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Naming a provider such as \"BC\" ties the app to a bundled or deprecated implementation that Android doesn't update, and Android 9 removed several of them. The platform's default provider gets security fixes.",
+      "fix": "Drop the provider argument, or use \"AndroidKeyStore\" for Keystore keys. Don't install Bouncy Castle as a global provider.",
+      "verify": "Search for two-argument `getInstance(` calls and `Security.addProvider`, and confirm only AndroidKeyStore or Conscrypt remain.",
+      "effort": "minutes",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0007",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [
+        "MASTG-TEST-0312",
+        "MASTG-BEST-0020"
+      ],
+      "confidence": "high",
+      "detector": "android_crypto_provider"
+    },
+    {
+      "id": "AND-051",
+      "title": "Biometric prompt accepts weak (Class 2) biometrics",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Class 2 biometrics, such as many face unlocks, are easier to spoof and can't unlock a Keystore key. A prompt that accepts them is a boolean check, not proof that the owner is present.",
+      "fix": "Allow `BIOMETRIC_STRONG` and pass a `CryptoObject` so a Keystore key does the gating.",
+      "verify": "On a device with Class 2 face unlock, confirm the sensitive prompt asks for a Class 3 biometric or the device credential instead.",
+      "effort": "minutes",
+      "book": "§11.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#112-biometric-classes-and-why-class-3-matters",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0327"
+      ],
+      "confidence": "high",
+      "detector": "android_biometric_weak"
+    },
+    {
+      "id": "AND-052",
+      "title": "Biometric prompt doesn't require explicit confirmation",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "L2"
+      ],
+      "why": "With `setConfirmationRequired(false)`, a passive biometric such as face unlock approves the action as soon as the phone sees the user's face, without a deliberate tap. For payments, that means approvals the user didn't intend.",
+      "fix": "Remove the call (the default is `true`) on prompts that approve payments, transfers or other one-way actions.",
+      "verify": "Trigger the payment prompt with face unlock and confirm it waits for a confirm tap.",
+      "effort": "minutes",
+      "book": "§11.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#114-fallbacks-and-the-tension-inside-them",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0329",
+        "MASTG-BEST-0038"
+      ],
+      "app_types": [
+        "banking",
+        "identity",
+        "ecommerce-cards"
+      ],
+      "not_needed_reason": "Explicit confirmation matters for prompts that approve payments or identity actions.",
+      "confidence": "high",
+      "detector": "android_biometric_no_confirmation"
+    },
+    {
+      "id": "AND-053",
+      "title": "Screen-capture protection is switched off",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Clearing `FLAG_SECURE`, using `SecureFlagPolicy.SecureOff`, or turning the recents screenshot back on lets screenshots, recordings and the recents thumbnail capture that screen. That's a leak when the screen shows account data or codes.",
+      "fix": "Keep `FLAG_SECURE` on every screen that shows secrets, and clear it only on screens that don't.",
+      "verify": "Open each screen where the flag is cleared and confirm it never shows balances, card data or codes.",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0038",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0291",
+        "MASTG-TEST-0294"
+      ],
+      "confidence": "medium",
+      "detector": "android_screen_capture_cleared"
+    },
+    {
+      "id": "AND-054",
+      "title": "Implicit Intent carries a token or password",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An implicit Intent goes to whichever app has a matching filter. Extras such as a token, password or one-time code are readable by that app, which can be one the user installed by mistake.",
+      "fix": "Make the Intent explicit with `setPackage(packageName)` or a component, and don't put credentials in extras.",
+      "verify": "Install a test app with a matching intent filter and confirm it doesn't receive the Intent or its extras.",
+      "effort": "hours",
+      "book": "§17.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#172-intents-explicit-versus-implicit",
+      "maswe": "MASWE-0032",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-TEST-0374",
+        "MASTG-BEST-0056"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val intent = Intent(ACTION_COMPLETE_LOGIN).apply {\n    setPackage(context.packageName)        // only this app can receive it\n    putExtra(\"session_ref\", sessionRef)    // a reference, never the token itself\n}\ncontext.startActivity(intent)"
+      },
+      "confidence": "medium",
+      "detector": "android_implicit_intent_secret"
+    },
+    {
+      "id": "AND-055",
+      "title": "App-internal action is sent as an implicit Intent",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An action meant for the app's own components, sent without a package or component, reaches any app that declares the same action. That app can read the extras or answer in place of yours.",
+      "fix": "Call `intent.setPackage(packageName)` or use an explicit component. For broadcasts inside the app, also name a signature permission.",
+      "verify": "Install a test app with a filter for the action and confirm it never receives the Intent.",
+      "effort": "hours",
+      "book": "§17.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#172-intents-explicit-versus-implicit",
+      "maswe": "MASWE-0032",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-TEST-0372",
+        "MASTG-BEST-0056"
+      ],
+      "confidence": "medium",
+      "detector": "android_implicit_internal_intent"
+    },
+    {
+      "id": "AND-056",
+      "title": "Receiver registered in code is exported",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A receiver registered with `RECEIVER_EXPORTED`, or without a flag below targetSdk 34, accepts broadcasts from every app. Any app can then trigger the receiver's action or feed it fake data.",
+      "fix": "Use `ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)`, or pass a signature permission if your other apps must send it.",
+      "verify": "Send the action with `adb shell am broadcast -a <action>` and confirm the receiver doesn't run.",
+      "effort": "minutes",
+      "book": "§17.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#171-android-app-components-and-the-word-exported",
+      "maswe": "MASWE-0018",
+      "masvs": "MASVS-AUTH-1",
+      "mastg": [
+        "MASTG-TEST-0366",
+        "MASTG-BEST-0052"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "ContextCompat.registerReceiver(\n    context,\n    sessionReceiver,\n    IntentFilter(ACTION_SESSION_EXPIRED),\n    ContextCompat.RECEIVER_NOT_EXPORTED,\n)"
+      },
+      "confidence": "high",
+      "detector": "android_receiver_registered_exported"
+    },
+    {
+      "id": "AND-057",
+      "title": "Content provider grants URI access to every path",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`<grant-uri-permission>` with `path=\"/\"` or `pathPattern=\".*\"` lets the app hand out temporary access to any URI the provider serves. One grant meant for a single file can expose all of the provider's data.",
+      "fix": "Grant only specific paths, or share files through FileProvider with narrow `file_paths.xml` entries.",
+      "verify": "Grant a URI for one item to a test app and confirm it can't read other paths from the provider.",
+      "effort": "minutes",
+      "book": "§17.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#174-content-providers",
+      "maswe": "MASWE-0018",
+      "masvs": "MASVS-AUTH-1",
+      "mastg": [
+        "MASTG-TEST-0357"
+      ],
+      "confidence": "high",
+      "detector": "android_grant_uri_all"
+    },
+    {
+      "id": "AND-058",
+      "title": "Provider protects reads but not writes",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With only `android:readPermission`, `insert`, `update` and `delete` stay open to every app. A malicious app can change or wipe the provider's data even though it can't read it.",
+      "fix": "Add `android:writePermission` with a `signature` protection level, or remove the write methods.",
+      "verify": "Run `adb shell content insert --uri content://<authority>/<path> --bind x:s:y` and confirm it's refused.",
+      "effort": "hours",
+      "book": "§17.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#174-content-providers",
+      "maswe": "MASWE-0018",
+      "masvs": "MASVS-AUTH-1",
+      "mastg": [
+        "MASTG-TEST-0355",
+        "MASTG-BEST-0049"
+      ],
+      "confidence": "high",
+      "detector": "android_provider_read_only_permission"
+    },
+    {
+      "id": "AND-059",
+      "title": "WebView runs JavaScript with content access on",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`allowContentAccess` is on by default on every Android version. A page script in a WebView with JavaScript on can then read `content://` URIs the app can open, including its own providers. A WebView that loads only web pages is reported as low, since a web page can't open `content://` URLs.",
+      "fix": "Set `settings.allowContentAccess = false`, and load local content through `WebViewAssetLoader` over https.",
+      "verify": "Load a test page that fetches a `content://` URI of your app and confirm the request fails.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0250",
+        "MASTG-BEST-0013"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "webView.settings.apply {\n    javaScriptEnabled = true\n    allowContentAccess = false\n    allowFileAccess = false\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_webview_content_access"
+    },
+    {
+      "id": "AND-060",
+      "title": "App writes to shared external storage",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Files in shared storage (Downloads, Documents, the external storage root) are outside the app sandbox. Other apps with storage access can read them, and they stay after the app is uninstalled. A write with no sign of sensitive data, such as a download the user asked for, is reported as low.",
+      "fix": "Keep sensitive files in `filesDir`, and let the user choose where exports go with the Storage Access Framework.",
+      "verify": "Run the export and download flows and confirm no file with personal data appears under `/sdcard`.",
+      "effort": "hours",
+      "book": "Chapter 0.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-04-what-the-platforms-give-you-for-free",
+      "maswe": "MASWE-0002",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [
+        "MASTG-TEST-0202"
+      ],
+      "confidence": "medium",
+      "detector": "android_external_storage"
+    },
+    {
+      "id": "AND-061",
+      "title": "File is readable or writable by every app",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`MODE_WORLD_READABLE` and `setReadable(true, false)` open a file in the app's private folder to every app on the device, which defeats the sandbox for that file.",
+      "fix": "Use `MODE_PRIVATE`, and share files with other apps through FileProvider.",
+      "verify": "Run `adb shell run-as <package> ls -l files shared_prefs` and confirm no file is readable by others.",
+      "effort": "minutes",
+      "book": "Chapter 0.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-04-what-the-platforms-give-you-for-free",
+      "maswe": "MASWE-0002",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "android_world_readable"
+    },
+    {
+      "id": "AND-062",
+      "title": "StrictMode logging ships in release",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "StrictMode reports disk, network and leak details with stack traces to logcat. Left on in release, it tells anyone reading the log which files and endpoints the app touches.",
+      "fix": "Set StrictMode policies only under `if (BuildConfig.DEBUG)`.",
+      "verify": "Install the release build and confirm `adb logcat -s StrictMode` stays empty while you use the app.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0061",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [
+        "MASTG-TEST-0265"
+      ],
+      "confidence": "high",
+      "detector": "android_strict_mode_release"
+    },
+    {
+      "id": "AND-063",
+      "title": "Release build keeps native debug symbols",
+      "platform": "android",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "Unstripped native libraries carry function names and debug information, which makes them much easier to read and patch. Play can symbolize native crashes from a separate symbols file instead.",
+      "fix": "Remove `keepDebugSymbols` and `doNotStrip`, and set `ndk { debugSymbolLevel = \"FULL\" }` to upload symbols separately.",
+      "verify": "Run `llvm-nm -D` on a `.so` from the release APK and confirm only exported symbols remain.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0061",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [
+        "MASTG-TEST-0288"
+      ],
+      "confidence": "high",
+      "detector": "android_native_debug_symbols"
+    },
+    {
+      "id": "AND-064",
+      "title": "APK is signed with the v1 (JAR) scheme only",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "The v1 scheme signs individual files, so on devices without the December 2017 patch the Janus bug lets an attacker change the app's code without breaking the signature. The v2 and v3 schemes sign the whole APK.",
+      "fix": "Remove `enableV2Signing = false`. AGP signs with v2 and v3 by default.",
+      "verify": "Run `apksigner verify --verbose app-release.apk` and confirm v2 or v3 shows `true`.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do",
+      "maswe": "MASWE-0056",
+      "masvs": "MASVS-RESILIENCE-2",
+      "mastg": [
+        "MASTG-TEST-0224",
+        "MASTG-BEST-0006"
+      ],
+      "confidence": "high",
+      "detector": "android_v1_signing_only"
+    },
+    {
+      "id": "AND-065",
+      "title": "Serializable object read from an Intent",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`getSerializableExtra` deserializes whatever class the sender chose. In a component other apps can start, a crafted object can run gadget code or crash the app.",
+      "fix": "Pass Parcelable or primitive extras, and on API 33+ read them with typed getters such as `getParcelableExtra(name, X::class.java)`.",
+      "verify": "Send the component an Intent with an unexpected Serializable class in that extra and confirm it's rejected.",
+      "effort": "hours",
+      "book": "§19.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#194-deserialization",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-TEST-0337"
+      ],
+      "confidence": "medium",
+      "detector": "android_serializable_extra"
+    },
+    {
+      "id": "AND-072",
+      "title": "App requests fraud-relevant permissions",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "SMS, call log, overlay, package visibility, install and accessibility access are what banking malware abuses to read one-time codes and take over the screen. Play restricts them, and each one needs a written reason.",
+      "fix": "Remove the permission, or move the feature to a narrower API (SMS Retriever, the photo picker, package queries). Keep a written justification for any that remain.",
+      "verify": "Check the merged release manifest and confirm each listed permission maps to a feature with a Play declaration.",
+      "effort": "hours",
+      "book": "§18.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why",
+      "maswe": "MASWE-0066",
+      "masvs": "MASVS-PRIVACY-1",
+      "mastg": [
+        "MASTG-TEST-0254"
+      ],
+      "confidence": "medium",
+      "detector": "android_high_risk_permissions"
     }
   ]
 }

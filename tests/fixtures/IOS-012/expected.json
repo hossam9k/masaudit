@@ -1,1 +1,1 @@
-{"vulnerable": 1, "clean": 0}
+{"vulnerable": 1, "clean": 0, "vulnerable_multiline": 2, "clean_delegate": 0, "vulnerable_binds_elsewhere": 1}
