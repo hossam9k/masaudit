@@ -15,9 +15,14 @@ every finding into **fix before release**, **fix soon**, or **not needed for you
 A news app should never be told to pin certificates. A banking app should. Most scanners give both
 the same list.
 
-It runs on your machine, needs no account, and sends nothing anywhere.
+It runs on your machine, needs no account, and sends nothing anywhere. Use it two ways:
 
-## Quick start
+- **On its own, no AI needed:** the [quick start](https://github.com/hossam9k/masaudit#quick-start-no-ai-needed) below. Everything,
+  including the report and its fixes, works offline.
+- **With an AI assistant** that confirms findings and applies fixes: see
+  [Use it with an AI assistant](https://github.com/hossam9k/masaudit#use-it-with-an-ai-assistant).
+
+## Quick start (no AI needed)
 
 You need Python 3.9 or later. Check with `python3 --version`. In your project's root folder, run
 one of these:
@@ -45,7 +50,7 @@ What happens:
 If the code suggests a riskier app type than your answer, for example card-number fields in a news
 app, masaudit warns you with "Check your app type" instead of switching on its own.
 
-Fix the top fixes, scan again, then
+Fix those, scan again, then
 [add masaudit to CI](https://github.com/hossam9k/masaudit/blob/main/docs/ci.md).
 
 ## What a scan looks like
