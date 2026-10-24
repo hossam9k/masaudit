@@ -1,40 +1,54 @@
 # masaudit documentation
 
 masaudit is a free mobile security scanner for Android, iOS, Kotlin Multiplatform, and Flutter source
-code. It scales its advice to your app's risk. New here? Start with the
-[quick start](https://github.com/hossam9k/masaudit#quick-start-no-ai-needed), then come back.
+code. It scales its advice to your app's risk. Everything works without AI or an account.
 
-## Guides, in the order you'll need them
+**New here?** Start with [Getting started](getting-started.md): your first scan and first fix, in
+about ten minutes.
 
-1. **[Install and run](usage.md#install-or-run):** every way to run masaudit, including a single
-   offline file.
-2. **[Choose your app type](usage.md#choose-your-app-type):** the one question masaudit asks, what each
-   type means, and the ["Check your app type"](usage.md#check-your-app-type) warning.
-3. **[Read the report](usage.md#read-the-report):** what each section of `SECURITY-AUDIT.md` tells you.
-4. **[Fix findings](usage.md#preview-and-apply-safe-fixes):** paste-ready fixes, and the one fix
-   masaudit can apply for you.
-5. **[Options and exit codes](usage.md#options):** every command-line option.
-6. **[Config file](usage.md#config-file-masauditini):** per-project settings in `.masaudit.ini`.
-7. **[CI and pre-commit](ci.md):** the GitHub Action, pinning it safely, and other CI systems.
-8. **[Team features](usage.md#team-features):** suppressions with reasons, baselines for older apps, and
-   results from Android Lint, mobsfscan, Semgrep, and zizmor.
-9. **[AI assistants](ai-assistants.md):** Claude Code commands, other tools that read Agent Skills,
-   and any chat assistant.
+## Learn
+
+- **[Getting started](getting-started.md):** install, run your first scan, read it, fix one finding.
+
+## How-to guides
+
+Step-by-step answers for a task:
+
+- **[Choose your app type](app-type.md),** and handle the "Check your app type" warning.
+- **[Read and fix the report](fixing.md):** what to fix first, how to verify, and safe fixes.
+- **[Use masaudit in CI](ci.md):** the GitHub Action, pinning it safely, pre-commit, other CI.
+- **[Use masaudit in a team](team.md):** shared settings, suppressions, baselines, other tools' results.
+- **[Use masaudit with an AI assistant](ai-assistants.md):** Claude Code, Agent Skills tools, any chat.
 
 ## Reference
 
-- **[Rules](rules.md):** all rules, each with why it matters, the fix, how to verify it, OWASP IDs, and
-  the book section.
-- **[Accuracy and speed](precision.md):** how every rule was measured on 19 open-source apps.
-- **Sample reports:** the same demo app as a [banking app](sample-report-banking.md) and as a
+Facts to look up:
+
+- **[Install and upgrade](install.md):** every way to run masaudit, and how to upgrade it.
+- **[Command line](cli.md):** every option, exit code, and environment variable.
+- **[Config file](config.md):** every `.masaudit.ini` key.
+- **[Output formats](output-formats.md):** Markdown, JSON, and SARIF.
+- **[Rules](rules.md):** every rule, with why, fix, verify, OWASP IDs, and the book section.
+- **Sample reports:** the demo app as a [banking app](sample-report-banking.md) and as a
   [news app](sample-report-news.md).
+
+## Explanation
+
+Background, to understand the results:
+
+- **[How masaudit works](how-it-works.md):** app types, OWASP MAS profiles, how a finding gets its
+  bucket, and what masaudit never does.
+- **[Accuracy and speed](precision.md):** how the rules were measured on 19 open-source apps, and how fast scans are.
+
+## Contributing and project
+
 - **[Writing a rule](writing-rules.md)** and
   [CONTRIBUTING.md](https://github.com/hossam9k/masaudit/blob/main/CONTRIBUTING.md).
-- **[Security policy](https://github.com/hossam9k/masaudit/blob/main/SECURITY.md):** reporting a
-  vulnerability, and checking that a download is genuine.
+- **[Security policy](https://github.com/hossam9k/masaudit/blob/main/SECURITY.md):** report a
+  vulnerability, or check that a download is genuine.
 - **[Changelog](https://github.com/hossam9k/masaudit/blob/main/CHANGELOG.md).**
-- **The book:** [*Mobile Application Security: A Study Book for Engineers*](https://github.com/hossam9k/mobile-app-security),
-  which every rule cites.
+- **The book** every rule cites:
+  [*Mobile Application Security: A Study Book for Engineers*](https://github.com/hossam9k/mobile-app-security).
 
 ## Questions people ask first
 
@@ -44,30 +58,28 @@ offline. An [AI assistant](ai-assistants.md) is optional.
 
 **Does it upload my code, or run it?**
 No. It makes no network calls (a test enforces it), sends no telemetry, and never builds or runs your
-code. It only reads files.
+code. It writes only its own report, plus a baseline or a safe fix when you ask for one. See
+[Safe to run on any code](how-it-works.md#safe-to-run-on-any-code).
 
 **Which projects does it scan?**
-Android, iOS, Kotlin Multiplatform, and Flutter source code, plus GitHub Actions workflows. In a React
-Native app it scans the `android/` and `ios/` folders but not the JavaScript code yet. It doesn't read
-built APK or IPA files; [MobSF](https://github.com/MobSF/Mobile-Security-Framework-MobSF) does that,
-and the two work well together.
+Android, iOS, Kotlin Multiplatform, and Flutter source code, plus GitHub Actions workflows. It doesn't
+read built APK or IPA files. See [What masaudit reads](how-it-works.md#what-masaudit-reads-and-what-it-doesnt).
 
 **Does it work on Windows?**
-Yes. CI tests it on Linux, macOS, and Windows with Python 3.9 to 3.14.
+Yes. See [Install and upgrade](install.md).
 
 **Which app type should I pick?**
 The one that matches what your app protects. If two fit, pick the riskier one. If the code suggests a
-riskier type than your choice, masaudit tells you. See
-[Choose your app type](usage.md#choose-your-app-type).
+riskier type than your choice, masaudit tells you. See [Choose your app type](app-type.md).
 
 **Why does the report say a finding is "Not needed"?**
-Some protections only pay off for high-risk apps. Certificate pinning, for example, helps a banking
+Some protections are worth their cost only in high-risk apps. Certificate pinning, for example, helps a banking
 app but adds outage risk to a news app. masaudit still lists these findings, with the reason, so you
-can decide.
+can decide. See [How a finding gets its bucket](how-it-works.md#how-a-finding-gets-its-bucket).
 
 **A finding is wrong for my code. What do I do?**
-Suppress it with a written reason (see [Team features](usage.md#team-features)) and, if the rule
-itself is wrong, send a
+Suppress it with a written reason (see [Use masaudit in a team](team.md#suppress-a-finding-with-a-reason))
+and, if the rule itself is wrong, send a
 [false-positive report](https://github.com/hossam9k/masaudit/issues/new?template=false-positive.yml).
 It's the most useful contribution you can make.
 

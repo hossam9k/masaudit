@@ -1,6 +1,6 @@
-[masaudit documentation](README.md) ›
+[masaudit documentation](README.md) › Use masaudit with an AI assistant
 
-# Using masaudit with an AI assistant
+# Use masaudit with an AI assistant
 
 masaudit works on its own; an assistant is optional. With one, you get a second pass: the
 assistant confirms each finding in your real code, looks for what a scanner can't see, and applies
@@ -33,8 +33,8 @@ into your tool's skills folder. The skill bundles the scanner, so it works offli
 ## Any chat assistant
 
 Every `SECURITY-AUDIT.md` ends with a *Fix plan for your AI assistant*. Paste it into the chat. The
-report marks code from your project as data, and the masaudit skill tells the assistant to treat it
-as data, never as instructions, so text in your code isn't treated as a request.
+plan marks code from your project as data, not instructions, but a chat assistant can still be misled
+by text in your code. Review every change it suggests before you apply it.
 
 ## What the assistant does, and doesn't do
 

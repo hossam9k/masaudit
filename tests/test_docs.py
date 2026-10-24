@@ -9,6 +9,7 @@ import unittest
 
 from helpers import scan_dir  # noqa: F401  (sets sys.path)
 from masaudit import __version__, cli, engine, profile
+from masaudit.report import terminal
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 
@@ -19,6 +20,7 @@ def read(rel):
 
 
 README = read("README.md")
+README_FLAT = " ".join(README.split())          # prose checks ignore where lines wrap
 
 
 class ReadmeNumbers(unittest.TestCase):
@@ -26,7 +28,7 @@ class ReadmeNumbers(unittest.TestCase):
         rules = [r for r in engine.load_rules() if not r.retired]
         by = collections.Counter(r.platform for r in rules)
         m = re.search(r"(\d+) rules: (\d+) Android, (\d+) iOS, (\d+) cross-platform code, (\d+) Flutter, "
-                      r"(\d+) CI and supply chain, (\d+) Kotlin\s+Multiplatform", README)
+                      r"(\d+) CI and supply chain, (\d+) Kotlin\s+Multiplatform", README_FLAT)
         self.assertIsNotNone(m, "README rule-count sentence not found")
         self.assertEqual([int(x) for x in m.groups()],
                          [len(rules), by["android"], by["ios"], by["cross"], by["flutter"], by["ci"], by["kmp"]])
@@ -37,8 +39,8 @@ class ReadmeNumbers(unittest.TestCase):
             catalog = json.load(fh)
         maswe = {r.maswe for r in rules if r.maswe and not r.retired}
         mastg = {t for r in rules for t in r.mastg if t.startswith("MASTG-TEST")}
-        self.assertIn(f"{len(maswe)} of the {len(catalog)} weaknesses", README)
-        self.assertIn(f"cite {len(mastg)} OWASP MASTG tests", README)
+        self.assertIn(f"{len(maswe)} of the {len(catalog)} weaknesses", README_FLAT)
+        self.assertIn(f"cite {len(mastg)} OWASP MASTG tests", README_FLAT)
 
     def test_demo_app_table(self):
         demo = os.path.join(ROOT, "examples", "acme-wallet")
@@ -63,9 +65,38 @@ class ReadmeNumbers(unittest.TestCase):
                     self.assertEqual(found, __version__)
 
 
+class TerminalSamples(unittest.TestCase):
+    """The terminal output shown in README.md and the tutorial is what the demo app really prints."""
+
+    def _blocks(self, rel):
+        return [b for b in re.findall(r"```text\n(.*?)```", read(rel), re.S) if "Fix before release:" in b]
+
+    def _real_output(self, block):
+        demo = os.path.join(ROOT, "examples", "acme-wallet")
+        app_type = re.search(r"Profile:\s+(\S+)", block).group(1)
+        res = cli.scan(demo, cli_type=app_type, cfg={}, allow_prompt=False)
+        if "from your answer" in block:
+            res.profile.source = "prompt"
+        return terminal.render(res, report_path=os.path.join(demo, "SECURITY-AUDIT.md"), color=False)
+
+    def test_samples_match_the_demo_app(self):
+        for rel in ("README.md", "docs/getting-started.md"):
+            blocks = self._blocks(rel)
+            self.assertTrue(blocks, rel)
+            for block in blocks:
+                out = self._real_output(block).splitlines()
+                for line in block.splitlines():
+                    if not line.strip() or line.startswith("$ ") or line.strip() == "...":
+                        continue
+                    # "..." in a sample stands for a shortened path or a cut-off line end.
+                    pattern = ".*".join(re.escape(part) for part in line.rstrip().split("...")) + ".*"
+                    with self.subTest(file=rel, line=line):
+                        self.assertTrue(any(re.fullmatch(pattern, o.rstrip()) for o in out), line)
+
+
 class UsageGuide(unittest.TestCase):
     def test_app_type_table_matches_the_code(self):
-        usage = read("docs/usage.md")
+        usage = read("docs/app-type.md")
         rows = dict(re.findall(r"^\| `([a-z-]+)` \| [^|]+ \| ([^|]+) \|$", usage, re.M))
         self.assertEqual(set(rows), set(profile.APP_TYPES))
         for key, (profiles, description) in profile.APP_TYPES.items():
