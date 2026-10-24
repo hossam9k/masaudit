@@ -1,0 +1,16 @@
+name: release
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
+      - run: |
+          flutter build ipa --release \
+            --obfuscate \
+            --split-debug-info=build/ios-symbols
+      - run: flutter build apk --debug
+      - run: flutter build ios --config-only --no-codesign
+      - run: flutter build ${{ matrix.target }}
+      # - run: flutter build apk --release
+      - run: flutter build apk --release $EXTRA_BUILD_FLAGS

@@ -47,6 +47,11 @@ def _guarded_by(blank: str, idx: int, is_debug) -> bool:
     return False
 
 
+def guarded_by(blank: str, idx: int, is_debug) -> bool:
+    """Under an `if (...)` whose condition, with whitespace removed, satisfies `is_debug`."""
+    return _guarded_by(blank, idx, is_debug)
+
+
 def _jvm_debug(cond: str) -> bool:
     return bool((re.search(r"(?<!!)BuildConfig\.DEBUG\b", cond) and "!BuildConfig.DEBUG" not in cond)
                 or ("FLAG_DEBUGGABLE" in cond and "==0" not in cond))

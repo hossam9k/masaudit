@@ -1,0 +1,10 @@
+// !$*UTF8*$!
+{
+    objects = {
+        A1 /* Demo */ = {
+            isa = PBXNativeTarget;
+            name = Demo;
+            productType = "com.apple.product-type.application";
+        };
+    };
+}

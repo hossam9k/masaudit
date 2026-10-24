@@ -1,0 +1,7 @@
+name: demo
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  local_auth: ^2.3.0

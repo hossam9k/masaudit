@@ -41,6 +41,168 @@
       "mastg": [],
       "confidence": "manual",
       "detector": "flutter_prefs_token"
+    },
+    {
+      "id": "FLT-003",
+      "title": "Dio logger prints headers or bodies in release builds",
+      "platform": "flutter",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "PrettyDioLogger, and a LogInterceptor with a custom `logPrint` (or on dio 4), print every request with `print`, which reaches logcat and the device console in release builds. The `Authorization` header and login responses end up in logs and bug reports.",
+      "fix": "Add logging interceptors only under `if (kDebugMode)`, and redact the `Authorization` and cookie headers in any logger that stays.",
+      "verify": "Install a release build, sign in, and watch `adb logcat` or Console.app: no request headers, tokens, or response bodies should appear.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0231",
+        "MASTG-TEST-0297"
+      ],
+      "fix_code": {
+        "lang": "dart",
+        "code": "final dio = Dio();\nif (kDebugMode) {\n  dio.interceptors.add(PrettyDioLogger(\n    requestHeader: false,   // never print Authorization\n    responseBody: false,\n  ));\n}"
+      },
+      "confidence": "high",
+      "detector": "flutter_dio_logger"
+    },
+    {
+      "id": "FLT-004",
+      "title": "Flutter web view can read local files or load mixed content",
+      "platform": "flutter",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With file-origin access on, a page loaded from a file can read other local files, such as the app's databases, and send them anywhere. Allowing mixed content lets an HTTPS page pull scripts over plain HTTP that anyone on the network can replace.",
+      "fix": "Remove these flutter_inappwebview settings. Serve bundled HTML through `webViewAssetLoader` over `https://appassets.androidplatform.net` instead of `file://` URLs.",
+      "verify": "Search for `allowFileAccessFromFileURLs`, `allowUniversalAccessFromFileURLs`, `allowFileAccess: true`, and `MIXED_CONTENT_ALWAYS_ALLOW`; none should remain.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0252",
+        "MASTG-TEST-0335"
+      ],
+      "fix_code": {
+        "lang": "dart",
+        "code": "InAppWebView(\n  initialSettings: InAppWebViewSettings(\n    allowFileAccess: false,\n    allowFileAccessFromFileURLs: false,\n    allowUniversalAccessFromFileURLs: false,\n    mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,\n    webViewAssetLoader: WebViewAssetLoader(\n      pathHandlers: [AssetsPathHandler(path: '/assets/')],\n    ),\n  ),\n  initialUrlRequest: URLRequest(\n    url: WebUri('https://appassets.androidplatform.net/assets/flutter_assets/web/index.html'),\n  ),\n)"
+      },
+      "confidence": "high",
+      "detector": "flutter_webview_file_access"
+    },
+    {
+      "id": "FLT-005",
+      "title": "Flutter web view accepts any server certificate",
+      "platform": "flutter",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A trust handler that answers PROCEED without checking the certificate turns off TLS for the web view. Anyone on the same network can serve their own page with a self-signed certificate and read or change what the user sees and types.",
+      "fix": "Delete the handler so the platform validates the chain, or return `CANCEL` unless your own pin check on the server certificate passes.",
+      "verify": "Route the device through a proxy whose CA it doesn't trust; the web view should refuse to load the page.",
+      "effort": "minutes",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0284",
+        "MASTG-TEST-0397"
+      ],
+      "fix_code": {
+        "lang": "dart",
+        "code": "onReceivedServerTrustAuthRequest: (controller, challenge) async {\n  // Proceed only when your own pin check passes; otherwise let the request fail.\n  final ok = await pinMatches(challenge.protectionSpace.sslCertificate);\n  return ServerTrustAuthResponse(\n    action: ok ? ServerTrustAuthResponseAction.PROCEED : ServerTrustAuthResponseAction.CANCEL,\n  );\n},"
+      },
+      "confidence": "high",
+      "detector": "flutter_webview_trust_all"
+    },
+    {
+      "id": "FLT-006",
+      "title": "Flutter web view debugging is on in release",
+      "platform": "flutter",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With web contents debugging or `isInspectable` on, anyone holding the device can attach Chrome DevTools or Safari's Web Inspector, read cookies and tokens from the page, and run their own script in it.",
+      "fix": "Pass `kDebugMode` instead of `true`, so debugging is on only in debug builds.",
+      "verify": "Install a release build and open `chrome://inspect` (or Safari's Develop menu); the app's web view should not be listed.",
+      "effort": "minutes",
+      "book": "§16.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#166-cleanup-and-hygiene",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-TEST-0227",
+        "MASTG-BEST-0008"
+      ],
+      "fix_code": {
+        "lang": "dart",
+        "code": "if (defaultTargetPlatform == TargetPlatform.android) {\n  await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);\n}\n// InAppWebViewSettings(isInspectable: kDebugMode)"
+      },
+      "confidence": "high",
+      "detector": "flutter_webview_debugging"
+    },
+    {
+      "id": "FLT-007",
+      "title": "Flutter biometric check only returns a boolean",
+      "platform": "flutter",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "local_auth's `authenticate()` returns true or false and unlocks nothing. On a rooted or jailbroken device a hook makes it return true, and since no key needed the biometric, the protected data opens anyway.",
+      "fix": "Keep the secret under a key that only biometric authentication unlocks, with `biometric_storage` or a platform channel to a Keystore key with a CryptoObject or a Keychain item with `SecAccessControl`. Don't gate on the boolean.",
+      "verify": "Hook `authenticate` to return true with Frida (`frida -U -f <app>`); the protected data should still stay locked because no key was released.",
+      "effort": "days",
+      "book": "§11.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0266",
+        "MASTG-TEST-0327",
+        "MASTG-BEST-0036"
+      ],
+      "fix_code": {
+        "lang": "dart",
+        "code": "// pubspec: biometric_storage\nfinal storage = await BiometricStorage().getStorage(\n  'session_key',\n  options: StorageFileInitOptions(authenticationRequired: true),\n);\nfinal secret = await storage.read();   // the OS prompts; the key is released only on success"
+      },
+      "confidence": "medium",
+      "detector": "flutter_biometric_boolean"
+    },
+    {
+      "id": "FLT-008",
+      "title": "Flutter release build is not obfuscated",
+      "platform": "flutter",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "Without `--obfuscate`, the compiled Dart code keeps its class and function names, so tools such as blutter map the app's logic, including its integrity and root checks, in minutes.",
+      "fix": "Add `--obfuscate --split-debug-info=build/symbols` to every release `flutter build` command, and keep the symbol files to decode crash reports.",
+      "verify": "Run `strings` on `libapp.so` from the release APK and confirm your own class names, such as your login screen's, no longer appear.",
+      "effort": "minutes",
+      "book": "§14.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#143-where-obfuscation-genuinely-helps",
+      "maswe": "MASWE-0059",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [
+        "MASTG-TEST-0368"
+      ],
+      "fix_code": {
+        "lang": "yaml",
+        "code": "- run: flutter build appbundle --release --obfuscate --split-debug-info=build/symbols\n- uses: actions/upload-artifact@v4   # keep symbols to decode crashes\n  with:\n    name: dart-symbols\n    path: build/symbols"
+      },
+      "confidence": "high",
+      "detector": "flutter_obfuscation"
     }
   ]
 }

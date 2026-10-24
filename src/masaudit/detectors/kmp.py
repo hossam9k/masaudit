@@ -2,7 +2,7 @@
 """Kotlin Multiplatform detectors: what belongs in commonMain and what must stay native.
 
 Book: §21.1 (keep platform trust primitives native), §21.2 (design around intent, not
-mechanism), §8.10 (Ktor's common API doesn't pin; each engine must).
+mechanism), §8.10 (Ktor's common API doesn't pin; each engine must), §6.6 (no secrets in logs).
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Iterable, List, Set
 
+from masaudit import guards
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -127,3 +128,133 @@ def ktor_pinning(ctx: Context, rule: Rule) -> Iterable[Hit]:
         path, line = first
         yield Hit(path, line, ctx.snippet(path, line),
                   "Pins are shared in commonMain, but nothing enforces them on " + " or ".join(missing) + ".")
+
+
+# ---------------------------------------------------------------------------- KMP-004
+
+KTOR_LOGGING = re.compile(r"\binstall\s*\(\s*Logging\s*\)\s*\{")
+KTOR_LEVEL = re.compile(r"\blevel\s*=\s*LogLevel\s*\.\s*(ALL|BODY|HEADERS)\b")
+
+
+def _kmp_debug(cond: str) -> bool:
+    if "!" in cond.replace("!=", ""):
+        return False
+    return bool(re.search(r"BuildConfig\.DEBUG\b|BuildKonfig\.DEBUG\b|\bisDebug\w*\b|isDebugBinary\b|\bDEBUG\b"
+                          r"|\bdebug\b", cond))
+
+
+@detector("kmp_ktor_logging")
+def ktor_logging(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(".kt"):
+        raw = ctx.text(path) or ""
+        if "Logging" not in raw or "LogLevel" not in raw:
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        for m in KTOR_LOGGING.finditer(blank):
+            body = blank[m.end() - 1:guards.match(blank, m.end() - 1, "{", "}") + 1]
+            lv = KTOR_LEVEL.search(body)
+            if lv is None:
+                continue                         # INFO, NONE, or a level chosen at runtime
+            level = lv.group(1)
+            if level != "BODY" and re.search(r"\bsanitizeHeader\s*[({]", body):
+                continue
+            idx = m.end() - 1 + lv.start()
+            line = ctx.line_of(blank, idx)
+            scope = "debug" if guards.guarded_by(blank, m.start(), _kmp_debug) else ""
+            what = "request and response bodies" if level == "BODY" else "headers, including `Authorization`,"
+            yield Hit(path, line, ctx.snippet(path, line),
+                      f"Ktor's Logging plugin at `LogLevel.{level}` writes {what} to the log in every build.",
+                      scope=scope)
+
+
+# ---------------------------------------------------------------------------- KMP-005
+
+TRUST_CREDENTIAL = re.compile(
+    r"\bNSURLCredential\s*\.\s*(?:credentialForTrust|create\s*\(\s*trust\s*=|credentialWithTrust)"
+)
+
+
+@detector("kmp_darwin_trust_all")
+def darwin_trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(".kt"):
+        if not APPLE_SET.search("/" + path):
+            continue
+        raw = ctx.text(path) or ""
+        if "NSURLCredential" not in raw or "UseCredential" not in raw:
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        if (re.search(r"\bSecTrustEvaluate(?:WithError|AsyncWithError)?\s*\(", blank)
+                or "CertificatePinner" in blank or "UseCredential" not in blank):
+            continue
+        for m in TRUST_CREDENTIAL.finditer(blank):
+            line = ctx.line_of(blank, m.start())
+            yield Hit(path, line, ctx.snippet(path, line),
+                      "The server-trust challenge is answered with a credential for whatever trust it "
+                      "carries, without `SecTrustEvaluateWithError`, so any certificate is accepted.")
+
+
+# ---------------------------------------------------------------------------- KMP-006
+
+_SETTINGS_KEY = r"(\"[^\"\n]*\"|[A-Za-z_][\w.]*)"
+SETTINGS_WRITE = re.compile(
+    r"\b([A-Za-z_]\w*)\s*\.\s*(?:putString|putStringOrNull|set)\s*\(\s*" + _SETTINGS_KEY + r"\s*,([^\n]*)"
+    r"|\b([A-Za-z_]\w*)\s*\[\s*" + _SETTINGS_KEY + r"\s*\]\s*=(?!=)([^\n]*)"
+)
+_SECRET_KEY = re.compile(r"(?i)token|password|passwd|secret|jwt|credential|api_?key|private_?key")
+_PUBLIC_KEY = re.compile(r"(?i)fcm|push|apns|firebase|notification|messaging|device_?token|csrf")
+_PLAIN_IMPL = re.compile(
+    r"\b(?:SharedPreferencesSettings|NSUserDefaultsSettings|PreferencesSettings|StorageSettings|"
+    r"PropertiesSettings|DataStoreSettings|MapSettings)\b|\bSettings\s*\(\s*\)"
+)
+_SECURE_IMPL = re.compile(r"\bKeychainSettings\b|\bKVault\b")
+
+
+def _settings_receiver(code: str, name: str) -> bool:
+    if re.search(r"(?i)editor|^edit$|bundle|intent|map$", name):
+        return False
+    if re.search(r"(?i)settings$|^settings", name):
+        return True
+    return bool(re.search(r"\b" + re.escape(name) + r"\s*(?::\s*\w*Settings\b|=\s*\w*Settings\s*\()", code))
+
+
+def _settings_key(code: str, arg: str) -> str:
+    if arg.startswith('"'):
+        return arg.strip('"')
+    name = arg.rsplit(".", 1)[-1]
+    m = re.search(r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code)
+    return name + " " + (m.group(1) if m else "")
+
+
+@detector("kmp_settings_token")
+def settings_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    kotlin = [p for p in ctx.files(".kt") if "com.russhwolf.settings" in (ctx.text(p) or "")]
+    if not kotlin:
+        return
+    all_code = [ctx.code(p, keep_strings=False) or "" for p in ctx.files(".kt")
+                if "Settings" in (ctx.text(p) or "") or "KVault" in (ctx.text(p) or "")]
+    plain = any(_PLAIN_IMPL.search(c) for c in all_code)
+    secure = any(_SECURE_IMPL.search(c) for c in all_code)
+    if secure and not plain:
+        return                                   # every store the project builds is Keychain-backed
+    for path in kotlin:
+        code = ctx.code(path, keep_strings=True) or ""
+        blank = ctx.code(path, keep_strings=False) or ""
+        if re.search(r"(?i)encrypt|\bcipher\b|\baead\b|tink", blank):
+            continue                             # values are assumed to be ciphertext
+        seen: Set[int] = set()
+        for m in SETTINGS_WRITE.finditer(code):
+            recv, arg = (m.group(1), m.group(2)) if m.group(1) else (m.group(4), m.group(5))
+            if not _settings_receiver(blank, recv):
+                continue
+            if re.search(r"\b" + re.escape(recv) + r"\s*(?::|=)\s*KeychainSettings\b", blank):
+                continue
+            key = _settings_key(code, arg)
+            if not _SECRET_KEY.search(key) or _PUBLIC_KEY.search(key):
+                continue
+            line = ctx.line_of(code, m.start())
+            if line in seen:
+                continue
+            seen.add(line)
+            yield Hit(path, line, ctx.snippet(path, line),
+                      f"multiplatform-settings stores `{arg.strip(chr(34))}` in SharedPreferences or "
+                      "NSUserDefaults, which are plain files.")
