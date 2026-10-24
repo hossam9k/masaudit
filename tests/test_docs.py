@@ -84,7 +84,8 @@ class TerminalSamples(unittest.TestCase):
             blocks = self._blocks(rel)
             self.assertTrue(blocks, rel)
             for block in blocks:
-                out = self._real_output(block).splitlines()
+                # Windows prints the report path with backslashes; the samples use forward slashes.
+                out = self._real_output(block).replace("\\", "/").splitlines()
                 for line in block.splitlines():
                     if not line.strip() or line.startswith("$ ") or line.strip() == "...":
                         continue
