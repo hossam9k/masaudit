@@ -128,9 +128,19 @@ class Terminal(unittest.TestCase):
         self.assertEqual(out.strip().splitlines()[-1], "Next: open SECURITY-AUDIT.md and start with Top fixes.")
 
     def test_next_line_offers_fix_safe_only_when_a_safe_fix_exists(self):
-        r = rule("AND-002", safe_fix=True)
-        out = terminal.render(result([f(r)], [r]), report_path="/x/SECURITY-AUDIT.md", color=False)
-        self.assertIn("--fix-safe` previews the safe fixes (changes nothing).", out.strip().splitlines()[-1])
+        import shutil
+        import tempfile
+        root = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(root, "app/src/main"))
+            with open(os.path.join(root, "app/src/main/AndroidManifest.xml"), "w") as fh:
+                fh.write('<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+                         '<application android:debuggable="true" /></manifest>')
+            res = cli.scan(root, cli_type="banking", allow_prompt=False)
+            out = terminal.render(res, report_path=os.path.join(root, "SECURITY-AUDIT.md"), color=False)
+            self.assertIn("--fix-safe` previews the safe fixes (changes nothing).", out.strip().splitlines()[-1])
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
     def test_hints_use_the_command_the_user_ran(self):
         # A user who ran `uvx masaudit` has no `masaudit` on PATH; the hint must say `uvx masaudit`.
@@ -140,15 +150,29 @@ class Terminal(unittest.TestCase):
             "/home/a/.local/pipx/.cache/abc/bin/masaudit": "pipx run masaudit",
             "/home/a/Downloads/masaudit.pyz": "python3 /home/a/Downloads/masaudit.pyz",
             "/x/src/masaudit/__main__.py": "python3 -m masaudit",
+            "/Users/a/Library/Caches/pipx/abc123/bin/masaudit": "pipx run masaudit",
+            "/home/a/.cache/pipx/abc123/bin/masaudit": "pipx run masaudit",
+            # Real installs leave a `masaudit` command.
+            "/home/a/.local/share/uv/tools/masaudit/bin/masaudit": "masaudit",
+            "/home/a/.local/pipx/venvs/masaudit/bin/masaudit": "masaudit",
         }
         saved = sys.argv[:]
         try:
             for argv0, expected in cases.items():
                 with self.subTest(argv0=argv0):
                     sys.argv = [argv0]
-                    self.assertEqual(terminal.invocation(), expected)
+                    # uvx and pipx run put their throwaway environment on PATH too.
+                    with mock.patch("shutil.which", return_value=argv0):
+                        self.assertEqual(terminal.invocation(), expected)
         finally:
             sys.argv = saved
+
+    def test_fix_safe_is_offered_only_when_it_would_change_something(self):
+        r = rule("AND-002", safe_fix=True)
+        gradle = f(r)
+        gradle.location = Location(path="app/build.gradle.kts", line=3)
+        out = terminal.render(result([gradle], [r]), report_path="/x/SECURITY-AUDIT.md", color=False)
+        self.assertNotIn("--fix-safe", out)
 
     def test_explain_is_ascii(self):
         out = terminal.explain(rule("AND-031", fix_code={"lang": "xml", "code": "<a/> — ok"}))

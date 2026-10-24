@@ -9,7 +9,7 @@ import shutil
 import sys
 from typing import List, Optional
 
-from masaudit import __version__
+from masaudit import __version__, fix
 from masaudit import profile as profile_mod
 from masaudit.model import Rule
 from masaudit.report.jsonout import counts, project_name, top_fixes
@@ -97,14 +97,16 @@ def invocation() -> str:
         return f'python3 "{argv0}"' if " " in argv0 else f"python3 {argv0}"
     if base == "__main__.py":
         return "python3 -m masaudit"
+    # uvx and `pipx run` run from a throwaway environment that they also put on PATH, so check for
+    # those first. `uv tool install` and `pipx install` leave a real `masaudit` command.
+    where = argv0.replace("\\", "/").lower()
+    if "/archive-v0/" in where:
+        return "uvx masaudit"
+    if "pipx" in where and "cache" in where and "/venvs/" not in where:   # ~/.cache/pipx, Library/Caches/pipx
+        return "pipx run masaudit"
     on_path = shutil.which("masaudit")
     if on_path and argv0 and os.path.realpath(on_path) == os.path.realpath(argv0):
         return "masaudit"
-    where = argv0.replace("\\", "/").lower()
-    if "pipx" in where:
-        return "pipx run masaudit"
-    if "/uv/" in where or "archive-v0" in where:
-        return "uvx masaudit"
     return "masaudit"
 
 
@@ -116,7 +118,10 @@ def _next_step(result, report_path: Optional[str]) -> str:
     except ValueError:              # Windows: the scan root is on another drive
         pass
     target = "" if root == "." else (f' "{root}"' if " " in root else f" {root}")
-    safe = any(f.rule.safe_fix and f.bucket in ("fix-before-release", "fix-soon") for f in result.findings)
+    # Offer --fix-safe only when it would change something (a debuggable flag in a Gradle file, for
+    # example, is a suggestion, not a fix).
+    candidates = [f for f in result.findings if f.rule.safe_fix and f.bucket in ("fix-before-release", "fix-soon")]
+    safe = bool(candidates) and bool(fix.plan(result.root, candidates).fixes)
     preview = f"`{cmd}{target} --fix-safe` previews the safe fixes (changes nothing)" if safe else ""
     if report_path:
         start = "start with Top fixes" if top_fixes(result.findings) else "read Residual risk"

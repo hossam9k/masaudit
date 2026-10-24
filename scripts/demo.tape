@@ -1,4 +1,4 @@
-# Renders docs/demo.gif with charmbracelet/vhs:   vhs docs/demo.tape
+# Renders docs/demo.gif with charmbracelet/vhs:   vhs scripts/demo.tape
 # Shows the core idea in under a minute: the same app, two profiles, different advice.
 
 Output docs/demo.gif

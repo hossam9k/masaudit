@@ -1,4 +1,4 @@
-[masaudit documentation](README.md) ›
+[masaudit documentation](README.md) › Writing a rule
 
 # Writing a rule
 
@@ -39,14 +39,14 @@ A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a decla
 | `platform` | `android`, `ios`, `kmp`, `flutter`, `cross`, `ci`. The rule runs only if the project has that platform. |
 | `severity` | `critical`, `high`, `medium`, `low`, `info`: the severity for an app whose profile includes this weakness. |
 | `profiles` | The MAS profiles the weakness belongs to (book §3.2): `L1` baseline, `L2` high-risk data and untrusted OS, `R` resilience, `P` privacy. If the app's profile shares none of them, the finding goes to "Not needed for your app". |
-| `app_types` | Optional allowlist of app types that need this (e.g. pinning: `["banking","identity","health","ecommerce-cards"]`, from §8.8). Requires `not_needed_reason`. |
+| `app_types` | Optional allowlist of app types that need this (for example, pinning: `["banking","identity","health","ecommerce-cards"]`, from §8.8). Requires `not_needed_reason`. |
 | `why`, `fix`, `verify` | Plain language for someone new to security. Short sentences, no idioms, American spelling, no "simply/just/easy". |
 | `book`, `book_url` | A real `§x.y` or `Chapter N` and its URL from `rules/_book_sections.json` (the test checks they match). |
 | `maswe`, `masvs` | Only if the book gives one. MASWE v1.0.0 IDs; `masvs` must match the MASWE's control (`rules/_maswe.json`). |
-| `mastg` | Optional. Only v2 tests (`MASTG-TEST-0200` and above), and only IDs the book cites. |
+| `mastg` | Optional. MASTG v2 IDs the book cites: tests (`MASTG-TEST-0200` and above), best practices (`MASTG-BEST-*`), and other v2 IDs (`TECH`, `KNOW`, `DEMO`). |
 | `fix_code` | Optional paste-ready fix, taken from the book's verified code where possible. Released as MIT-0. |
 | `confidence` | `high` (a hit is almost always real), `medium`, or `manual` (a hit needs a human or AI to confirm). Aim for at least 90% precision for `high`. |
-| `safe_fix` | Only for the vetted rule AND-002 in v1. Everything else is a suggestion. |
+| `safe_fix` | Only AND-002 has a safe fix today. Set it to `false` for new rules. |
 
 ## 2. Detect it
 
@@ -87,7 +87,7 @@ rule is explicitly about absence and the evidence is conclusive.
 
 ## 3. The fixture
 
-```
+```text
 tests/fixtures/AND-001/
   expected.json        {"vulnerable": 2, "clean": 0}
   vulnerable/...       the smallest files that should trigger the rule
@@ -97,6 +97,6 @@ tests/fixtures/AND-001/
 
 ## 4. Check
 
-```bash
-cd tests && python3 -m unittest -q
-```
+Run the tests, regenerate `docs/rules.md` and the sample reports, and lint, as listed in
+[CONTRIBUTING.md](https://github.com/hossam9k/masaudit/blob/main/CONTRIBUTING.md#add-a-rule-in-30-minutes).
+CI fails if `python3 scripts/generate.py` changes any file.

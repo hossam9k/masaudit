@@ -3,6 +3,22 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.4.2 — 2026-10-24
+
+- **Documentation reorganized** by what you need: a tutorial on the demo app, how-to guides (app
+  type, fixing, CI, team, AI assistants), reference pages (install, command line, config file,
+  output formats, rules), and explanations (how it works, accuracy and speed). Old `docs/usage.md`
+  links still work.
+  - New reference topics: every way to install and upgrade, environment variables, skipped folders
+    and files, the SARIF severity mapping, and the `--fail-on` default.
+  - Corrected: the report ends with the AI fix plan, not *Residual risk*; the pre-commit hook always
+    passes `--fail-on high`; `app_type_reviewed` silences that type even for new evidence.
+- **GitHub Action: new `baseline` input,** so older apps can fail CI only on new findings.
+- **The terminal's "Next" hint names the command you ran:** `uvx masaudit` or `pipx run masaudit`
+  instead of `masaudit`, which isn't on your PATH under uvx or pipx run.
+- **The `--fix-safe` hint appears only when a safe fix would change a file.** It no longer appears
+  for a debuggable release build in Gradle, which masaudit never edits.
+
 ## 0.4.1 — 2026-10-24
 
 - **Check your app type.** When the code suggests a riskier app type than the one chosen, masaudit

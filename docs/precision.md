@@ -1,18 +1,23 @@
-[masaudit documentation](README.md) ›
+[masaudit documentation](README.md) › Accuracy and speed
 
-# How accurate masaudit is
+# Accuracy and speed
 
-A scanner that cries wolf gets ignored, so every rule is measured on real apps before release.
+Developers ignore a scanner that raises many false alarms, so the maintainers measure every rule on
+real apps before each release.
 
-## Method (v0.4.0, October 2026)
+## Method
 
-1. **Corpus:** 19 open-source apps, scanned from source as they were on 2026-10-24: Signal (Android, iOS), Bitwarden (Android, iOS), Wikipedia (Android, iOS), Nextcloud (Android, iOS),
-Element X (Android, iOS), DuckDuckGo (Android), Thunderbird (Android), Tusky, NewPipe, AntennaPod,
-Mastodon (iOS), KotlinConf (Kotlin Multiplatform), Lichess (Flutter), and Immich (Flutter).
-2. **Every rule runs:** each app is scanned as `--app-type banking`, the profile that enables the most rules.
+These numbers are for masaudit 0.4.0, measured in October 2026.
+
+1. **Corpus:** 19 open-source apps, scanned from source as they were on 2026-10-24: Signal (Android,
+   iOS), Bitwarden (Android, iOS), Wikipedia (Android, iOS), Nextcloud (Android, iOS), Element X
+   (Android, iOS), DuckDuckGo (Android), Thunderbird (Android), Tusky, NewPipe, AntennaPod, Mastodon
+   (iOS), KotlinConf (Kotlin Multiplatform), Lichess (Flutter), and Immich (Flutter).
+2. **Every rule runs:** each app is scanned as `--app-type banking`, an app type that enables all 172
+   rules.
 3. **Independent review:** reviewers who didn't write the rules opened every open finding in shipping
    code in its real source file and judged it: a real weakness, real but rated too high, or false.
-   "Not found anywhere" rules count only when a search confirms the protection really is absent.
+   "Not found anywhere" rules count only when a search confirms the protection is absent.
    CI rules were sampled (145 findings across all 8 rules).
 4. **Fix, then re-check:** every false positive was fixed in the detector, with a test fixture that must
    stay quiet, and the corpus was scanned again to confirm it was gone and no real finding was lost.
@@ -131,8 +136,8 @@ linear time. `scripts/benchmark.py` times a scan per rule.
 
 - **Recall** (what masaudit misses) is harder to measure. The reviewers searched the corpus for the
   patterns each new rule targets and found no misses in the rules they checked, but no scanner sees
-  server behavior, runtime state, or business logic. Every report ends with *Residual risk* for that
-  reason.
+  server behavior, runtime state, or business logic. Every report has a *Residual risk* section for
+  that reason.
 - **Your app is not the corpus.** If a rule is wrong for your code, a
   [false-positive report](https://github.com/hossam9k/masaudit/issues/new?template=false-positive.yml)
   is the most useful contribution you can make.

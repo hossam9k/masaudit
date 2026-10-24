@@ -6,7 +6,7 @@ metadata:
   author: Hossam Atef
   homepage: https://github.com/hossam9k/masaudit
   book: https://github.com/hossam9k/mobile-app-security
-  version: "0.4.1"
+  version: "0.4.2"
 ---
 
 # masaudit: risk-calibrated mobile security audits
