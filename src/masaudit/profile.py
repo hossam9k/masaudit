@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from masaudit.model import Profile
+from masaudit.model import AppTypeWarning, Profile
 
 # app type -> (MAS profiles, one-line description shown in the prompt)
 # §3.2: L2 for high-risk data or sensitive functions; R for apps protecting their own logic or assets;
@@ -170,33 +170,36 @@ def _needed(app_type: str, rules) -> set:
             and (r.app_types is None or app_type in r.app_types)}
 
 
-def check(profile: Profile, clues: List[Clue], rules, findings=()) -> List[str]:
+def check(profile: Profile, clues: List[Clue], rules, findings=(), applies: Callable = lambda rule: True,
+          reviewed: Sequence[str] = ()) -> List[AppTypeWarning]:
     """Warnings when the code suggests a riskier type than the one chosen.
 
-    A clue only warns when its type needs checks the chosen type skips, so evidence that changes
-    nothing (a payment SDK in a news app: both skip pinning) stays a quiet suggestion.
+    A clue warns only when its type runs checks the chosen type skips on this project's platforms
+    (`applies`), so evidence that changes nothing (a payment SDK in a news app) stays a quiet clue.
+    A warning that another one covers is dropped, the riskiest comes first, and types the team
+    marked as reviewed (`app_type_reviewed` in .masaudit.ini) don't warn.
     """
+    rules = [r for r in rules if applies(r)]
     chosen = _needed(profile.app_type, rules)
     titles = {r.id: r.title for r in rules}
-    warnings: List[str] = []
-    seen = set()
+    candidates = []
     for clue in clues:
-        if clue.app_type is None or clue.app_type == profile.app_type or clue.app_type in seen:
+        t = clue.app_type
+        if t is None or t == profile.app_type or t in reviewed or any(c[0].app_type == t for c in candidates):
             continue
-        seen.add(clue.app_type)
-        skipped = _needed(clue.app_type, rules) - chosen
-        if not skipped:
-            continue
-        hidden = sorted({f.rule.id for f in findings if f.bucket == "not-needed" and f.rule.id in skipped})
-        detail = f"That type runs {len(skipped)} more {'check' if len(skipped) == 1 else 'checks'}"
-        if hidden:
-            names = "; ".join(titles[i] for i in hidden[:3]) + ("; …" if len(hidden) > 3 else "")
-            detail += (f", and {len(hidden)} of them found something here that is now under Not needed: "
-                       f"{names}")
-        warnings.append(
-            f"Check your app type: it is `{profile.app_type}`, but {clue.path} has {clue.label}, which suggests "
-            f"`{clue.app_type}`. {detail}. If the code is right, run again with `--app-type {clue.app_type}`."
-        )
+        skipped = _needed(t, rules) - chosen
+        if skipped:
+            candidates.append((clue, skipped))
+    candidates.sort(key=lambda c: -len(c[1]))
+    kept = [c for i, c in enumerate(candidates)
+            if not any(c[1] <= other[1] for j, other in enumerate(candidates) if j < i)]
+    warnings: List[AppTypeWarning] = []
+    for clue, skipped in kept:
+        hidden = sorted({f.rule.id for f in findings
+                         if f.bucket == "not-needed" and f.status == "open" and f.rule.id in skipped})
+        warnings.append(AppTypeWarning(
+            chosen=profile.app_type, source=profile.source, suggested=clue.app_type or "", evidence=clue.label,
+            path=clue.path, extra_checks=len(skipped), hidden=[(i, titles[i]) for i in hidden]))
     return warnings
 
 

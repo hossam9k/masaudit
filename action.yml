@@ -42,7 +42,8 @@ runs:
         if [ -n "$MASAUDIT_FAIL_ON" ] && [ "$MASAUDIT_FAIL_ON" != "none" ]; then fail_args=(--fail-on "$MASAUDIT_FAIL_ON"); fi
         python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" --format sarif --output masaudit.sarif "${fail_args[@]}"
         echo "MASAUDIT_EXIT=$?" >> "$GITHUB_ENV"
-        python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" --format md --output SECURITY-AUDIT.md > /dev/null
+        # The first run already posted any annotations; this one only writes the Markdown report.
+        GITHUB_ACTIONS=false python3 -m masaudit "$MASAUDIT_PATH" "${type_args[@]}" --format md --output SECURITY-AUDIT.md > /dev/null 2>&1
         exit 0
     - name: Upload to code scanning
       if: inputs.upload-sarif == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)

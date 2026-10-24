@@ -131,9 +131,12 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
         "automationDetails": {"id": f"masaudit/{platforms}"},
         "invocations": [dict(
             {"executionSuccessful": True, "endTimeUtc": when},
-            **({"toolExecutionNotifications": [{"level": "warning", "message": {"text": w}}
-                                               for w in result.profile.warnings]}
-               if result.profile.warnings else {}),
+            **({"toolConfigurationNotifications": [{
+                "descriptor": {"id": "masaudit/app-type"},
+                "level": "warning",
+                "message": {"text": w.summary()},
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": w.path}}}],
+            } for w in result.profile.warnings]} if result.profile.warnings else {}),
         )],
         "columnKind": "unicodeCodePoints",
         "results": results,

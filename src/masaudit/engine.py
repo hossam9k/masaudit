@@ -151,6 +151,19 @@ PLATFORM_OF_RULE = {"android": "android", "ios": "ios", "kmp": "kmp", "ci": "ci"
 CODE_PLATFORMS = {"android", "ios", "kmp", "flutter"}
 
 
+def applies_to_platforms(rule: Rule, platforms) -> bool:
+    """Whether a rule can run on a project with these platforms."""
+    platforms = set(platforms)
+    if rule.platform == "ci":
+        # Workflow rules find nothing without workflows; repo-hygiene CI rules (committed
+        # signing keys, wrapper checksum, lockfiles) matter in any mobile repository.
+        return bool(platforms & ({"ci"} | CODE_PLATFORMS))
+    needed = PLATFORM_OF_RULE.get(rule.platform)
+    if needed and needed not in platforms:
+        return False
+    return not (rule.platform == "cross" and not platforms & CODE_PLATFORMS)
+
+
 def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) -> List[Finding]:
     _import_detectors()
     ctx = Context(project, profile)
@@ -158,15 +171,7 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
     for rule in rules:
         if rule.retired:
             continue
-        needed = PLATFORM_OF_RULE.get(rule.platform)
-        if rule.platform == "ci":
-            # Workflow rules find nothing without workflows; repo-hygiene CI rules (committed
-            # signing keys, wrapper checksum, lockfiles) matter in any mobile repository.
-            if not (set(project.platforms) & ({"ci"} | CODE_PLATFORMS)):
-                continue
-        elif needed and needed not in project.platforms:
-            continue
-        if rule.platform == "cross" and not (set(project.platforms) & CODE_PLATFORMS):
+        if not applies_to_platforms(rule, project.platforms):
             continue
         ctx.current_rule = rule.id
         if rule.detector:

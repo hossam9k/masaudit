@@ -21,7 +21,7 @@ from masaudit import profile
 
 FILE_NAME = ".masaudit.ini"
 SECTION = "masaudit"
-KEYS = ("app_type", "fail_on", "exclude")
+KEYS = ("app_type", "app_type_reviewed", "fail_on", "exclude")
 FAIL_ON = ("critical", "high", "medium", "low")
 
 
@@ -34,8 +34,8 @@ def path_for(root: str) -> str:
 
 
 def load(root: str) -> Dict[str, object]:
-    """Return {"app_type": str|None, "fail_on": str|None, "exclude": [globs]}."""
-    out: Dict[str, object] = {"app_type": None, "fail_on": None, "exclude": []}
+    """Return {"app_type": str|None, "app_type_reviewed": [types], "fail_on": str|None, "exclude": [globs]}."""
+    out: Dict[str, object] = {"app_type": None, "app_type_reviewed": [], "fail_on": None, "exclude": []}
     path = path_for(root)
     if not os.path.isfile(path):
         return out
@@ -59,6 +59,12 @@ def load(root: str) -> Dict[str, object]:
             out["app_type"] = profile.normalize(sec["app_type"])
         except ValueError as exc:
             raise ConfigError(f"{FILE_NAME}: {exc}") from exc
+    if sec.get("app_type_reviewed", "").strip():
+        # App types the code suggested that the team reviewed and decided against; they don't warn.
+        try:
+            out["app_type_reviewed"] = [profile.normalize(t) for t in split_globs(sec["app_type_reviewed"])]
+        except ValueError as exc:
+            raise ConfigError(f"{FILE_NAME}: app_type_reviewed: {exc}") from exc
     if sec.get("fail_on", "").strip():
         value = sec["fail_on"].strip().lower()
         if value not in FAIL_ON:

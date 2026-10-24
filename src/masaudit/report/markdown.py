@@ -108,6 +108,9 @@ def _verdict(result) -> str:
     if soon:
         return (f"**Verdict: no release blockers found**, but {soon} issue{'s' if soon != 1 else ''} "
                 f"should be fixed soon for a {app} app.")
+    if result.profile.warnings:
+        return (f"**Verdict: no issues found for a {app} app, but check your app type first** (see above): "
+                "a riskier type would run more checks.")
     return (f"**Verdict: no issues found by the automated checks** for a {app} app. "
             "Read \"Residual risk\" for what a scanner can't see.")
 
@@ -311,7 +314,8 @@ def render(result) -> str:
         out.append("- **Code clues (suggestions only, not applied):**")
         out += [f"  - {text(s)}" for s in p.suggestions]
     for w in p.warnings:
-        out += ["", f"> **⚠ {text(w)}**"]
+        lines = w.lines()
+        out += ["", f"> **⚠ {text(lines[0])}**"] + [f"> {text(x)}  " for x in lines[1:]]
     out += ["", _verdict(result), ""]
 
     top = top_fixes(result.findings)
