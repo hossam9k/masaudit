@@ -66,9 +66,9 @@ scanned under two profiles:
 
 | | As a **banking** app | As a **news** app |
 |---|---|---|
-| Fix before release | 13 | 10 |
-| Fix soon | 13 | 10 |
-| Not needed for your app | 0 | 6: pinning, Keychain hardening, biometric key binding, … each with the reason |
+| Fix before release | 12 | 9 |
+| Fix soon | 27 | 12 |
+| Not needed for your app | 0 | 17: pinning, root and debugger detection, App Attest, Play Integrity, screenshot blocking, … each with the reason |
 | Full report | [sample-report-banking.md](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-banking.md) | [sample-report-news.md](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-news.md) |
 
 Each finding says **why it matters**, **how to fix it** (with paste-ready code), **how to verify the
@@ -137,7 +137,7 @@ jobs:
       - uses: actions/checkout@<commit-sha>
         with:
           persist-credentials: false
-      - uses: hossam9k/masaudit@<commit-sha> # v0.3.0
+      - uses: hossam9k/masaudit@<commit-sha> # v0.4.0
         with:
           app-type: banking
           fail-on: high
@@ -155,7 +155,7 @@ To scan before every commit, add this to `.pre-commit-config.yaml` ([pre-commit]
 ```yaml
 repos:
   - repo: https://github.com/hossam9k/masaudit
-    rev: v0.3.0
+    rev: v0.4.0
     hooks:
       - id: masaudit
         args: [--app-type, banking]
@@ -198,16 +198,20 @@ behavior-changing fix and never commits.
 
 ## What it checks
 
-77 rules: 33 Android, 21 iOS, 10 cross-platform code, 8 CI and supply chain, 3 Kotlin Multiplatform, 2 Flutter.
-Cross-platform rules read Kotlin, Java, Swift, Objective-C, and Dart.
+172 rules: 66 Android, 42 iOS, 42 cross-platform code, 8 Flutter, 8 CI and supply chain, 6 Kotlin
+Multiplatform. Cross-platform rules read Kotlin, Java, Swift, Objective-C, and Dart. Together they cover
+52 of the 78 weaknesses in OWASP's MASWE catalog and cite 132 OWASP MASTG tests. Many of the remaining
+weaknesses can't be seen in source code, such as server behavior or a built binary.
 See [docs/rules.md](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md).
 
-- **Network:** cleartext, ATS exceptions, user CAs, TLS bypasses (including Dart's `badCertificateCallback`), weak TLS, pinning (only where the profile needs it; Dart-side pinning counts for Flutter apps).
-- **Storage:** Keychain classes, file protection, deprecated `EncryptedSharedPreferences`, Tink's silent cleartext fallback, backups, end-of-life SQLCipher.
-- **Platform:** exported components, intent redirection, PendingIntent, deep links, FileProvider, WebView TLS, file access, JavaScript bridges, debugging.
-- **Auth:** biometric prompts not bound to a key, keys that survive new enrollments, tokens in UserDefaults or Flutter's shared_preferences.
-- **Code:** hardcoded secrets (masked in every output), ECB, fixed IVs, weak hashes and randomness, logged tokens.
-- **Build and CI:** debuggable releases, R8 off, target SDK, unpinned actions, `pull_request_target`, script injection, committed signing keys.
+- **Network:** cleartext (app-wide or per domain), ATS exceptions, user CAs, TLS bypasses in Kotlin, Swift, Dart, and native code, old TLS versions, gRPC plaintext, pinning (only where the profile needs it).
+- **Storage:** tokens in SharedPreferences, DataStore, UserDefaults, or shared_preferences; Keychain classes; backups and device-to-device transfer; shared and world-readable files; App Group files; Tink's silent cleartext fallback.
+- **Crypto:** hardcoded keys, ECB, CBC without a MAC, fixed IVs and salts, DES/3DES/RC4, small keys, weak PBKDF2, MAC comparison with `==`, keys that both encrypt and sign.
+- **Platform:** exported components (knowing which must be public), intent redirection, implicit intents carrying secrets, PendingIntent, deep links, FileProvider, Dirty Stream, Zip Slip, WebView file access and JavaScript bridges, screenshot and overlay protection, clipboard secrets, custom keyboards.
+- **Auth:** biometrics not bound to a key, passcode fallback for sensitive actions, keys that survive new enrollments, LocalAuthentication reuse.
+- **Privacy:** sensitive permissions, hardware identifiers, IDFA without App Tracking Transparency, privacy manifests and required-reason APIs, tracking domains, personal data sent to analytics.
+- **Build and CI:** debuggable or test-only releases, debug tools and DEBUG code in release, R8 and keep rules, signing, unpinned actions (ranked by who owns them), persisted tokens, script injection, committed signing keys.
+- **Resilience (MAS-R, only for banking, identity, loyalty, and game apps):** Play Integrity, App Attest, root, debugger, emulator, and hooking detection.
 
 ## How it compares
 

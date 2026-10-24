@@ -32,6 +32,9 @@ CASES = {
     ".github/workflows/ci.yml": "ci",
     "Sources/Networking/URLTests.swift": "test",
     "app/src/internal/java/com/acme/DevMenu.kt": "debug",
+    "sync/sync-internal/src/main/java/com/ddg/SyncInternal.kt": "debug",
+    "app/settings/internal/src/main/kotlin/Playground.kt": "debug",
+    "app/src/main/java/com/acme/internal/Crypto.kt": "main",
 }
 
 

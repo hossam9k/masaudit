@@ -63,9 +63,9 @@ def scope_of(path: str) -> str:
         return "test"
     if any(d in low for d in ("/src/debug/", "/src/mock/", "/src/internal/")) or _PREVIEW_FILE.search(base):
         return "debug"
-    # Sample, demo, and catalog modules count as debug code, but only as module directories: a package
-    # such as src/main/java/com/example/... is production code.
-    if any(seg in _DEBUG_DIRS for seg in module.split("/")):
+    # Sample, demo, catalog, and internal-build modules (sync-internal, settings/internal) count as debug
+    # code, but only as module directories: a package such as src/main/java/com/example/... is production.
+    if any(seg in _DEBUG_DIRS or seg == "internal" or seg.endswith("-internal") for seg in module.split("/")):
         return "debug"
     top = low.lstrip("/").split("/", 1)[0]
     if top in _TOOLING_TOP or low.endswith((".gradle", ".gradle.kts", "podfile", "package.swift", ".toml")):
