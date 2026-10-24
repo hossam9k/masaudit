@@ -14,11 +14,26 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from masaudit import safety
-from masaudit.detect import scope_of
+from masaudit.detect import scope_of as _scope_of
 from masaudit.detectors import flutter
+from masaudit.textscan import bracket_match, holds_any
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import pbxproj, plist, xcconfig, xcscheme
+
+
+_SCOPES: Dict[str, str] = {}
+
+
+def scope_of(path: str) -> str:
+    """detect.scope_of, memoised: detectors ask it about the same paths many times per scan."""
+    s = _SCOPES.get(path)
+    if s is None:
+        if len(_SCOPES) >= 200_000:
+            _SCOPES.clear()
+        s = _SCOPES[path] = _scope_of(path)
+    return s
+
 
 CODE_SUFFIXES = (".swift", ".m", ".mm", ".h")
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
@@ -687,7 +702,7 @@ def _blank_inactive(code: str, env: CondEnv) -> str:
     stack: List[List[bool]] = []          # [parent_dead, any_branch_true, this_dead]
     out = []
     for line in lines:
-        m = _PP.match(line)
+        m = _PP.match(line) if "#" in line else None
         if m:
             d = m.group(1)
             if d in ("if", "ifdef", "ifndef"):
@@ -737,7 +752,7 @@ def _branch_variants(body: str, env: CondEnv, limit: int = 16) -> List[Tuple[str
     depth = 0
     cur: Optional[List[List[Any]]] = None
     for i, line in enumerate(lines):
-        m = _PP.match(line)
+        m = _PP.match(line) if "#" in line else None
         if m:
             d = m.group(1)
             if d in ("if", "ifdef", "ifndef"):
@@ -815,16 +830,8 @@ def _body(code: str, start: int, max_gap: int = 800) -> Optional[Tuple[int, int]
     i = code.find("{", start)
     if i == -1 or i - start > max_gap:
         return None
-    depth = 0
-    for j in range(i, len(code)):
-        ch = code[j]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return i, j + 1
-    return None
+    j = bracket_match(code, i, "{", "}")        # the same depth count, answered from a cached pairing
+    return (i, j + 1) if j < len(code) else None
 
 
 def _paren_end(code: str, open_idx: int, limit: int = 2000) -> int:
@@ -899,10 +906,8 @@ def _search_code(ctx: Context, regex: "re.Pattern[str]", suffixes: Tuple[str, ..
     for path in ctx.files(*suffixes):
         if not include_tests and _is_test_path(path):
             continue
-        if literals:
-            raw = ctx.text(path) or ""
-            if not any(lit in raw for lit in literals):
-                continue
+        if literals and not holds_any(ctx, path, literals):
+            continue
         code = ctx.code(path, keep_strings=keep_strings)
         if code and regex.search(code):
             return True
@@ -1110,6 +1115,10 @@ _PIN_EVIDENCE_CODE = re.compile(
     r"|PublicKeysTrustEvaluator|\bCertificatePinner\b|WultraSSLPinning|SecTrustSetAnchorCertificates(?:Only)?\b"
     r"|\bpinnedCertificates\b|\bpinnedPublicKeys\b|\bspkiHashes\b"
 )
+# A literal from each _PIN_EVIDENCE_CODE alternative ("TSKPinn" for both TSK names, "TrustEvaluator" for both
+# evaluators).
+_PIN_EVIDENCE_NEEDLES = ("TrustKit", "TSKPinn", "TrustEvaluator", "CertificatePinner", "WultraSSLPinning",
+                         "SecTrustSetAnchorCertificates", "pinnedCertificates", "pinnedPublicKeys", "spkiHashes")
 _PIN_EVIDENCE_DEPS = re.compile(r"TrustKit|ssl-pinning-ios|WultraSSLPinning", re.IGNORECASE)
 
 
@@ -1118,6 +1127,8 @@ def _native_pinning_evidence(ctx: Context, code_files: List[str]) -> bool:
         if isinstance(ats.get("NSPinnedDomains"), dict) and ats["NSPinnedDomains"]:
             return True
     for path in code_files + [p for p in ctx.files(".kt") if re.search(r"/(ios|apple|darwin)Main/", "/" + p)]:
+        if not holds_any(ctx, path, _PIN_EVIDENCE_NEEDLES):
+            continue
         code = ctx.code(path, keep_strings=False)
         if code and _PIN_EVIDENCE_CODE.search(code):
             return True
@@ -1561,8 +1572,9 @@ _KA_WRITE = re.compile(r"\b\w*[kK]eychain\w*\s*\[[^\]\n]{1,120}\]\s*=(?!=)|\b\w*
 @detector("ios_keychain_migratable")
 def keychain_migratable(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE_SUFFIXES):
-        raw = ctx.text(path)
-        if raw is None or ("ccessib" not in raw and "KeychainAccess" not in raw):
+        # A file reports only through a _KC_MIGRATABLE match (it holds "kSecAttrAccessible" or
+        # "accessibility(") or an `import KeychainAccess`.
+        if not holds_any(ctx, path, ("kSecAttrAccessible", "accessibility(", "KeychainAccess")):
             continue
         code = _release_code(ctx, path, keep_strings=False)
         if code is None or _KC_SYNC.search(code):
@@ -1933,6 +1945,13 @@ _COVERS_VIEW_STRICT = re.compile(r"addSubview|insertSubview|UIVisualEffectView|U
 _RESIGN_SELECTOR = re.compile(
     r"#selector\s*\(\s*(?:[\w.]+\.)?(\w+)[^)]*\)[^\n]{0,120}?(?:willResignActive|didEnterBackground)Notification"
     r"|(?:willResignActive|didEnterBackground)Notification[^\n]{0,160}?#selector\s*\(\s*(?:[\w.]+\.)?(\w+)")
+# A literal from each _SWITCHER_EVIDENCE alternative ("privacy_screen" also in flutter_privacy_screen,
+# "AppSwitcher" in hideContentsInAppSwitcher).
+_SWITCHER_LITERALS = ("sceneCaptureState", "isCaptured", "capturedDidChangeNotification",
+                      "userDidTakeScreenshotNotification", "privacySensitive", "redacted", "secure_application",
+                      "screen_protector", "privacy_screen", "no_screenshot", "isSecureTextEntry", "screenBlocking",
+                      "ScreenShield", "ScreenProtectorKit", "SecureView", "privacyScreen", "PrivacyScreen", "BlurWindow",
+                      "appSwitcher", "AppSwitcher", "snapshotProtect", "screenSecurity", "ScreenSecurity")
 _DART_LIFECYCLE_COVER = re.compile(
     r"AppLifecycleState\s*\.\s*(?:inactive|paused|hidden)[\s\S]{0,400}?(?:[oO]verlay|[bB]lur|[oO]bscur|[pP]rivacy|[sS]ecureScreen)"
     r"|(?:[oO]verlay|[bB]lur|[oO]bscur|[pP]rivacy|[sS]ecureScreen)\w*\s*=[^;\n]{0,200}AppLifecycleState\s*\.")
@@ -1945,15 +1964,16 @@ def app_switcher_snapshot(ctx: Context, rule: Rule) -> Iterable[Hit]:
     code_files = ctx.files(*CODE_SUFFIXES)
     if not code_files:
         return
-    if _search_code(ctx, _SWITCHER_EVIDENCE, CODE_SUFFIXES + (".dart",)) or re.search(
+    if _search_code(ctx, _SWITCHER_EVIDENCE, CODE_SUFFIXES + (".dart",), literals=_SWITCHER_LITERALS) or re.search(
             r"\b(?:secure_application|screen_protector|privacy_screen|no_screenshot|flutter_privacy_screen)\s*:",
             _deps_text(ctx)):
         return
     for _p, _l, body, _c, _m, _s in _functions(ctx, _RESIGN_HANDLER):
         if _COVERS_VIEW.search(body):
             return
-    if _search_code(ctx, _SCENE_PHASE_COVER, (".swift",)) or _search_code(ctx, _DART_LIFECYCLE_COVER, (".dart",),
-                                                                        include_tests=False):
+    # Every _SCENE_PHASE_COVER match holds "scenePhase"; each _DART_LIFECYCLE_COVER alternative "AppLifecycleState".
+    if _search_code(ctx, _SCENE_PHASE_COVER, (".swift",), literals=("scenePhase",)) or _search_code(
+            ctx, _DART_LIFECYCLE_COVER, (".dart",), include_tests=False, literals=("AppLifecycleState",)):
         return
     # Observers of willResignActive / didEnterBackground: look at the selector they call.
     for path in ctx.files(".swift", ".m"):
@@ -2209,6 +2229,15 @@ _RR_CATEGORIES: List[Tuple[str, "re.Pattern[str]"]] = [
         r"|(?<![\w.])(?:statfs|statvfs|fstatfs|fstatvfs)\s*\(")),
     ("ActiveKeyboards", re.compile(r"\bactiveInputModes\b")),
 ]
+# Per category, literals at least one of which every match of its regex contains (alternative by alternative).
+_RR_NEEDLES: Dict[str, Tuple[str, ...]] = {
+    "UserDefaults": ("UserDefaults", "@AppStorage"),
+    "FileTimestamp": ("FileAttributeKey", "creationDate", "modificationDate", "DateKey", "NSFile",
+                      "fileModificationDate", "getattrlist", "stat"),
+    "SystemBootTime": ("systemUptime", "mach_absolute_time"),
+    "DiskSpace": ("Capacity", "systemFreeSize", "NSFileSystem", "statfs", "statvfs"),
+    "ActiveKeyboards": ("activeInputModes",),
+}
 
 
 def _manifests(ctx: Context) -> List[PlistDoc]:
@@ -2239,6 +2268,8 @@ def required_reason_api(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if not code:
             continue
         for cat, rx in list(todo):
+            if not holds_any(ctx, path, _RR_NEEDLES[cat]):
+                continue
             m = rx.search(code)
             if m:
                 todo.remove((cat, rx))
@@ -2321,8 +2352,7 @@ def purpose_string(ctx: Context, rule: Rule) -> Iterable[Hit]:
             break
         if scope_of(path) != "main" or _is_test_path(path):
             continue
-        raw = ctx.text(path) or ""
-        if not any(lit in raw for lit in _PURPOSE_LITERALS):
+        if not holds_any(ctx, path, _PURPOSE_LITERALS):
             continue
         code = _release_code(ctx, path, keep_strings=False)
         if not code:
@@ -2415,8 +2445,7 @@ def tracking_domains(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE_SUFFIXES):
         if scope_of(path) != "main" or _is_test_path(path):
             continue
-        raw = ctx.text(path)
-        if raw is None or not any(d in raw for d in _TRACKING_DOMAINS):
+        if not holds_any(ctx, path, _TRACKING_DOMAINS):
             continue
         code = _release_code(ctx, path, keep_strings=True)
         for m in _HOST_LITERAL.finditer(code or ""):

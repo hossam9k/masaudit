@@ -10,7 +10,8 @@ import time
 import unittest
 
 import helpers  # noqa: F401  (sets sys.path)
-from masaudit import cli, safety
+from masaudit import cli, detect, engine, profile, safety
+from masaudit.model import Project
 from masaudit.parsers import workflows
 
 
@@ -99,6 +100,50 @@ class AttackRegressions(unittest.TestCase):
         start = time.monotonic()
         workflows.load(crafted)
         self.assertLess(time.monotonic() - start, 2.0)
+
+    def test_thousands_of_hits_in_one_file_scan_in_linear_time(self):
+        # Found by the performance review (2026-10-24): per hit, rules re-split the file for the snippet,
+        # recounted lines from the top, walked back to the enclosing function or #if, re-searched the whole
+        # file or statement, or (AND-015's superclass regex) rescanned to the next brace from every `(`; the
+        # Gradle helpers rescanned the rest of the script for every nested block. Each crafted 200 KB file
+        # took 5 s to 4 minutes before the fix, and the build scripts far longer (8 KB took 4 s, growing
+        # with the cube of the size).
+        manifest = ('<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="a.b">'
+                    '<application><activity android:name=".Main" android:exported="true"><intent-filter>'
+                    '<action android:name="android.intent.action.MAIN"/></intent-filter></activity>'
+                    '</application></manifest>')
+        cases = [  # (rule, file, repeated text, reports something)
+            ("XPL-010", "A.kt", 'if (BuildConfig.DEBUG) {\nLog.d(TAG, "$token")\n', True),   # debug guard, snippet
+            ("XPL-010", "A.swift", '#if DEBUG\nprint("\\(token)")\n', True),                 # #if stack per hit
+            ("XPL-008", "A.kt", "val token = Math.random()\n", True),                       # enclosing function
+            ("XPL-042", "A.kt", 'Runtime.getRuntime().exec("sh -c " + cmd)\n', True),       # constant lookup
+            ("AND-009", "A.kt", "if (BuildConfig.DEBUG) {\nval c = CertificatePinner\n", True),  # unclosed blocks
+            ("IOS-004", "A.swift", "func urlSession(_ s: URLSession, didReceive challenge: "
+                                   "URLAuthenticationChallenge) {\n", False),              # brace matching
+            ("AND-015", "A.kt", "class A (\n", False),                                       # superclass regex
+            ("AND-034", "A.kt", '\n.putString("token", t)', False),                          # one long chain
+            ("AND-054", "A.kt", 'val i = Intent(); i.putExtra("token", token); startActivity(i)\n', False),
+            ("XPL-032", "A.kt", 'NotificationCompat.Builder(c).setContentText("code $otp")\n', True),
+            ("AND-027", "build.gradle", "buildTypes { release { minifyEnabled false\n", True),  # nested blocks
+            ("AND-002", "build.gradle", "android { buildTypes { release { debuggable true\n", True),
+            ("AND-064", "build.gradle", "signingConfigs { c { enableV2Signing false\n", True),
+        ]
+        all_rules = {r.id: r for r in engine.load_rules()}
+        for rule_id, name, unit, reports in cases:
+            with self.subTest(rule=rule_id, file=name):
+                root = tempfile.mkdtemp(dir=self.tmp)
+                os.makedirs(os.path.join(root, "app/src/main/java"))
+                with open(os.path.join(root, "app/src/main/AndroidManifest.xml"), "w") as fh:
+                    fh.write(manifest)
+                where = "app" if name.endswith(".gradle") else "app/src/main/java"
+                with open(os.path.join(root, where, name), "w") as fh:
+                    fh.write(unit * (200_000 // len(unit)))
+                files = safety.walk(root)
+                project = Project(root=root, platforms=detect.platforms(files), files=files)
+                start = time.monotonic()
+                findings = engine.run(project, [all_rules[rule_id]], profile.make("banking", "flag"))
+                self.assertLess(time.monotonic() - start, 3.0)
+                self.assertEqual(bool(findings), reports)
 
 
 class FuzzSmoke(unittest.TestCase):
