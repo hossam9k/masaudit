@@ -1781,7 +1781,7 @@
       ],
       "fix_code": {
         "lang": "xml",
-        "code": "<EditText\n    android:id=\"@+id/otp\"\n    android:inputType=\"number|textNoSuggestions\"\n    android:imeOptions=\"flagNoPersonalizedLearning\" />"
+        "code": "<!-- An account or card number typed as text: no suggestions, no learning -->\n<EditText\n    android:id=\"@+id/accountNumber\"\n    android:inputType=\"textNoSuggestions\"\n    android:imeOptions=\"flagNoPersonalizedLearning\" />\n\n<!-- A one-time code: digits only -->\n<EditText\n    android:id=\"@+id/otp\"\n    android:inputType=\"number\"\n    android:imeOptions=\"flagNoPersonalizedLearning\" />"
       },
       "confidence": "medium",
       "detector": "android_keyboard_cache"

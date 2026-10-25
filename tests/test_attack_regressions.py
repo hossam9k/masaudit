@@ -100,6 +100,31 @@ class AttackRegressions(unittest.TestCase):
         self.assertIn("filter.evil.clean", reason or "")
         self.assertFalse(os.path.exists(marker), "git status ran a filter from the scanned repo")
 
+    def test_huge_and_unicode_numbers_do_not_crash_the_scan(self):
+        # Python 3.11+ refuses to turn more than 4,300 digits into an int, and int() rejects digits like "²"
+        # that str.isdigit() accepts. Either one in a crafted file used to end the scan with an internal error.
+        for n in ("9" * 5000, "\u00b2"):
+            files = {
+                "app/build.gradle.kts": f"android {{ defaultConfig {{ minSdk = {n}\n targetSdk = {n} }} }}\n",
+                "app/src/main/AndroidManifest.xml":
+                    '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+                    f'<uses-sdk android:minSdkVersion="{n}" android:targetSdkVersion="{n}"/>'
+                    f'<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" '
+                    f'android:maxSdkVersion="{n}"/><application/></manifest>\n',
+                "gradle/libs.versions.toml": f'[versions]\nminSdk = "{n}"\n',
+                "app/src/main/K.kt": f"class K {{ fun f() {{ b.setUserAuthenticationValidityDurationSeconds({n}); "
+                                     f"b.setUserAuthenticationParameters({n}, 2); g.initialize({n}) }} }}\n",
+                "pubspec.lock": f'packages:\n  dio:\n    version: "{n}.{n}.{n}"\n',
+                "ios/App/Model{n}.xcdatamodel/contents": "<model/>\n",
+            }
+            root = os.path.join(self.tmp, "n%d" % len(n))
+            for rel, text in files.items():
+                os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+                with open(os.path.join(root, rel), "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            with self.subTest(digits=len(n)):
+                cli.scan(root, cli_type="banking", cfg={}, allow_prompt=False)      # must not raise
+
     def test_stray_closer_in_flow_yaml_does_not_hang(self):
         # Found by fuzzing: a `}` inside `[...]` made the flow parser loop forever.
         for crafted in ("x: [}]", "x: [a, }, b]", "x: {a: ]}", "x: [[}}]]", "on: [" + "}" * 10_000 + "]"):

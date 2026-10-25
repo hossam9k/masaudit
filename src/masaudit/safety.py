@@ -40,6 +40,19 @@ SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS"
                  "contents"}  # "contents": a Core Data model (Model.xcdatamodel/contents)
 
 
+MAX_INT_DIGITS = 18      # no real version, size, or duration needs more
+
+
+def small_int(text: str) -> Optional[int]:
+    """The number in `text` when it is a plausible run of ASCII digits, else None. A crafted file can hold a
+    5,000-digit number, which Python 3.11+ refuses to convert (ValueError), or a Unicode digit such as "²",
+    which isdigit() accepts and int() rejects."""
+    t = text.strip()
+    if not t or len(t) > MAX_INT_DIGITS or not t.isascii() or not t.isdigit():
+        return None
+    return int(t)
+
+
 def is_within(root: str, path: str) -> bool:
     root_real = os.path.realpath(root)
     path_real = os.path.realpath(path)

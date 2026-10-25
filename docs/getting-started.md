@@ -60,7 +60,7 @@ certificates; a news app isn't. [Choose your app type](app-type.md) explains how
 The scan takes a few seconds. masaudit prints a summary like this (paths shortened):
 
 ```text
-masaudit 0.4.3 (rules 2.0.0) - acme-wallet
+masaudit 0.5.0 (rules 2.1.0) - acme-wallet
 Platforms: android, ios, ci
 Profile:   banking (Banking, payments, wallets, crypto, lending, or insurance); MAS-L1+L2+R+P; from your answer
 Clue:      Found a payment SDK (Stripe) in android/app/build.gradle.kts - ecommerce may fit
@@ -122,7 +122,7 @@ fixed, and verified your first finding.
 ## 7. Scan your own app
 
 Go to your own project's root folder, the one with your `build.gradle.kts`, Xcode project, or
-`pubspec.yaml`, and run the same command:
+`pubspec.yaml` (for React Native, the folder with `android/` and `ios/`), and run the same command:
 
 ```bash
 uvx masaudit .

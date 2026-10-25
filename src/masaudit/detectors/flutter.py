@@ -198,7 +198,7 @@ def _locked_version(ctx: Context, pubspec_dir: Optional[str], package: str) -> T
         if re.match(r"^  \S", line):
             in_pkg = line.strip() == package + ":"
         elif in_pkg:
-            m = re.match(r'^    version:\s*"?(\d+)\.(\d+)\.(\d+)', line)
+            m = re.match(r'^    version:\s*"?(\d{1,9})\.(\d{1,9})\.(\d{1,9})(?!\d)', line)
             if m:
                 return tuple(int(x) for x in m.groups())
     return ()

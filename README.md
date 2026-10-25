@@ -8,8 +8,8 @@
 [![PyPI](https://img.shields.io/pypi/v/masaudit)](https://pypi.org/project/masaudit/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/hossam9k/masaudit/blob/main/LICENSING.md)
 
-masaudit reads the source code of your Android, iOS, Kotlin Multiplatform, or Flutter app and finds
-security weaknesses before you ship. It first asks what kind of app you're building, then sorts every
+masaudit reads the source code of your Android, iOS, Kotlin Multiplatform, or Flutter app, or the
+native `android/` and `ios/` parts of a React Native app, and finds security weaknesses before you ship. It first asks what kind of app you're building, then sorts every
 finding into **fix before release**, **fix soon**, or **not needed for your app**, and says why.
 masaudit tells a banking app to pin certificates, and never tells a news app to.
 
@@ -126,7 +126,7 @@ In GitHub Actions, the step looks like this; the [CI guide](https://github.com/h
 has the complete workflow:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.4.3
+- uses: hossam9k/masaudit@<commit-sha> # v0.5.0
   with:
     app-type: banking
     fail-on: high
@@ -145,7 +145,7 @@ scanned the apps again.
   that a source scanner can see (95%). The 0.5.0 rules were tuned on these apps, so expect less on
   unseen code; the misses and the method are published.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
-  under 6 seconds on a laptop, with no crashes on any of the 19.
+  about 5 seconds on a laptop, with no crashes on any of the 19.
 
 Method and per-rule numbers: [Accuracy and speed](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md).
 

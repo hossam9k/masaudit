@@ -17,11 +17,12 @@ from masaudit import guards
 from masaudit.detect import scope_of as _scope_of
 from masaudit.detectors import flutter
 from masaudit.guards import guarded_by
-from masaudit.textscan import bracket_match, finditer_lit, holds_all, holds_any, text_memo
+from masaudit.textscan import bracket_match, finditer_lit, holds_all, holds_any, text_memo, xml_tags
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import gradle, manifest, proguard, xmlsafe
 from masaudit.parsers.xmlsafe import Element
+from masaudit.safety import small_int
 
 
 _SCOPES: Dict[str, str] = {}
@@ -513,8 +514,8 @@ def _sdk_entries(ctx: Context, rule_key: str) -> List[Tuple[str, int, Optional[i
         for path in ctx.files(".toml"):
             for key, (val, line) in gradle.toml_versions(ctx.text(path) or "").items():
                 versions[key] = (val, line, path)
-                if catalog_key_re.search(key) and val.isdigit():
-                    out.append((path, line, int(val), "in the version catalog", key))
+                if catalog_key_re.search(key) and small_int(val) is not None:
+                    out.append((path, line, small_int(val), "in the version catalog", key))
         found_in_gradle = False
         build_like = list(_build_files(ctx))
         known = {p for p, _c, _b in build_like}
@@ -547,8 +548,8 @@ def _sdk_entries(ctx: Context, rule_key: str) -> List[Tuple[str, int, Optional[i
                     for key, (v, line, src) in versions.items():
                         if re.sub(r"[-_]", ".", key).lower() == accessor.lower():
                             entry = (v, line, src)
-                if entry is not None and entry[0].isdigit():
-                    out.append((entry[2], entry[1], int(entry[0]), "in the version catalog", val))
+                if entry is not None and small_int(entry[0]) is not None:
+                    out.append((entry[2], entry[1], small_int(entry[0]), "in the version catalog", val))
                 else:
                     out.append((path, ctx.line_of(code, m.start()), None, f"in {path}", f"{m.group(1)}={val}"))
         if found_in_gradle or any(catalog_key_re.search(k) for k in versions):
@@ -561,8 +562,8 @@ def _sdk_entries(ctx: Context, rule_key: str) -> List[Tuple[str, int, Optional[i
                 val = el.get(attr)
                 if manifest.is_placeholder(val):
                     out.append((path, el.line, None, f"in {path}", f"{attr} placeholder"))
-                elif val and val.strip().isdigit():
-                    out.append((path, el.line, int(val), "in the manifest", val))
+                elif small_int(val or "") is not None:
+                    out.append((path, el.line, small_int(val or ""), "in the manifest", val))
         return out
     return _memo(ctx, "sdk:" + rule_key, compute)
 
@@ -933,14 +934,20 @@ def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
 _HANDSHAKE = re.compile(r"\.\s*startHandshake\s*\(\s*\)")
 _CREATE_SOCKET = re.compile(r"\.\s*createSocket\s*\(")
 # Any sign that the host name is checked: a HostnameVerifier, SSLParameters endpoint identification, or a helper.
-_HOST_CHECK = re.compile(r"HostnameVerifier|\.\s*verify\s*\(|[Ee]ndpointIdentificationAlgorithm|[Hh]ostnameVerif"
-                         r"|\bverify\w*Host\w*\s*\(|\bcheck\w*Host\w*\s*\(")
+_HOST_CHECK = re.compile(r"HostnameVerifier|\.\s*verify\s*\(|[Ee]ndpointIdentificationAlgorithm|[Hh]ostnameVerif")
+# `verifyHost(`, `checkServerHost(`: the name is matched once, then searched for "Host" in Python (a nested
+# `\w*Host\w*` backtracks inside one long word, which is quadratic on a crafted file).
+_HOST_CALL = re.compile(r"\b(?:verify|check)(\w*)\s*\(")
+
+
+def _has_host_check(blank: str) -> bool:
+    return bool(_HOST_CHECK.search(blank)) or any("Host" in m.group(1) for m in _HOST_CALL.finditer(blank))
 
 
 @detector("android_sslsocket_hostname")
 def sslsocket_hostname(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, _code, blank in _code_files(ctx, "startHandshake", "createSocket", "SSL"):
-        if _HOST_CHECK.search(blank) or re.search(r"TrustManager\b", blank):
+        if _has_host_check(blank) or re.search(r"TrustManager\b", blank):
             # The file checks host names somewhere, or decides trust itself (a peer's self-signed certificate,
             # a pin): assume it covers this socket. A TrustManager that trusts everything is AND-005.
             continue
@@ -1663,8 +1670,14 @@ def webview_no_url_check(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if not after:
                 continue
             if after.group(1) == "=":
-                body = blank[close + 1:blank.find("\n", close + 1) if "\n" in blank[close + 1:] else len(blank)]
-                returns = [body.split("=", 1)[1]]
+                # The expression after `=`, which may start on the next line: `fun f(...)\n    = false`.
+                start = close + 1 + after.end()
+                end = blank.find("\n", start)
+                body = blank[start:end if end >= 0 else len(blank)]
+                if not body.strip() and end >= 0:            # `=` ends the line; the value is on the next one
+                    nxt = blank.find("\n", end + 1)
+                    body = blank[end + 1:nxt if nxt >= 0 else len(blank)]
+                returns = [body]
             else:
                 start = close + 1 + after.end() - 1
                 body = blank[start:_match(blank, start, "{", "}") + 1]
@@ -2158,7 +2171,7 @@ def _sql_is_constant(expr: str, code: str, blank: str = "", idx: int = -1) -> bo
     if m and len(segs) == 1:
         # val prefix = uidPrefixProvider.get(): a value an injected configuration object supplies
         pm = re.fullmatch(r"\s*(\w+)\s*\.\s*get\w*\(\s*\)\s*", m.group(1))
-        if pm and re.search(r"\b" + re.escape(pm.group(1)) + r"\s*:\s*\w*Provider\b|\b\w*Provider(?:<[^>]*>)?\s+"
+        if pm and re.search(r"\b" + re.escape(pm.group(1)) + r"\s*:\s*\w*Provider\b|\b\w*Provider(?:<[^>]{0,200}>)?\s+"
                             + re.escape(pm.group(1)) + r"\b", code):
             return True
     if len(segs) == 1 and blank and idx >= 0:
@@ -2538,7 +2551,8 @@ def _query_builder(ctx: Context) -> Iterator[Hit]:
             params = _args(blank, pm.end() - 1)
             if len(params) != 5:
                 continue
-            sel = re.search(r"(\w+)\s*(?::\s*String\??\s*)?$", blank[params[2][0]:params[2][1]].strip())
+            # The parameter's name is at its end; a declaration is short, so a crafted 40 KB one is cut first.
+            sel = re.search(r"(\w+)\s*(?::\s*String\??\s*)?$", blank[params[2][0]:params[2][1]].strip()[-200:])
             if not sel:
                 continue
             close = _match(blank, pm.end() - 1, "(", ")")
@@ -3736,7 +3750,7 @@ def external_storage(ctx: Context, rule: Rule) -> Iterable[Hit]:
             name = (p.get("android:name") or "").rsplit(".", 1)[-1]
             max_sdk = (p.get("android:maxSdkVersion") or "").strip()
             if name == "MANAGE_EXTERNAL_STORAGE" or (name == "WRITE_EXTERNAL_STORAGE" and not (
-                    max_sdk.isdigit() and int(max_sdk) <= 28)):
+                    (small_int(max_sdk) is not None and small_int(max_sdk) <= 28))):
                 broad = broad or f"{name} in {path}"
         for app in manifest.applications(root):
             if xmlsafe.is_true(app.get("android:requestLegacyExternalStorage")):
@@ -3833,12 +3847,12 @@ def biometric_enrollment(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield _hit(ctx, path, ctx.line_of(blank, m.start()),
                            "The key also accepts the device PIN, so Android doesn't invalidate it when "
                            "biometrics change.")
-            elif timeout.isdigit() and int(timeout) > 0:
+            elif (small_int(timeout) or 0) > 0:
                 yield _hit(ctx, path, ctx.line_of(blank, m.start()),
                            f"The key stays unlocked for {timeout} seconds after authentication, so it isn't "
                            "tied to each use or invalidated on new enrollment.")
         for m in _VALIDITY.finditer(blank):
-            if int(m.group(1)) > 0:
+            if (small_int(m.group(1)) or 0) > 0:
                 yield _hit(ctx, path, ctx.line_of(blank, m.start()),
                            f"The key stays unlocked for {m.group(1)} seconds after authentication, so it isn't "
                            "tied to each use or invalidated on new enrollment.")
@@ -3861,7 +3875,10 @@ def _seconds(expr: str, code: str) -> Optional[int]:
         return None
     value = 1
     for part in e.split("*"):
-        value *= int(part.strip().rstrip("L").replace("_", ""))
+        n = small_int(part.strip().rstrip("L").replace("_", ""))
+        if n is None:
+            return None                  # an absurd literal: no real duration needs 19 digits
+        value *= n
     return value
 
 
@@ -3938,7 +3955,7 @@ def key_multi_purpose(ctx: Context, rule: Rule) -> Iterable[Hit]:
             purposes = code[spans[1][0]:spans[1][1]]
             mixed = _ENC_PURPOSE.search(purposes) and _SIGN_PURPOSE.search(purposes)
             lit = purposes.strip()
-            odd = lit.isdigit() and int(lit) not in (1, 2, 3, 4, 8, 12, 32)
+            odd = small_int(lit) is not None and small_int(lit) not in (1, 2, 3, 4, 8, 12, 32)
             if mixed or odd:
                 yield _hit(ctx, path, ctx.line_of(blank, m.start()),
                            "This Keystore key is allowed to both encrypt and sign (or wrap keys), so a weakness in "
@@ -3986,6 +4003,7 @@ _NO_LEARN = re.compile(r"PASSWORD|NO_SUGGESTIONS|NO_PERSONALIZED_LEARNING|[Pp]as
                        r"|flagNoPersonalizedLearning")
 
 
+_XML_EDIT_TEXT = re.compile(r"<(?:[\w.]+\.)?(?:EditText|TextInputEditText|AppCompatEditText)\b")
 def _field_kind(text: str) -> str:
     """"secret" (password, PIN), "sensitive" (one-time code, card or account number), or ""."""
     tokens = [t for piece in re.findall(r"[A-Za-z0-9]+", text) for t in _camel(piece)]
@@ -4016,14 +4034,13 @@ def keyboard_cache(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if "EditText" not in text:
             continue
         clean = _XML_COMMENT.sub(lambda c: re.sub(r"[^\n]", " ", c.group(0)), text)
-        for m in re.finditer(r"<(?:[\w.]+\.)?(?:EditText|TextInputEditText|AppCompatEditText)\b[^>]*>", clean):
-            tag = m.group(0)
+        for at, tag in xml_tags(clean, _XML_EDIT_TEXT):
             names = " ".join(re.findall(r"android:(?:id|hint|autofillHints)\s*=\s*\"([^\"]*)\"", tag))
             if _field_kind(names) != "sensitive" or "android:password=\"true\"" in tag or _NO_LEARN.search(tag):
                 continue
             it = re.search(r"android:inputType\s*=\s*\"([^\"]*)\"", tag)
             if _learns("sensitive", it.group(1) if it else None):
-                yield _hit(ctx, path, ctx.line_of(clean, m.start()),
+                yield _hit(ctx, path, ctx.line_of(clean, at),
                            "This field takes a one-time code, card or account number as free text, so the keyboard "
                            "can learn it and suggest it later (no textNoSuggestions).")
     # Code: an EditText built in Kotlin or Java, with its hint and the last input type it is given.
@@ -4729,7 +4746,8 @@ _OVERLAY_NEEDLES = ("filterTouchesWhenObscured", "setHideOverlayWindows", "FLAG_
 _SENSITIVE_ACTION = re.compile(r"(?i)\b(?:pay(?:ment)?|transfer|send\s+money|confirm|authori[sz]e|approve|withdraw"
                                r"|purchase|grant)\b")
 _BUTTON_NEW = re.compile(r"(?<![\w.])(?:new\s+)?(?:Button|MaterialButton|AppCompatButton)\s*\(")
-_XML_BUTTON = re.compile(r"<(?:[\w.]+\.)?(?:Button|MaterialButton|AppCompatButton)\b[^>]*>")
+_XML_BUTTON = re.compile(r"<(?:[\w.]+\.)?(?:Button|MaterialButton|AppCompatButton)\b")
+_XML_LAYOUT = re.compile(r"<(?:[\w.]+\.)?\w*Layout\b")
 _VIEW_FILTER = re.compile(r"filterTouchesWhenObscured|setFilterTouchesWhenObscured|onFilterTouchEventForSecurity"
                           r"|FLAG_WINDOW_IS_(?:PARTIALLY_)?OBSCURED")
 
@@ -4760,7 +4778,7 @@ def _string_res(ctx: Context) -> Dict[str, str]:
         for path in ctx.files(".xml"):
             if not re.search(r"/res/values[\w-]*/[^/]*strings[^/]*\.xml$", "/" + path):
                 continue
-            for m in re.finditer(r"<string\s+name=\"(\w+)\"[^>]*>([^<]{0,200})</string>", ctx.text(path) or ""):
+            for m in re.finditer(r"<string\s+name=\"(\w+)\"[^>]{0,400}>([^<]{0,200})</string>", ctx.text(path) or ""):
                 out.setdefault(m.group(1), m.group(2))
         return out
     return _memo(ctx, "string_res", compute)
@@ -4802,11 +4820,10 @@ def _unprotected_sensitive_buttons(ctx: Context) -> Iterator[Hit]:
         if "Button" not in text:
             continue
         clean = _XML_COMMENT.sub(lambda c: re.sub(r"[^\n]", " ", c.group(0)), text)
-        if "filterTouchesWhenObscured=\"true\"" in clean and re.search(
-                r"<(?:[\w.]+\.)?\w*Layout\b[^>]*filterTouchesWhenObscured=\"true\"", clean):
+        if "filterTouchesWhenObscured=\"true\"" in clean and any(
+                "filterTouchesWhenObscured=\"true\"" in tag for _at, tag in xml_tags(clean, _XML_LAYOUT)):
             continue          # a container filters touches for everything inside it
-        for m in _XML_BUTTON.finditer(clean):
-            tag = m.group(0)
+        for at, tag in xml_tags(clean, _XML_BUTTON):
             if "filterTouchesWhenObscured=\"true\"" in tag:
                 continue
             lm = re.search(r"android:text\s*=\s*\"([^\"]*)\"", tag)
@@ -4818,7 +4835,7 @@ def _unprotected_sensitive_buttons(ctx: Context) -> Iterator[Hit]:
                     strings = _string_res(ctx)
                 label = label[8:].replace("_", " ") + " " + strings.get(label[8:], "")
             if _SENSITIVE_ACTION.search(label):
-                yield _hit(ctx, path, ctx.line_of(clean, m.start()), msg)
+                yield _hit(ctx, path, ctx.line_of(clean, at), msg)
 
 
 @detector("android_no_overlay_protection")
@@ -4974,7 +4991,7 @@ def _permission_inventory(ctx: Context) -> Tuple[Optional[Tuple[str, Element]], 
                 if not name.startswith("android.permission.") or short not in DANGEROUS_PERMISSIONS:
                     continue
                 max_sdk = (p.get("android:maxSdkVersion") or "").strip()
-                if short in _LEGACY_ONLY and max_sdk.isdigit() and int(max_sdk) <= 32:
+                if short in _LEGACY_ONLY and small_int(max_sdk) is not None and small_int(max_sdk) <= 32:
                     continue          # the narrow legacy grant paired with READ_MEDIA_* / NEARBY_WIFI_DEVICES
                 if short == "BLUETOOTH_SCAN" and "neverForLocation" in (p.get("android:usesPermissionFlags") or ""):
                     continue

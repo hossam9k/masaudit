@@ -3,7 +3,48 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## 0.5.0 — unreleased
+## 0.5.0 — 2026-10-25
+
+**Rules 2.1.0: 15 new rules (187 in total) and fixes to 20 existing ones.** Recall on apps with
+planted weaknesses (OWASP MASTG demos, DIVA, InsecureBankv2, DVIA-v2) went from 70 to 126 of the 133
+that a source scanner can see. The new and changed rules were written from those misses, so expect
+less on unseen code; [Accuracy and speed](docs/precision.md#recall-on-apps-with-known-weaknesses) has
+the method and every remaining miss. On the 19-app precision corpus they add 3 findings, all real, and
+remove none.
+
+- **New Android rules:** SSLSocket without a host-name check (AND-073), keystore keys unlocked long
+  after authentication (AND-074), WebView that opens any URL (AND-075), sensitive fields the keyboard
+  learns (AND-076).
+- **New iOS rules:** sensitive fields the keyboard learns (IOS-043), sockets without TLS (IOS-044), a
+  password field inside web-view HTML (IOS-045), secret files backups copy (IOS-046), hosts missing
+  from `NSPinnedDomains` (IOS-047, *Check by hand*).
+- **New cross-platform rules:** hardcoded credential checks and backdoors (XPL-043), secrets written to
+  plain files (XPL-044), tokens taken from the clock (XPL-045), HTML injection in web pages (XPL-046),
+  native buffer overflows from Java input (XPL-047), page data read in the page's own JavaScript world
+  (XPL-048).
+- **Fixed misses in existing rules,** for example: `MASTestApp` or `Contest` was taken for a test
+  build; accept-all trust after a `guard let` unwrap; multi-line weak-TLS calls; bare
+  `addJavascriptInterface`; plain tokens in a file that encrypts something else; cleartext and file
+  access allowed by old targetSdk defaults; keys reaching `SecretKeySpec` through a helper; weak
+  PBKDF2 through a wrapper; Core Data, Realm, and raw-SQL password columns.
+- **False alarms removed:** a boolean extra named like a PIN, NSFileProtection comparisons, pinning
+  done in an NSURLConnection delegate, a DOM read reported as a write, and `android:password="true"`
+  fields.
+- **Android projects are detected from their imports** when there is no manifest or Gradle file.
+- **Hardening from an independent code review:**
+  - Two crashes fixed: a WebView client whose `= false` body starts on the next line, and a number of
+    more than 4,300 digits (Python 3.11+ refuses to convert it). Every place that reads a number from
+    the scanned project now rejects absurd ones, including older rules.
+  - Eleven checks that a crafted file could make quadratic are linear again, three of them in rules
+    older than 0.5.0 (XPL-033 layout tags, KDF constants, and the HTTP scheme constant). A test scans
+    each crafted file in under 3 seconds.
+  - A regex in the new IOS-004 unwrap check could backtrack exponentially (found by CodeQL).
+  - The AND-076 fix snippet set an OTP field to a phone keyboard; it now shows `number` and
+    `textNoSuggestions` separately.
+- **React Native is named in the README and the docs:** masaudit scans the native `android/` and `ios/`
+  folders; the JavaScript isn't scanned yet.
+- **`.html` pages and Core Data models are scanned.**
+- `scripts/corpus.py` downloads the precision corpus at fixed commits, scans it, and compares scans.
 
 - **Colors work in the terminal.** Since 0.1.0, the summary printed color codes as text (` [1m`)
   instead of colors: text cleaning ran after coloring and removed the escape character. Text from

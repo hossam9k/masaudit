@@ -166,14 +166,14 @@ The 7 still missed, and why:
 ## Speed
 
 Every app in the corpus scans without a crash. End-to-end times for the largest, as a banking app (so
-every rule runs), on an Apple M5 laptop with Python 3.14, version 0.4.1:
+every rule runs), on an Apple M5 laptop with Python 3.14, version 0.5.0 (best of three runs):
 
 | App | Files | Time |
 |---|---|---|
-| Signal (Android) | 9,528 | 5.6 s |
-| DuckDuckGo (Android) | 9,998 | 5.6 s |
-| Lichess (Flutter) | 7,885 | 4.6 s |
-| Signal (iOS) | 3,741 | 4.3 s |
+| Signal (Android) | 9,530 | 5.3 s |
+| DuckDuckGo (Android) | 10,011 | 5.0 s |
+| Lichess (Flutter) | 7,885 | 4.2 s |
+| Signal (iOS) | 3,741 | 4.4 s |
 
 Crafted inputs can't make a scan slow: the parsers are fuzzed in CI, and tests check that files built
 to trigger worst cases (thousands of nested blocks, unclosed brackets, huge single lines) still scan in
