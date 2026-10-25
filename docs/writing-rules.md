@@ -35,7 +35,7 @@ A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a decla
 
 | Field | Rules |
 |---|---|
-| `id` | `AND-`, `IOS-`, `KMP-`, `FLT-` (Flutter), `XPL-` (cross-platform code), or `CI-`, then 3 digits. Never reuse an ID; retire with `"retired": true`. |
+| `id` | `AND-`, `IOS-`, `RN-` (React Native), `KMP-`, `FLT-` (Flutter), `XPL-` (cross-platform code), or `CI-`, then 3 digits. Never reuse an ID; retire with `"retired": true`. |
 | `platform` | `android`, `ios`, `kmp`, `flutter`, `cross`, `ci`. The rule runs only if the project has that platform. |
 | `severity` | `critical`, `high`, `medium`, `low`, `info`: the severity for an app whose profile includes this weakness. |
 | `profiles` | The MAS profiles the weakness belongs to (book §3.2): `L1` baseline, `L2` high-risk data and untrusted OS, `R` resilience, `P` privacy. If the app's profile shares none of them, the finding goes to "Not needed for your app". |

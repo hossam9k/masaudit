@@ -1,8 +1,8 @@
 {
   "name": "masaudit",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "displayName": "masaudit: mobile security audits",
-  "description": "Audit and fix Android, iOS, Kotlin Multiplatform, and Flutter apps with security advice scaled to the app's risk. Backed by a free, verified book.",
+  "description": "Audit and fix Android, iOS, React Native, Kotlin Multiplatform, and Flutter apps with security advice scaled to the app's risk. Backed by a free, verified book.",
   "author": {
     "name": "Hossam Atef",
     "email": "hossam9k@gmail.com",

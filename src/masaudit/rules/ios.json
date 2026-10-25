@@ -137,7 +137,7 @@
         "L2"
       ],
       "why": "NSPinnedDomains pins never expire. With a single pin, a key rotation or a CA change locks every user on that build out of your servers until they install an update.",
-      "fix": "Add a second SPKI-SHA256-BASE64 entry: a backup key at a second CA, or a key you hold offline. If you list both CA and leaf identities, each list needs its own backup.",
+      "fix": "Add a second SPKI-SHA256-BASE64 entry: a backup key at a second CA, or a key you hold offline. If you list both CA and leaf identities, each list needs its own backup. With react-native-ssl-public-key-pinning, list two or more `publicKeyHashes` for each host.",
       "verify": "Serve a test endpoint with a certificate issued for the backup key (or from the backup CA) and confirm the app connects. Then confirm that a certificate matching neither pin fails.",
       "effort": "hours",
       "book": "§8.6",
@@ -162,7 +162,7 @@
         "L2"
       ],
       "why": "Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.",
-      "fix": "Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).",
+      "fix": "Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request.",
       "verify": "Make the device trust a proxy CA, then confirm requests to pinned hosts fail while an unpinned host still loads through the proxy (§8.10, step 1).",
       "effort": "days",
       "book": "§8.8",
@@ -195,7 +195,7 @@
         "L2"
       ],
       "why": "kSecAttrAccessibleAlways (and AlwaysThisDeviceOnly) makes the item readable even before the user first unlocks the phone. These are the items forensic tools recover from a locked device. Apple deprecated the class in iOS 12.",
-      "fix": "Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.",
+      "fix": "Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly. In React Native, use ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY (react-native-keychain) or SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY (expo-secure-store).",
       "verify": "Search the code for kSecAttrAccessibleAlways and confirm no match. On a test device, lock it and confirm background code that needs the item behaves as you expect.",
       "effort": "minutes",
       "book": "§4.4",
@@ -206,18 +206,7 @@
         "code": "let attributes: [String: Any] = [\n    kSecValueData as String: token,\n    // WhenUnlocked: needs an unlocked device. ThisDeviceOnly: never migrates\n    // to another device. See §4.4.\n    kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,\n]\n// Background refresh while locked? Use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,\n// never kSecAttrAccessibleAlways."
       },
       "confidence": "high",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "lways",
-        "strings": "blank",
-        "regex": "\\bkSecAttrAccessibleAlways(?:ThisDeviceOnly)?\\b|\\.accessibility\\(\\s*\\.always(?:ThisDeviceOnly)?\\b",
-        "message": "This Keychain item uses an 'Always' accessibility class."
-      }
+      "detector": "ios_keychain_always"
     },
     {
       "id": "IOS-009",
@@ -228,7 +217,7 @@
         "L2"
       ],
       "why": "Without ThisDeviceOnly, the item can be restored from a backup onto another device. A session token then travels with the backup instead of staying on the phone it was issued to. KeychainAccess defaults to .afterFirstUnlock, which has the same problem.",
-      "fix": "Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. With KeychainAccess, call .accessibility(.whenUnlockedThisDeviceOnly). Skip this for items you sync on purpose with kSecAttrSynchronizable.",
+      "fix": "Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. With KeychainAccess, call .accessibility(.whenUnlockedThisDeviceOnly). Skip this for items you sync on purpose with kSecAttrSynchronizable. In React Native, pass `accessible: ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY` to react-native-keychain (its default is AFTER_FIRST_UNLOCK) and `keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY` to expo-secure-store (its default is WHEN_UNLOCKED).",
       "verify": "Back up a test device, restore it onto a second device, and confirm the app asks the user to sign in again.",
       "effort": "minutes",
       "book": "§4.4",
@@ -252,7 +241,7 @@
         "L2"
       ],
       "why": "NSFileProtectionNone (.noFileProtection) leaves the file readable at all times, even before the first unlock after a restart. Anyone who extracts data from the device can read it.",
-      "fix": "Write sensitive files with .completeFileProtection, and exclude them from backup. Use completeUntilFirstUserAuthentication only for files background work must read while locked.",
+      "fix": "Write sensitive files with .completeFileProtection, and exclude them from backup. Use completeUntilFirstUserAuthentication only for files background work must read while locked. Never set the com.apple.developer.default-data-protection entitlement to NSFileProtectionNone.",
       "verify": "On a physical device, write the file, lock the phone, and confirm code that runs while locked can't read it (the simulator doesn't enforce Data Protection).",
       "effort": "minutes",
       "book": "§4.4",
@@ -265,18 +254,7 @@
         "code": "func writeSensitive(_ data: Data, to url: URL) throws {\n    try data.write(to: url, options: [.atomic, .completeFileProtection])\n    var values = URLResourceValues()\n    values.isExcludedFromBackup = true\n    var fileURL = url\n    try fileURL.setResourceValues(values)\n}"
       },
       "confidence": "high",
-      "pattern": {
-        "suffixes": [
-          ".swift",
-          ".m",
-          ".mm",
-          ".h"
-        ],
-        "prefilter": "rotection",
-        "strings": "blank",
-        "regex": "(?<!isEqualToString:)(?<!isEqualToString: )(?<![=!]=)(?<![=!]= )(?<!case )(?:\\bNSFileProtectionNone\\b|\\.noFileProtection\\b|\\bFileProtectionType\\.none\\b|\\bprotectionKey\\s*:\\s*\\.none\\b|\\bNSDataWritingFileProtectionNone\\b)(?!\\s*[=!]=)",
-        "message": "This file is written with no Data Protection class."
-      }
+      "detector": "ios_no_file_protection"
     },
     {
       "id": "IOS-011",
@@ -379,7 +357,7 @@
         "L1"
       ],
       "why": "isInspectable = true lets anyone with the device and a Mac attach Safari's Web Inspector, read the page, and call your JavaScript bridge from a console.",
-      "fix": "Wrap the line in #if DEBUG so it never compiles into release builds.",
+      "fix": "Wrap the line in #if DEBUG so it never compiles into release builds. In React Native, pass `webviewDebuggingEnabled={__DEV__}`.",
       "verify": "Install the release build on a device connected to a Mac, open a web view screen, and confirm your app doesn't appear in Safari's Develop menu.",
       "effort": "minutes",
       "book": "§16.6",

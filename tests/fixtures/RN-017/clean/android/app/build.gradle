@@ -1,0 +1,9 @@
+react {
+    // The Hermes compiler writes the map to build/generated/sourcemaps; it is not packaged.
+    hermesFlags = ["-O", "-output-source-map"]
+}
+
+tasks.register("collectSourcemapForSentry", Copy) {
+    from "${buildDir}/generated/sourcemaps/react/release/index.android.bundle.map"
+    into "${buildDir}/sentry/release"
+}

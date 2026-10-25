@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Vulnerable",
+    "extra": {
+      "eas": { "projectId": "0f3c8a52-1b6e-4d2f-9a7c-5e8b1d4c2a90" },
+      "adminPassword": "{{FAKE_RN002_PASSWORD}}"
+    },
+    "plugins": [
+      ["@sentry/react-native/expo", { "organization": "acme", "project": "app", "authToken": "{{FAKE_RN002_SENTRY}}" }]
+    ]
+  }
+}

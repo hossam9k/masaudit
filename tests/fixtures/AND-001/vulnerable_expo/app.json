@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "android": { "package": "com.bank.app" },
+    "plugins": [
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true, "minSdkVersion": 26 } }]
+    ]
+  }
+}

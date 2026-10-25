@@ -8,8 +8,8 @@
 [![PyPI](https://img.shields.io/pypi/v/masaudit)](https://pypi.org/project/masaudit/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/hossam9k/masaudit/blob/main/LICENSING.md)
 
-masaudit reads the source code of your Android, iOS, Kotlin Multiplatform, or Flutter app, or the
-native `android/` and `ios/` parts of a React Native app, and finds security weaknesses before you ship. It first asks what kind of app you're building, then sorts every
+masaudit reads the source code of your Android, iOS, React Native, Kotlin Multiplatform, or Flutter
+app, and finds security weaknesses before you ship. It first asks what kind of app you're building, then sorts every
 finding into **fix before release**, **fix soon**, or **not needed for your app**, and says why.
 masaudit tells a banking app to pin certificates, and never tells a news app to.
 
@@ -99,9 +99,9 @@ fix, how long it takes, its OWASP IDs, and the section of a free book that expla
 
 ## What it checks
 
-187 rules: 70 Android, 47 iOS, 48 cross-platform code, 8 Flutter, 8 CI and supply chain, 6 Kotlin
-Multiplatform. Together they cover 52 of the 78 weaknesses in OWASP's MASWE catalog and cite 138
-OWASP MASTG tests.
+207 rules: 70 Android, 47 iOS, 20 React Native, 48 cross-platform code, 8 Flutter, 8 CI and supply
+chain, 6 Kotlin Multiplatform. Together they cover 52 of the 78 weaknesses in OWASP's MASWE catalog and
+cite 140 OWASP MASTG tests.
 
 - **Network:** cleartext (including raw sockets and old targetSdk defaults), ATS exceptions, user CAs, TLS bypasses, missing host-name checks, old TLS versions, gRPC plaintext, and pinning where the app type needs it.
 - **Storage:** tokens in plain preferences, UserDefaults, files, and databases, Keychain classes, backups and device transfer, shared and world-readable files, keyboard caching of sensitive fields.
@@ -111,6 +111,7 @@ OWASP MASTG tests.
 - **Privacy:** sensitive permissions, hardware identifiers, IDFA without App Tracking Transparency, privacy manifests, tracking domains.
 - **Build and CI:** debuggable releases, debug tools in release, R8 keep rules, unpinned actions, persisted tokens, script injection, committed signing keys.
 - **Resilience,** for banking, identity, loyalty, and game apps: Play Integrity, App Attest, and root, debugger, emulator, and hooking detection.
+- **React Native and Expo:** tokens in AsyncStorage or unencrypted MMKV, secrets bundled through `.env` or `EXPO_PUBLIC_` variables, WebView file access and open origins, deep-link data reaching `openURL` or a WebView, `eval`, unsigned over-the-air updates, Hermes turned off, source maps and console output in release builds, and Expo config in `app.json`. The JavaScript and TypeScript are read along with the native `android/` and `ios/` folders, and a managed Expo app with no native folders gets the Android and iOS checks from its config.
 
 ## Guides by task
 
@@ -126,7 +127,7 @@ In GitHub Actions, the step looks like this; the [CI guide](https://github.com/h
 has the complete workflow:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.5.0
+- uses: hossam9k/masaudit@<commit-sha> # v0.6.0
   with:
     app-type: banking
     fail-on: high
@@ -141,9 +142,13 @@ scanned the apps again.
 
 - **79 rules fired on these apps; 78 are at 90% precision or better.** The one below, IOS-012 (89%),
   is marked *Check by hand*. Rules that found nothing there are checked by their test fixtures.
+- **React Native, measured on 10 more apps** (Mattermost, Rocket.Chat, Bluesky, Expensify, BlueWallet,
+  MetaMask, and others): 57 of the 63 findings that 0.6.0 adds are real (90%). Four rules under 90% there
+  are marked *Check by hand*.
 - **Finds 126 of 133 planted weaknesses** in OWASP's MASTG demos, DIVA, InsecureBankv2, and DVIA-v2
-  that a source scanner can see (95%). The 0.5.0 rules were tuned on these apps, so expect less on
-  unseen code; the misses and the method are published.
+  that a source scanner can see (95%), and 21 of 28 in three deliberately vulnerable React Native apps
+  (75%). The rules were tuned on these apps, so expect less on unseen code; the misses and the method
+  are published.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
   about 5 seconds on a laptop, with no crashes on any of the 19.
 
@@ -166,7 +171,7 @@ To report a vulnerability, see [SECURITY.md](https://github.com/hossam9k/masaudi
 | Advice scaled to the app's risk | **Yes** | No | No | No |
 | "Not needed for your app", with reasons | **Yes** | No | No | No |
 | Plain-language why, fix, and verify per finding | **Yes** | Partly | Partly | Partly |
-| Android + iOS + KMP + Flutter + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
+| Android + iOS + React Native + KMP + Flutter + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
 | Install | Single file, no dependencies | Docker (recommended) | pip (Semgrep) | Android SDK |
 | Imports SARIF from Android Lint, mobsfscan, Semgrep, and zizmor, and sorts it by app type | **Yes** | — | — | — |
 | Published precision on real apps | **Yes** | — | — | — |

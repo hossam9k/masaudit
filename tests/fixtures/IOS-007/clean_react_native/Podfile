@@ -1,6 +1,0 @@
-platform :ios, '16.0'
-
-target 'Bank' do
-  pod 'Alamofire'
-  # pod 'TrustKit'
-end

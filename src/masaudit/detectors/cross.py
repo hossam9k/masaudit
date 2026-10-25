@@ -20,6 +20,7 @@ from masaudit.textscan import _raw_index, bracket_match, finditer_lit, holds_any
 from masaudit.detect import scope_of as _scope_of
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
+from masaudit.detectors import reactnative as rn
 
 
 _SCOPES: Dict[str, str] = {}
@@ -39,6 +40,7 @@ CODE = (".kt", ".java", ".swift", ".m", ".mm", ".h", ".dart")
 JVM = (".kt", ".java")
 APPLE = (".swift", ".m", ".mm", ".h")
 DART = (".dart",)
+JS = rn.JS                              # React Native JavaScript and TypeScript, read only in RN projects
 
 
 def _mask_in(snippet: str, value: str) -> str:
@@ -55,7 +57,8 @@ def _mask_in(snippet: str, value: str) -> str:
 _TEST_IMPORT = re.compile(
     r"^[ \t]*(?:@testable[ \t]+import\b|import[ \t]+(?:XCTest|Quick|Nimble|Testing)\b"
     r"|import[ \t]+(?:static[ \t]+)?(?:org\.junit|junit\.framework|kotlin\.test|io\.mockk|org\.mockito|"
-    r"io\.kotest|androidx\.test)\b|import[ \t]+['\"]package:(?:flutter_test|test|mockito|mocktail)/)",
+    r"io\.kotest|androidx\.test)\b|import[ \t]+['\"]package:(?:flutter_test|test|mockito|mocktail)/"
+    r"|import\b[^\n]{0,200}?\bfrom[ \t]+['\"](?:@testing-library/[\w-]+|@jest/globals|vitest|detox|react-test-renderer)['\"])",
     re.MULTILINE,
 )
 
@@ -64,14 +67,14 @@ def _has_test_import(text: str) -> bool:
     """bool(_TEST_IMPORT.search(text)), without trying the pattern at every offset: a match starts at the
     start of a line holding `import` (every alternative contains it, on the same line), so only those
     line starts are tried."""
-    tried = -1
+    seen = -1                                  # offset of the previous `import`; -1 before the first
     i = text.find("import")
     while i >= 0:
-        start = text.rfind("\n", 0, i) + 1
-        if start != tried:
-            tried = start
-            if _TEST_IMPORT.match(text, start):
+        nl = text.rfind("\n", max(seen, 0), i)   # only the text since the previous `import`: linear overall
+        if nl >= 0 or seen < 0:                  # a line not tried yet
+            if _TEST_IMPORT.match(text, nl + 1):
                 return True
+        seen = i
         i = text.find("import", i + 1)
     return False
 
@@ -98,7 +101,17 @@ def _hit_scope(ctx: Context, path: str, idx: int, blank: Optional[str] = None) -
         blank = ctx.code(path, keep_strings=False) or ""
     if debug_guarded(path, blank, idx) or _NON_RELEASE_SOURCE_SET.search("/" + path):
         return "debug"
+    if path.endswith(JS) and js_dev_guarded(ctx.code(path) or "", blank, idx):
+        return "debug"
     return ""
+
+
+# ---------------------------------------------------------------------------- React Native: __DEV__
+
+def js_dev_guarded(code: str, blank: str, idx: int) -> bool:
+    """Whether offset idx of a JavaScript/TypeScript file runs only in development builds (reactnative.DevGuard:
+    `if (__DEV__)`, NODE_ENV checks, `__DEV__ &&`, the first branch of `__DEV__ ?`, early returns)."""
+    return rn.in_dev(code, blank, idx)
 
 
 _NOT_FUNCTIONS = {
@@ -356,7 +369,7 @@ RESTRICTED: List[Tuple[Pattern[str], str]] = [
 
 @detector("xpl_restricted_secret")
 def restricted_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    for path in ctx.files(*CODE):
+    for path in ctx.files(*CODE) + _rn_secret_files(ctx, config=True):
         if not holds_any(ctx, path, ("PRIVATE KEY", "AKIA", "ASIA", "sk-", "k_live_", "ghp_", "gho_", "ghu_", "ghs_",
                                      "ghr_", "github_pat_", "xox")):
             continue
@@ -387,6 +400,10 @@ def google_api_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
            "such as Gemini, it's a restricted key and belongs behind your backend.")
     for hit in _scan(ctx, [(GOOGLE_KEY, msg)], prefilter=("AIza",), mask_group=0):
         yield hit
+    if rn.is_react_native(ctx):
+        for hit in _scan(ctx, [(GOOGLE_KEY, msg)], suffixes=JS, prefilter=("AIza",), mask_group=0):
+            if hit.path in _rn_js_set(ctx):
+                yield hit
 
 
 # ---------------------------------------------------------------------------- XPL-003
@@ -445,6 +462,7 @@ def secret_assignment(ctx: Context, rule: Rule) -> Iterable[Hit]:
                       f"`{m.group(1)}` is set to a literal value, so it ships inside the app.",
                       _hit_scope(ctx, path, m.start()))
     yield from _c_define_secrets(ctx)
+    yield from _js_secret_assignment(ctx)
 
 
 # C and Objective-C: `#define VENDORKEY "olsdfgad;lh"`.
@@ -545,6 +563,7 @@ def ecb(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield _lower_if_legacy(ctx, Hit(path, line, ctx.snippet(path, line),
                                             "A Keystore AES key that allows ECB mode.",
                                             _hit_scope(ctx, path, m.start(), code)))
+    yield from _js_ecb(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-005
@@ -740,6 +759,7 @@ def static_iv(ctx: Context, rule: Rule) -> Iterable[Hit]:
         yield hit
     for hit in _scan(ctx, [(DART_IV, msg)], suffixes=DART, prefilter=("IV",)):
         yield hit
+    yield from _js_static_iv(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-007
@@ -798,6 +818,7 @@ def weak_hash(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     seen.add(line)
                     yield Hit(path, line, ctx.snippet(path, line),
                               f"{what}, in code that handles `{hits[0]}`.", _hit_scope(ctx, path, m.start(), blank))
+    yield from _js_weak_hash(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-008
@@ -985,6 +1006,7 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield Hit(path, line, ctx.snippet(path, line),
                       f"dart:math `Random()` is predictable, and it produces a `{words[0]}`.",
                       _hit_scope(ctx, path, m.start(), code))
+    yield from _js_insecure_random(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-009
@@ -996,6 +1018,7 @@ SAFE_HOSTS = re.compile(
     r"^(?:localhost|127\.0\.0\.1|10\.0\.2\.2|10\.0\.3\.2|0\.0\.0\.0|\[::1\]|"
     r"(?:[\w-]+\.)*example\.(?:com|org|net)|schemas\.android\.com|schemas\.xmlsoap\.org|"
     r"schemas\.microsoft\.com|www\.w3\.org|w3\.org|ns\.adobe\.com|ns\.apple\.com|www\.apple\.com|purl\.org|"
+    r"maps\.apple\.com|"                       # Apple's documented Maps link: iOS opens the Maps app
     r"xmlpull\.org|(?:www\.)?itunes\.com|search\.yahoo\.com|podlove\.org|"
     r"(?:[\w-]+\.)*(?:localhost|test|invalid|local))" + _PORT + "$",
     re.IGNORECASE,
@@ -1074,6 +1097,7 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     yield Hit(path, line, ctx.snippet(path, line), f"A URL is built from `{name}`, which holds "
                               "`http://`, so the request goes out in plain HTTP.",
                               _hit_scope(ctx, path, use.start(), blank))
+    yield from _js_http_url(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-010
@@ -1243,6 +1267,7 @@ def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
             seen.add(line)
             yield Hit(path, line, ctx.snippet(path, line), f"`{names[0]}` is written to the log.",
                       _hit_scope(ctx, path, m.start(), bare))
+    yield from _js_sensitive_log(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-011
@@ -1456,6 +1481,7 @@ def hardcoded_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG,
                           _hit_scope(ctx, path, m.start()))
+    yield from _js_hardcoded_key(ctx)
 
 
 # ============================================================================ shared helpers (XPL-012+)
@@ -1594,6 +1620,7 @@ def clipboard_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
             how = ("Flutter's Clipboard can't mark it sensitive, so clear it after a short timeout"
                    if is_dart else "the clip isn't marked with `ClipDescription.EXTRA_IS_SENSITIVE`")
             yield _hit_at(ctx, path, code, m.start(), f"A `{found[0]}` is copied to the clipboard and {how}.", blank)
+    yield from _js_clipboard_secret(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-013
@@ -1626,6 +1653,7 @@ def broken_cipher(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 algo = m.group(1) if regex.groups else "3DES"
                 yield _hit_at(ctx, path, code, m.start(), f"{algo} ({where}) is a broken or retired cipher.", blank)
+    yield from _js_broken_cipher(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-014
@@ -1706,6 +1734,7 @@ def small_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             if n < 2048:
                 yield _hit_at(ctx, path, code, m.start(), f"An RSA key of {n} bits; use at least 2048.", blank)
+    yield from _js_small_key(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-015 / XPL-016
@@ -1943,6 +1972,7 @@ def pbkdf2_iterations(ctx: Context, rule: Rule) -> Iterable[Hit]:
             hit = _hit_at(ctx, path, code, start, msg, blank)
             hit.severity = severity
             yield hit
+    yield from _js_pbkdf2_iterations(ctx)
 
 
 _DART_LITERAL_SALT = re.compile(r"^\s*(?:const\s+)?(?:utf8\.encode\s*\(\s*r?[\"']|" + _DART_LITERAL_BYTES
@@ -1977,6 +2007,7 @@ def fixed_salt(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if salt is not None and _salt_is_literal(path, code, blank, salt):
             yield _hit_at(ctx, path, code, start, "The password-hashing salt is a fixed value in the code, so "
                                                   "every user's derived key can be attacked at once.", blank, mask=True)
+    yield from _js_fixed_salt(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-017
@@ -2041,6 +2072,7 @@ def biometric_fallback(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             yield _hit_at(ctx, path, code, m.start(), "local_auth's `authenticate` without `biometricOnly: true` "
                                                       "accepts the device PIN or passcode.", blank)
+    yield from _js_biometric_fallback(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-019
@@ -2357,6 +2389,8 @@ ROOT_SHARED = re.compile(_RASP + r"|flutter_jailbreak_detection|\bsafe_device\b|
 
 @detector("xpl_no_root_detection")
 def no_root_detection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    if _rn_evidence(ctx, "root", RN_ROOT_DEPS, RN_ROOT_JS, ("Jail", "jail", "Rooted")):
+        return
     yield from _absence(ctx, rule, ROOT_ANDROID, ROOT_IOS, ROOT_SHARED, "root or jailbreak detection (or attestation)")
 
 
@@ -2387,6 +2421,8 @@ def _real_debugger_check(path: str, text: str, m: "re.Match[str]") -> bool:
 
 @detector("xpl_no_debugger_detection")
 def no_debugger_detection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    if _rn_evidence(ctx, "debugger", RN_DEBUGGER_DEPS, RN_DEBUGGER_JS, ("isDebug",)):
+        return
     yield from _absence(ctx, rule, DEBUGGER_ANDROID, DEBUGGER_IOS, DEBUGGER_SHARED, "debugger detection",
                         _real_debugger_check)
 
@@ -2403,6 +2439,8 @@ EMULATOR_SHARED = re.compile(_RASP + r"|\bsafe_device\b|\bisRealDevice\b|\bdevic
 
 @detector("xpl_no_emulator_detection")
 def no_emulator_detection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    if _rn_evidence(ctx, "emulator", RN_EMULATOR_DEPS, RN_EMULATOR_JS, ("isEmulator", "isDevice", "isRealDevice")):
+        return
     yield from _absence(ctx, rule, EMULATOR_ANDROID, EMULATOR_IOS, EMULATOR_SHARED, "emulator or simulator detection")
 
 
@@ -2419,6 +2457,8 @@ HOOK_SHARED = re.compile(_RASP)
 
 @detector("xpl_no_hook_detection")
 def no_hook_detection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    if _rn_evidence(ctx, "hook", RN_HOOK_DEPS, RN_HOOK_JS, ("hookDetected", "isHooked", "isFridaDetected")):
+        return
     yield from _absence(ctx, rule, HOOK_ANDROID, HOOK_IOS, HOOK_SHARED, "hooking or instrumentation detection")
 
 
@@ -2439,6 +2479,10 @@ UPDATE_SHARED = re.compile(r"(?mi)^[ \t]+(?:upgrader|in_app_update|new_version_p
 
 @detector("xpl_no_forced_update")
 def no_forced_update(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    if _rn_evidence(ctx, "update", RN_UPDATE_DEPS, RN_UPDATE_JS, ("version", "Version", "VERSION", "update",
+                                                                    "Update", "UPDATE", "itunes", "eprecated",
+                                                                    "EPRECATED"), fold=True):
+        return
     yield from _absence(ctx, rule, UPDATE_ANDROID, UPDATE_IOS, UPDATE_SHARED, "way to force an update")
 
 
@@ -2687,6 +2731,7 @@ def webview_dom_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if found:
                 yield _hit_at(ctx, path, code, m.start(), f"Native code writes a `{found[0]}` into the web page's DOM, "
                                                           "where every script on the page can read it.", blank)
+    yield from _js_webview_dom_secret(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-030
@@ -2784,6 +2829,7 @@ def _core_data_created(ctx: Context) -> Set[str]:
 @detector("xpl_db_plain_credentials")
 def db_plain_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
     yield from _db_plain_native(ctx)
+    yield from _js_db_plain_credentials(ctx)
     if _found(ctx, _DB_ENCRYPTED):
         return
     for path, code, blank in _files_with(ctx, JVM, ("@Entity", "RealmObject")):
@@ -2931,7 +2977,7 @@ def notification_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if text_memo(blank, ("notif_private", start, end),
                          lambda b=blank, s=start, e=end: bool(_NOTIF_PRIVATE.search(b[s:e]))):
                 continue                      # (searched once per function, not once per call in it)
-            yield _hit_at(ctx, path, code, m.start(), f"A notification shows a `{found[0]}`, which appears on the "
+            yield _hit_at(ctx, path, code, m.start(), f"A notification shows `{found[0]}`, which appears on the "
                                                       "lock screen unless the notification is private.", blank)
     for path, code, blank in _files_with(ctx, (".swift",), ("UNMutableNotificationContent",)):
         for m in IOS_NOTIF.finditer(blank):
@@ -2949,6 +2995,7 @@ def notification_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if found:
                 yield _hit_at(ctx, path, code, m.start(), f"A notification shows a `{found[0]}` on the lock screen.",
                               blank)
+    yield from _js_notification_secret(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-033
@@ -3061,6 +3108,7 @@ def unmasked_secret_field(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if _uikit_field_is_secret(code, blank, m.start(), receiver, path):
                 yield _hit_at(ctx, path, code, m.start(), "A password or PIN text field turns off "
                                                           "`isSecureTextEntry`, so it shows what's typed.", blank)
+    yield from _js_unmasked_field(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-034
@@ -3138,6 +3186,7 @@ def analytics_pii(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if found and line not in seen:
                 seen.add(line)
                 yield _hit_at(ctx, path, code, m.start(), f"An analytics event sends the user's `{found[0]}`.", blank)
+    yield from _js_analytics_pii(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-035
@@ -3215,6 +3264,7 @@ def nonprod_endpoint(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             seen.add(line)
             yield _hit_at(ctx, path, code, m.start(), f"`{host}` is {why}, in code that ships.", blank)
+    yield from _js_nonprod_endpoint(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-037
@@ -3247,6 +3297,7 @@ def oauth_flow(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     seen.add(line)
                     yield _hit_at(ctx, path, code, m.start(), f"Sign-in uses {what}, which RFC 8252 and RFC 9700 "
                                                               "rule out for mobile apps.", blank)
+    yield from _js_oauth_flow(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-041
@@ -3441,6 +3492,7 @@ def hardcoded_credential_check(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 yield _hit_at(ctx, path, code, at, f"The `{cred}` is checked against a value written in the code; "
                                                    "anyone who unpacks the app can read it.", blank, mask=True)
+    yield from _js_credential_check(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-045
@@ -3491,6 +3543,7 @@ def time_based_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 yield _hit_at(ctx, path, code, m.start(), f"`{target.group(1)}` comes from the clock, so anyone who "
                                                           "knows roughly when it was made can guess it.", blank)
+    yield from _js_time_based_token(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-047
@@ -3625,6 +3678,7 @@ def dom_injection(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if value:
                 yield _hit_at(ctx, path, code, m.start(), f"Text the user typed (`{value}`) is placed into HTML "
                                                           "without escaping, so it can add its own script.", blank)
+    yield from _js_dom_injection(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-044
@@ -3715,6 +3769,7 @@ def plaintext_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if found and line not in seen:
                 seen.add(line)
                 yield _hit_at(ctx, path, code, m.start(), f"A `{found[0]}` is written to a file in plain text.", blank)
+    yield from _js_plaintext_secret_file(ctx)
 
 
 # ---------------------------------------------------------------------------- XPL-048
@@ -3748,3 +3803,1210 @@ def webview_page_world_read(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield _hit_at(ctx, path, code, m.start(), f"The app reads a `{found[0]}` from the page in the page's "
                                                           "own JavaScript world, where the page can fake the answer.",
                               blank)
+
+
+# ============================================================================ React Native (JavaScript, TypeScript)
+#
+# The XPL rules read an RN app's JavaScript and TypeScript only when the project is a React Native app,
+# so native projects that carry stray .js files (WebView assets, build scripts) scan as before.
+
+def _last_match(rx: Pattern[str], text: str, start: int, end: int) -> Optional["re.Match[str]"]:
+    """The last match of rx in text[start:end] (the nearest one before `end`)."""
+    last = None
+    for last in rx.finditer(text, start, end):  # noqa: B007
+        pass
+    return last
+
+
+def _minified(code: str) -> bool:
+    """A bundled or minified file (vendored into the app): few, very long lines."""
+    return len(code) > 20_000 and code.count("\n") * 400 < len(code)
+
+
+def _js_files_with(ctx: Context, needles: Sequence[str]) -> Iterable[Tuple[str, str, str]]:
+    """(path, code, blank) of the RN app's JS/TS files holding a needle; none outside RN projects."""
+    if not rn.is_react_native(ctx):
+        return
+    for path, code, blank in _files_with(ctx, JS, needles):
+        if path.endswith(".d.ts") or ".min." in path.rsplit("/", 1)[-1] or _minified(code):
+            continue
+        yield path, code, blank
+
+
+def _rn_evidence(ctx: Context, key: str, deps: Optional[Pattern[str]], js: Pattern[str],
+                 needles: Sequence[str], fold: bool = False) -> bool:
+    """Whether an RN app has the protection: a dependency that provides it, or a call to it in JS (in the
+    lower-cased code with `fold`). RN libraries are autolinked from node_modules, so they never show up in
+    the Podfile or Gradle files."""
+    if not rn.is_react_native(ctx):
+        return False
+
+    def build() -> bool:
+        if deps is not None and any(deps.search(name) for name in rn.package_deps(ctx)):
+            return True
+        for path, code, _blank in _js_files_with(ctx, needles):
+            if scope_of(path) != "test" and js.search(code.lower() if fold else code):
+                return True
+        return False
+    return bool(rn.memo(ctx, "xpl:evidence:" + key, build))
+
+
+_RN_RASP_DEPS = r"freerasp|talsec|approov|appdome|promon|zimperium|guardsquare|ixguard|dexguard"
+RN_ROOT_DEPS = re.compile(_RN_RASP_DEPS + r"|jail-?monkey|root-?detect|jailbreak|rootbeer|is-?device-?rooted|"
+                          r"^@react-native-firebase/app-check$|^react-native-attestation|play-?integrity")
+RN_ROOT_JS = re.compile(r"\bisJailBroken\s*\(|\bisJailbroken\s*\(|\bisRooted\s*\(|\bisDeviceRooted\s*\(|"
+                        r"\bJailMonkey\s*\.")
+RN_DEBUGGER_DEPS = re.compile(_RN_RASP_DEPS)
+RN_DEBUGGER_JS = re.compile(r"\bisDebuggedMode\s*\(|\bisDebuggerAttached\s*\(|\bisDebuggerConnected\s*\(")
+RN_EMULATOR_DEPS = re.compile(_RN_RASP_DEPS)
+# isEmulator() and Device.isDevice also gate push registration and device labels; only a call near a
+# security word (root, tamper, integrity, block) counts as emulator detection.
+RN_EMULATOR_JS = re.compile(r"(?i)\b(?:isEmulator(?:Sync)?\s*\(|Device\s*\.\s*isDevice\b|isRealDevice\b)"
+                            r"(?=[^;]{0,300}?\b(?:root\w{0,20}|jail\w{0,20}|tamper\w{0,20}|integrity|compromised|security|"
+                            r"fraud|rasp|block\w{0,20})\b)|"
+                            r"\b(?:root\w{0,20}|jail\w{0,20}|tamper\w{0,20}|integrity|compromised|security|fraud|rasp)\b"
+                            r"[^;]{0,300}?\b(?:isEmulator(?:Sync)?\s*\(|Device\s*\.\s*isDevice\b|isRealDevice\b)")
+RN_HOOK_DEPS = re.compile(_RN_RASP_DEPS)
+RN_HOOK_JS = re.compile(r"\bhookDetected\s*\(|\bisHooked\s*\(|\bisFridaDetected\s*\(")
+RN_UPDATE_DEPS = re.compile(r"react-native-version-check|in-app-updates?$|react-native-store-version|"
+                            r"react-native-update-check|react-native-force-update|^siren$")
+# Matched against lower-cased code (`fold`), so each branch can start with its literal, which the regex
+# engine finds much faster than `(?i)\bmin...`; `min(?<!\wmin)` is `\bmin`.
+RN_UPDATE_JS = re.compile(r"min(?<!\wmin)(?:imum)?_?(?:supported_?|required_?)?app_?version\b"
+                          r"|force(?<!\wforce)_?update_?(?:required|version|app|message|screen)\b"
+                          r"|required(?<!\wrequired)_?app_?version\b"
+                          r"|app(?<!\wapp)_?version_?(?:expired|unsupported|deprecated)\b"
+                          r"|isclientdeprecated(?<!\wisclientdeprecated)\b|itunes\.apple\.com/lookup")
+
+
+# Bundled config next to the JS: react-native-config and react-native-dotenv compile `.env` into the app,
+# and Expo reads app.json, app.config.json, and eas.json at build time. Example and local-only files don't ship.
+_RN_ENV_FILE = re.compile(r"^\.env(?:\.(?!example|sample|template|dist|test|local|development|dev\b)[\w.-]+)?$")
+_RN_CONFIG_JSON = {"app.json", "app.config.json", "eas.json"}
+
+
+# Test files that detect.scope_of doesn't name: url/test.ts, isMarketingURL.tests.ts.
+_JS_TEST_NAME = re.compile(r"(?:^|[./])tests?\.[cm]?[jt]sx?$")
+
+
+def _js_test_path(path: str) -> bool:
+    return scope_of(path) == "test" or bool(_JS_TEST_NAME.search(path.rsplit("/", 1)[-1]))
+
+
+def _rn_js_set(ctx: Context) -> Set[str]:
+    """The RN app's JS/TS files that aren't type declarations or minified bundles."""
+    def build() -> Set[str]:
+        out = set()
+        for path in rn.js_files(ctx):
+            if path.endswith(".d.ts") or ".min." in path.rsplit("/", 1)[-1] or scope_of(path) == "ci":
+                continue                      # GitHub Actions bundles are CI code, not the app
+            text = ctx.text(path)
+            if text is not None and not _minified(text):
+                out.add(path)
+        return out
+    return rn.memo(ctx, "xpl:jsset", build) if rn.is_react_native(ctx) else set()
+
+
+def _rn_secret_files(ctx: Context, config: bool = False) -> List[str]:
+    """JS/TS files of an RN app, plus (with config) its .env and Expo config files; [] elsewhere."""
+    if not rn.is_react_native(ctx):
+        return []
+    out = sorted(p for p in _rn_js_set(ctx) if not _js_test_path(p))
+    if config:
+        for path in ctx.files():
+            base = path.rsplit("/", 1)[-1]
+            if (base in _RN_CONFIG_JSON or _RN_ENV_FILE.match(base)) and scope_of(path) != "test" \
+                    and "/node_modules/" not in "/" + path:
+                out.append(path)
+    return out
+
+
+# ---------------------------------------------------------------------------- XPL-003 (JS)
+
+# `const API_SECRET = '…'`, `apiKey: "…"`, `this.password = '…'`, `PRIVATE_KEY: string = '…'`. The name
+# says the value is a secret; the value must look random (letters and digits, no spaces, long enough).
+# A secret-named key or variable set to a literal: `apiSecret = '…'`, `"API_KEY": "…"`. Every name the rule wants ends
+# in one of _JS_SECRET_SUFFIX, so matching starts there and walks back to the name (a pattern starting at every
+# identifier made this rule the slowest on large apps).
+_JS_SECRET_SUFFIX = re.compile(r"(?i)(?:secret|key|token|passwd|password)(?![\w$])")
+_JS_ASSIGN_LITERAL = re.compile(r"['\"]?\s*(?::\s*string\s*)?(?<![=!<>])[:=](?!=)\s*(['\"`])([^'\"`\\\n$]{16,200})\1"
+                                r"(?!\s*[+\[.])")
+
+
+# _JS_SECRET_SUFFIX on lower-cased code, literal first, kept only where an assignment of a string follows:
+# far fewer matches to check one by one, and the regex engine finds a leading literal much faster.
+_JS_SECRET_CANDIDATE = re.compile(r"(?:secret|key|token|passw(?:or)?d)(?![\w$])"
+                                  r"(?=['\"]?\s*(?::\s*string\s*)?[:=](?!=)\s*['\"`])")
+
+
+def _js_named_secrets(code: str, low: Optional[str] = None) -> Iterator[Tuple[int, str, str]]:
+    """(name offset, name, value) for each `name = 'literal'` / `name: 'literal'` whose name ends in a secret
+    word. `low` is code.lower() when the caller has it."""
+    low = code.lower() if low is None else low
+    matches = (_JS_SECRET_CANDIDATE.finditer(low) if len(low) == len(code)   # offsets agree (ASCII lower-casing)
+               else _JS_SECRET_SUFFIX.finditer(code))
+    for m in matches:
+        start = m.start()
+        lo = max(0, m.end() - 61)
+        while start > lo and (code[start - 1].isalnum() or code[start - 1] in "_$"):
+            start -= 1
+        if start > 0 and (code[start - 1].isalnum() or code[start - 1] in "_$"):
+            continue                          # a longer name than any the rule wants
+        if m.end() - start < 3 or not (code[start].isalpha() or code[start] in "_$"):
+            continue
+        a = _JS_ASSIGN_LITERAL.match(code, m.end())
+        if a:
+            yield start, code[start:m.end()], a.group(2)
+_JS_SECRET_NAME = re.compile(r"(?:client|api|app|consumer|private|signing|jwt|hmac|master|encryption)?secret(?:key)?$|"
+                             r"(?:api|private|secret|signing|master|admin)key$|(?:access|auth|api|bearer|admin)token$|"
+                             r"password$|passwd$")
+_JS_NOT_SECRET_NAME = re.compile(r"public|publishable|placeholder|label|title|hint|message|text|field|name$|"
+                                 r"storage|header|param|url|endpoint|route|path|type|regex|pattern|error|"
+                                 r"prefix|format|selector|test|example|sample|mock|dummy")
+# A value that names a thing rather than holding a secret: a public key prefix, a URL, a path, an
+# i18n key, a storage key.
+_JS_PUBLIC_VALUE = re.compile(r"^(?:pk_|pk\.|AIza|https?://|/|\.|[\w-]+\.[\w.-]+$)|\s")
+# JWT libraries whose sign/verify take the shared secret as the second argument.
+JWT_LITERAL = re.compile(r"\b(?:jwt|jsonwebtoken|JWT|jws|KJUR\.jws\.JWS)\s*\.\s*(sign|verify|encode|decode)\s*\("
+                         r"[^;]{0,300}?,\s*(['\"`])([^'\"`\\\n$]{6,200})\2")
+JWT_ENCODED_KEY = re.compile(r"\bnew\s+TextEncoder\s*\(\s*\)\s*\.\s*encode\s*\(\s*(['\"`])([^'\"`\\\n$]{6,200})\1")
+# `https://user:pass@host` and base64 of a literal `user:pass` (an HTTP Basic credential).
+USERINFO_URL = re.compile(r"(['\"`])(?:https?|wss?|ftp)://([^\s:/@'\"`${}]{1,64}):([^\s:/@'\"`${}]{3,64})@[\w.-]+")
+BASIC_LITERAL = re.compile(r"\b(?:btoa|base64\s*\.\s*encode|Base64\s*\.\s*encode|encodeBase64)\s*\(\s*(['\"`])"
+                           r"([^'\"`\\\n:$]{1,64}):([^'\"`\\\n$]{3,64})\1\s*\)|"
+                           r"\bBuffer\s*\.\s*from\s*\(\s*(['\"`])([^'\"`\\\n:$]{1,64}):([^'\"`\\\n$]{3,64})\4"
+                           r"[^;\n]{0,40}?\.\s*toString\s*\(\s*['\"]base64['\"]")
+_JS_FAKE_CRED = re.compile(r"(?i)^(?:user(?:name)?|pass(?:word)?|login|admin|test\w*|demo|foo|bar|x+|\*+|"
+                           r"<[^>]*>|\.\.\.|anonymous|guest|secret|changeme|example)$")
+
+
+def _looks_random(value: str) -> bool:
+    """Letters and digits mixed, no spaces, not a word or a key name: what a generated secret looks like."""
+    v = value.strip()
+    if len(v) < 16 or _JS_PUBLIC_VALUE.search(v) or not _real_secret_value(v):
+        return False
+    if not v.isascii() or not any(re.search(r"[A-Za-z]", run) and re.search(r"\d", run)
+                                  for run in re.findall(r"[A-Za-z0-9]{12,}", v)):
+        return False                                # words joined by `_` or `-` (a storage key, an event name)
+    return len(set(v)) >= 10
+
+
+def _js_secret_assignment(ctx: Context) -> Iterable[Hit]:
+    for path in sorted(_rn_js_set(ctx)):
+        if _js_test_path(path) or _test_file(ctx, path):
+            continue                          # tests sign in with fixed values on purpose
+        if not holds_any(ctx, path, ("ecret", "ECRET", "Key", "KEY", "key", "oken", "OKEN", "assw", "ASSW", "://",
+                                     "btoa", "ncode", "Buffer")):
+            continue
+        code = ctx.code(path) or ""
+        blank = ctx.code(path, keep_strings=False) or ""
+        low = code.lower()
+        found: List[Tuple[int, str, str]] = []                    # (offset, value, message)
+
+        # Each pattern runs only when the code holds a word every match of it contains.
+        for m in SECRET_ASSIGN.finditer(code) if "secret" in low else ():
+            value = m.group(2) or m.group(3)
+            if blank[m.start(1)] == " " or not _real_secret_value(value, m.group(1)) \
+                    or re.search(r"\s", value) or not value.isascii() or re.fullmatch(r"[A-Z]?[a-z]+", value) \
+                    or _inside_json_literal(code, blank, m.start(1)):
+                continue
+            found.append((m.start(), value, f"`{m.group(1)}` is set to a literal value, so it ships inside the app."))
+        for start, name, value in _js_named_secrets(code, low):
+            key = name.lower().replace("_", "")
+            if blank[start] == " " or not _JS_SECRET_NAME.search(key) or _JS_NOT_SECRET_NAME.search(key) \
+                    or not _looks_random(value):
+                continue
+            found.append((start, value, f"`{name}` is set to a literal value, so it ships inside the app."))
+        for m in JWT_LITERAL.finditer(code) if "jw" in low or "jsonwebtoken" in code else ():
+            value = m.group(3)
+            if blank[m.start()] == " " or not _real_secret_value(value) or _JS_FAKE_CRED.match(value):
+                continue
+            found.append((m.start(), value, f"`{m.group(1)}` uses a JWT signing secret written in the code; anyone "
+                                             "who unpacks the app can forge tokens."))
+        for m in JWT_ENCODED_KEY.finditer(code) if "SignJWT" in code or "jwtVerify" in code else ():
+            value = m.group(2)
+            if blank[m.start()] == " " or not _real_secret_value(value):
+                continue
+            found.append((m.start(), value, "A JWT signing secret is written in the code; anyone who unpacks the "
+                                             "app can forge tokens."))
+        for m in USERINFO_URL.finditer(code) if "://" in code and "@" in code else ():
+            user, password = m.group(2), m.group(3)
+            if _JS_FAKE_CRED.match(password) or _JS_FAKE_CRED.match(user) and _JS_FAKE_CRED.match(password):
+                continue
+            found.append((m.start(), password, "A URL carries a user name and password, so they ship inside the app."))
+        for m in BASIC_LITERAL.finditer(code) if "btoa" in code or "ncode" in code or "Buffer" in code else ():
+            user, password = (m.group(2), m.group(3)) if m.group(2) else (m.group(5), m.group(6))
+            if blank[m.start()] == " " or _JS_FAKE_CRED.match(password):
+                continue
+            found.append((m.start(), password, "An HTTP Basic credential (`user:password`) is written in the code."))
+        seen: Set[int] = set()
+        for at, value, message in found:
+            line = ctx.line_of(code, at)
+            if line not in seen:
+                seen.add(line)
+                yield Hit(path, line, _mask_in(ctx.snippet(path, line), value), message, _hit_scope(ctx, path, at, blank))
+
+
+# ---------------------------------------------------------------------------- XPL-043 (JS)
+
+_JS_OPERAND = re.compile(r"[A-Za-z_$][\w$]*(?:\(\s*\))?(?:\??\s*\.\s*[A-Za-z_$][\w$]*(?:\(\s*\))?){0,8}")
+_JS_EQ = re.compile(r"(?<![!<>=])===?(?!=)")
+_JS_LITERAL_AT = re.compile(r"\s*(['\"`])([^'\"`\\\n$]{0,100})\1")
+_JS_NAME_AT = re.compile(r"\s*([A-Za-z_$][\w$]*)(?![\w$(.])")
+_JS_OPERAND_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$.()? \t")
+JS_STRING_CONST = re.compile(r"(?:\b(?:const|let|var)\s+|,\s*)([A-Za-z_$][\w$]*)\s*(?::\s*string\s*)?=\s*"
+                             r"(['\"])([^'\"\\\n]{1,100})\2\s*(?=[,;\n])")
+_JS_CRED_TAIL = {"pass", "pw"}
+_JS_NOT_CRED_VALUE = {"string", "number", "boolean", "object", "function", "symbol", "bigint", "include", "omit",
+                      "same-origin"}
+
+
+def _js_credential(expr: str) -> str:
+    cred = _credential_operand(expr)
+    if cred:
+        return cred
+    words = re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+", expr.rsplit(".", 1)[-1])
+    return "password" if words and words[-1].lower() in _JS_CRED_TAIL else ""
+
+
+def _js_credential_check(ctx: Context) -> Iterable[Hit]:
+    for path in sorted(_rn_js_set(ctx)):
+        if _js_test_path(path) or _test_file(ctx, path) or not holds_any(ctx, path, ("==",)):
+            continue
+        code = ctx.code(path) or ""
+        if not _has_cred_hint(code):
+            continue
+        blank = ctx.code(path, keep_strings=False) or ""
+        consts = {m.group(1): m.group(3) for m in JS_STRING_CONST.finditer(code) if blank[m.start(1)] != " "}
+        found: List[Tuple[int, str, str]] = []                    # (offset, credential, value)
+        for eq in _JS_EQ.finditer(blank):
+            left, right = _js_operand_before(code, eq.start()), eq.end()
+            lit = _JS_LITERAL_AT.match(code, right)
+            name = None if lit else _JS_NAME_AT.match(code, right)
+            if left is not None:
+                at, expr = left
+                if lit:
+                    found.append((at, _js_credential(expr), lit.group(2)))
+                elif name and name.group(1) in consts:
+                    found.append((at, _js_credential(expr) or _js_credential(name.group(1)), consts[name.group(1)]))
+            rev = _js_literal_before(code, eq.start())
+            if rev is not None:
+                op = _JS_OPERAND.match(code, right + len(code[right:right + 20]) - len(code[right:right + 20].lstrip()))
+                if op and not re.match(r"[\w$(.]", code[op.end():op.end() + 1]):
+                    found.append((op.start(), _js_credential(op.group(0)), rev))
+        seen: Set[int] = set()
+        for at, cred, value in sorted(found):
+            v = value.strip()
+            if not cred or blank[at] == " " or len(v) < 3 or v.lower() in _NOT_CRED_VALUE | _JS_NOT_CRED_VALUE \
+                    or re.search(r"\btypeof\s*$", blank[max(0, at - 20):at]):
+                continue                      # `typeof password === 'string'`, fetch's `credentials: 'include'`
+            line = ctx.line_of(code, at)
+            if line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, at, f"The `{cred}` is checked against a value written in the code; "
+                                                   "anyone who unpacks the app can read it.", blank, mask=True)
+
+
+def _js_operand_before(code: str, idx: int) -> Optional[Tuple[int, str]]:
+    """(offset, text) of the member chain that ends just before idx (`this.state.password`), or None."""
+    j = idx
+    while j > 0 and code[j - 1] in " \t":
+        j -= 1
+    i = j
+    while i > 0 and j - i < 150 and code[i - 1] in _JS_OPERAND_CHARS:
+        i -= 1
+    while i < j:
+        m = _JS_OPERAND.match(code, i)
+        if m and m.end() == j:
+            return i, m.group(0)
+        i += 1
+        while i < j and not (code[i].isalpha() or code[i] in "_$") or (i < j and (code[i - 1].isalnum() or code[i - 1] in "_$")):
+            i += 1
+    return None
+
+
+def _js_literal_before(code: str, idx: int) -> Optional[str]:
+    """The text of the string literal that ends just before idx (`'x' === value`), or None."""
+    j = idx
+    while j > 0 and code[j - 1] in " \t":
+        j -= 1
+    if j == 0 or code[j - 1] not in "'\"`":
+        return None
+    start = code.rfind(code[j - 1], max(0, j - 102), j - 1)
+    if start < 0:
+        return None
+    text = code[start + 1:j - 1]
+    return None if any(c in text for c in "\n\\$'\"`") else text
+
+
+# ---------------------------------------------------------------------------- XPL-009 (JS)
+
+# 'http://host', "ws://host", `http://${host}/api`: fetch, axios, WebSocket and socket.io take plain URLs.
+JS_HTTP_URL = re.compile(r"(['\"`])(http|ws)://([^'\"`\s/?#]*)")
+# react-native-app-auth: lets the OAuth requests go over plain HTTP.
+JS_INSECURE_AUTH = re.compile(r"\bdangerouslyAllowInsecureHttpRequests\s*:\s*true\b")
+
+
+def _js_http_url(ctx: Context) -> Iterable[Hit]:
+    for path in sorted(_rn_js_set(ctx)):
+        if scope_of(path) in ("test", "build-script") or _js_test_path(path) or _test_file(ctx, path) \
+                or not holds_any(ctx, path, ("http://", "ws://", "dangerouslyAllowInsecureHttpRequests")):
+            continue
+        code = ctx.code(path) or ""
+        blank = ctx.code(path, keep_strings=False) or ""
+        seen: Set[int] = set()
+        for m in JS_HTTP_URL.finditer(code):
+            if blank[m.start()] != m.group(1):
+                continue                     # inside another string (a quoted URL in prose)
+            host, scheme = m.group(3), m.group(2)
+            # `http://${host}` mostly completes an address the user typed; 'http://' + host is a builder.
+            built = not host and bool(re.match(r"['\"]\s*\+", code[m.end():m.end() + 6]))
+            if not built and (not host or host.startswith(("%", "$", "[")) or host.endswith(".") or "*" in host
+                              or SAFE_HOSTS.match(host) or PLACEHOLDER_HOST.match(host) or PRIVATE_IP.match(host)):
+                continue
+            line_start, line_end = _line_span(code, m.start())
+            if _identifier_words(blank[line_start:line_end]) & _NOT_A_FETCH:
+                continue
+            if re.search(r"\bnew\s+URL\s*\([^()]*,\s*$", blank[line_start:m.start()]):
+                continue                     # new URL(path, 'http://base'): a base for parsing a path
+            line = ctx.line_of(code, m.start())
+            if line in seen:
+                continue
+            seen.add(line)
+            what = "WebSocket" if scheme == "ws" else "HTTP"
+            msg = (f"A URL is built on `{scheme}://`, so the request goes out in plain {what}." if built
+                   else f"A plain-{what} URL to `{host}`.")
+            hit = Hit(path, line, ctx.snippet(path, line), msg, _hit_scope(ctx, path, m.start(), blank))
+            prev_start = code.rfind("\n", 0, max(0, line_start - 1)) + 1
+            if _BROWSER_OPEN.search(blank[prev_start:line_end]):
+                hit.severity = "low"
+                hit.message += " It's opened in the browser rather than fetched by the app; still link to https."
+            yield hit
+        for m in JS_INSECURE_AUTH.finditer(blank):
+            line = ctx.line_of(code, m.start())
+            if line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, m.start(), "`dangerouslyAllowInsecureHttpRequests: true` lets the "
+                                                          "OAuth sign-in requests go over plain HTTP.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-010 (JS)
+
+JS_CONSOLE = re.compile(r"(?<![\w$.])console\s*\.\s*(log|info|debug|warn|error|trace)\s*\(")
+# A string argument that labels the next argument as a secret: console.log('auth token =', t).
+JS_LABEL_THEN_VALUE = re.compile(r"(['\"`])([^'\"`\n]{0,80})\1\s*,\s*([A-Za-z_$][\w$.]*)")
+_JS_LABEL_SECRET = re.compile(r"(?i)\b(?:token|password|passwd|secret|bearer|authorization|api[ _-]?key)\s*[:=]?\s*$")
+_JS_DERIVED_BEFORE = re.compile(r"(?:!|\btypeof\s+|\bBoolean\s*\(\s*)(?:[A-Za-z_$][\w$]*\s*(?:\?\.|\.)\s*){0,6}$")
+_BABEL_FILES = re.compile(r"^(?:babel\.config\.[cm]?js|\.babelrc(?:\.js)?|babel\.config\.json)$")
+
+
+def _console_stripped(ctx: Context) -> Set[str]:
+    """console methods the release bundle removes: babel-plugin-transform-remove-console (minus its
+    `exclude` list) or metro's `drop_console`. Empty when nothing strips them."""
+    def build() -> Set[str]:
+        methods = {"log", "info", "debug", "warn", "error", "trace"}
+        for path in ctx.files():
+            base = path.rsplit("/", 1)[-1]
+            if "/node_modules/" in "/" + path or scope_of(path) == "test":
+                continue
+            if _BABEL_FILES.match(base) or base == "package.json":
+                text = (ctx.code(path) if base.endswith("js") else ctx.text(path)) or ""
+                if base == "package.json" and '"babel"' not in text:
+                    continue
+                # One entry per babel env; the strictest one (fewest exclusions) is taken as production's.
+                stripped: Set[str] = set()
+                for at in (m.start() for m in re.finditer("transform-remove-console", text)):
+                    options = text[at:at + 300].split("]", 1)[0]
+                    kept = set(re.findall(r"['\"](error|warn|info|log|debug|trace)['\"]", options)) \
+                        if "exclude" in options else set()
+                    stripped |= methods - kept
+                if stripped:
+                    return stripped
+            elif re.match(r"metro\.config\.[cm]?js$", base):
+                if re.search(r"\bdrop_console\s*:\s*true", ctx.code(path) or ""):
+                    return methods
+        return set()
+    return rn.memo(ctx, "xpl:console-stripped", build) if rn.is_react_native(ctx) else set()
+
+
+def _js_sensitive_log(ctx: Context) -> Iterable[Hit]:
+    stripped = _console_stripped(ctx)
+    for path in sorted(_rn_js_set(ctx)):
+        if _js_test_path(path) or scope_of(path) == "build-script" or not holds_any(ctx, path, ("console",)):
+            continue
+        low = ctx.lower(path) or ""
+        if not any(w in low for w in ("token", "passw", "secret", "authorization", "bearer", "card", "cvv", "cvc",
+                                      "api_key", "apikey", "api key")) or _test_file(ctx, path):
+            continue
+        bare = ctx.code(path, keep_strings=False) or ""
+        full = ctx.code(path) or ""
+        seen: Set[int] = set()
+        lexical: Optional[bool] = None
+        calls = list(JS_CONSOLE.finditer(bare))
+        for k, m in enumerate(calls):
+            if m.group(1) in stripped:
+                continue                      # the release bundle drops this call
+            line = ctx.line_of(bare, m.start())
+            if line in seen:
+                continue                      # this line is already reported
+            open_at = m.end() - 1
+            close = _close_paren(bare, open_at)
+            if bare[close:close + 1] != ")" and k + 1 < len(calls):
+                close = min(close, calls[k + 1].start())    # unclosed: its arguments end where the next call starts
+            args_code, args_text = bare[open_at:close], full[open_at:close]
+            names: List[str] = []
+            for w in re.finditer(r"[A-Za-z_$][\w$]*", args_code):
+                if not SENSITIVE_WORD.search(w.group(0)):
+                    continue
+                rest = args_code[w.start():]
+                expr = re.match(r"[\w$.]+(?:\(\s*\))?(?:\.[\w$]+(?:\(\s*\d*\s*\))?)*(?:\s*[!=]==?\s*\w+)?", rest)
+                text = expr.group(0) if expr else w.group(0)
+                if _JS_DERIVED_BEFORE.search(args_code[max(0, w.start() - 80):w.start()]):
+                    continue                  # !!token, typeof token, Boolean(token): not the value
+                if _secret_expr(text, args_code[:w.start()]):
+                    names.append(w.group(0))
+            for g in INTERP.finditer(args_text):
+                expr = next(x for x in g.groups() if x is not None)
+                if SENSITIVE_WORD.search(expr) and _secret_expr(expr, "") \
+                        and not expr.strip().startswith(("!", "typeof", "Boolean")):
+                    names.append(expr.strip())
+            for lab in JS_LABEL_THEN_VALUE.finditer(args_text):
+                value = lab.group(3)
+                if _JS_LABEL_SECRET.search(lab.group(2)) and not _SAFE_SUFFIX.search(value) \
+                        and not _NON_SECRET_ANYWHERE.search(value) and value not in ("undefined", "null"):
+                    names.append(value)
+            if names and all(n in ("token", "tokens") for n in names):
+                if lexical is None:
+                    lexical = bool(_LEXICAL_TOKEN_FILE.search(bare))
+                if lexical:
+                    continue
+            if not names:
+                continue
+            seen.add(line)
+            yield Hit(path, line, ctx.snippet(path, line), f"`{names[0]}` is written to the log with "
+                      f"`console.{m.group(1)}`, which release builds keep.", _hit_scope(ctx, path, m.start(), bare))
+
+
+# ---------------------------------------------------------------------------- XPL-012 (JS)
+
+# @react-native-clipboard/clipboard and react-native's old Clipboard: setString; expo-clipboard: setStringAsync.
+JS_CLIP = re.compile(r"(?<![\w$])(?:[A-Za-z_$][\w$]*\s*\.\s*)?(setString|setStringAsync)\s*\(")
+_JS_DECL = r"(?:const|let|var)\s+{name}\s*(?::\s*[\w<>\[\]| ]{{1,40}})?=\s*([^;\n]{{1,200}})"
+
+
+def _js_clipboard_secret(ctx: Context) -> Iterable[Hit]:
+    for path in sorted(_rn_js_set(ctx)):
+        if _js_test_path(path) or _test_file(ctx, path) or not holds_any(ctx, path, ("setString",)):
+            continue
+        code = ctx.code(path) or ""
+        blank = ctx.code(path, keep_strings=False) or ""
+        clip = set(rn.names_from(code, "@react-native-clipboard/clipboard", "expo-clipboard", "react-native",
+                                 imported=("default", "*", "Clipboard", "setString", "setStringAsync")))
+        if not clip:
+            continue
+        seen: Set[int] = set()
+        for m in JS_CLIP.finditer(blank):
+            receiver = re.match(r"([A-Za-z_$][\w$]*)\s*\.", m.group(0))
+            if (receiver.group(1) if receiver else m.group(1)) not in clip:
+                continue
+            open_paren = m.end() - 1
+            close = bracket_match(blank, open_paren, "(", ")")
+            if close - open_paren > 2000:
+                continue
+            args_blank, args_code = blank[open_paren:close], code[open_paren:close]
+            found = _secret_words(args_blank) or _secret_words(" ".join(re.findall(r"['\"`]([^'\"`\n]{1,60})['\"`]",
+                                                                                     args_code)))
+            arg = re.fullmatch(r"\(\s*([A-Za-z_$][\w$]*)\s*(?:\|\||\?\?)?\s*(?:''|\"\")?\s*", args_code)
+            if not found and arg:
+                # `Clipboard.setString(t)` after `const t = await AsyncStorage.getItem('@auth_token')`.
+                decl = _last_match(re.compile(_JS_DECL.format(name=re.escape(arg.group(1)))), code,
+                                   max(0, m.start() - 2000), m.start())
+                if decl is not None:
+                    # Names in the initializer, and the key a getter reads (`getItem('@auth_token')`), not
+                    # words in a message the code builds.
+                    keys = re.findall(r"\bget\w*\s*\(\s*['\"`]([^'\"`\n]{1,60})['\"`]", decl.group(1))
+                    found = _secret_words(blank[decl.start(1):decl.end(1)]) or _secret_words(" ".join(keys))
+            line = ctx.line_of(code, m.start())
+            if not found or line in seen or _NON_SECRET_ANYWHERE.search(args_blank):
+                continue                      # a push or FCM token identifies a device; it isn't a secret
+            seen.add(line)
+            yield _hit_at(ctx, path, code, m.start(), f"A `{found[0]}` is copied to the clipboard, where other apps "
+                                                      "and clipboard history can read it; clear it after a short time.",
+                          blank)
+
+
+# ---------------------------------------------------------------------------- JS crypto (XPL-004/006/007/008/011/
+#                                                                              013/014/015/016/045)
+#
+# crypto-js, node-forge, react-native-quick-crypto (and other Node `crypto` shims), and react-native-mmkv.
+
+_JS_CRYPTO_NEEDLES = ("CryptoJS", "crypto-js", "forge", "createCipher", "createDecipher", "createHash", "pbkdf2",
+                      "PBKDF2", "MMKV", "generateKeyPair", "generateKeys", "Math.random", "Date.now", "getTime")
+_JS_ENC_PARSE = r"(?:[A-Za-z_$][\w$]*\s*\.\s*)*enc\s*\.\s*(?:Utf8|Hex|Latin1|Base64|Utf16)\s*\.\s*parse\s*\(\s*"
+_JS_LIT = r"(['\"`])([^'\"`\\\n$]{1,200})"
+# A JS function head: `function name(`, `name = (…) =>`, `name: function`, a method `name(…) {`.
+_JS_FUNC_HEAD = re.compile(r"\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)|([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s+)?"
+                           r"(?:function\b|\([^()\n]{0,200}\)\s*(?::\s*[\w<>\[\]| ]{1,60})?\s*=>|[A-Za-z_$][\w$]*\s*=>)|"
+                           r"^[ \t]*(?:async\s+|static\s+|public\s+|private\s+)*([A-Za-z_$][\w$]*)\s*\([^()\n]{0,200}\)"
+                           r"\s*(?::\s*[\w<>\[\]| ]{1,60})?\s*\{", re.MULTILINE)
+
+
+def _js_context_words(blank: str, idx: int) -> Set[str]:
+    """Words of the statement around idx and of the name of the nearest function declared before it."""
+    s, e = _line_span(blank, idx)
+    words = _identifier_words(blank[s:e])
+    head = _last_match(_JS_FUNC_HEAD, blank, max(0, idx - 1500), s)
+    if head is not None:
+        words |= _identifier_words(next(g for g in head.groups() if g))
+    return words
+
+
+def _js_crypto_sources(ctx: Context) -> List[Tuple[str, str, str]]:
+    """(path, code, blank) of the RN app's non-test JS files that may use crypto; computed once."""
+    def build() -> List[Tuple[str, str, str]]:
+        out = []
+        for path in sorted(_rn_js_set(ctx)):
+            if _js_test_path(path) or scope_of(path) == "build-script" or not holds_any(ctx, path, _JS_CRYPTO_NEEDLES):
+                continue
+            if _test_file(ctx, path):
+                continue
+            out.append((path, ctx.code(path) or "", ctx.code(path, keep_strings=False) or ""))
+        return out
+    return rn.memo(ctx, "xpl:jscrypto", build) if rn.is_react_native(ctx) else []
+
+
+def _js_hits(ctx: Context, items: Iterable[Tuple[str, str, str, int, str]], mask: bool = False) -> Iterable[Hit]:
+    """One hit per line from (path, code, blank, offset, message)."""
+    seen: Set[Tuple[str, int]] = set()
+    for path, code, blank, at, msg in items:
+        if blank[at:at + 1] == " " and code[at:at + 1] != " ":
+            continue                          # inside a string literal
+        line = ctx.line_of(code, at)
+        if (path, line) not in seen:
+            seen.add((path, line))
+            yield _hit_at(ctx, path, code, at, msg, blank, mask=mask)
+
+
+JS_ECB = re.compile(r"\bmode\s*\.\s*ECB\b|(['\"])(?i:aes-(?:128|192|256)-ecb|aes-ecb)\1|(['\"])crypto-js/mode-ecb\2")
+
+
+def _js_ecb(ctx: Context) -> Iterable[Hit]:
+    yield from _js_hits(ctx, ((p, c, b, m.start(), "AES in ECB mode: identical blocks give identical ciphertext.")
+                              for p, c, b in _js_crypto_sources(ctx) for m in JS_ECB.finditer(c)))
+
+
+JS_BROKEN_CIPHER = re.compile(
+    r"\b(?:CryptoJS|crypto_?js)\s*\.\s*(DES|TripleDES|RC4|RC4Drop|Blowfish)\s*\.\s*(?:encrypt|decrypt)\s*\(|"
+    r"\bcreate(?:De)?[Cc]ipher(?:iv)?\s*\(\s*['\"](des[\w-]*|rc4[\w-]*|rc2[\w-]*|bf[\w-]*|blowfish[\w-]*)['\"]|"
+    r"\bcipher\s*\.\s*create(?:De)?[Cc]ipher\s*\(\s*['\"]((?:3DES|DES|RC2)-\w+)['\"]|"
+    r"(['\"])crypto-js/(tripledes|rc4|blowfish)\4")
+
+
+def _js_broken_cipher(ctx: Context) -> Iterable[Hit]:
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            for m in JS_BROKEN_CIPHER.finditer(c):
+                algo = next(g for g in (m.group(1), m.group(2), m.group(3), m.group(5)) if g)
+                yield p, c, b, m.start(), f"{algo} is a broken or retired cipher."
+    yield from _js_hits(ctx, items())
+
+
+JS_IV_INLINE = re.compile(r"\biv\s*:\s*(?:" + _JS_ENC_PARSE + r"|Buffer\s*\.\s*from\s*\(\s*|forge\s*\.\s*util\s*\."
+                          r"createBuffer\s*\(\s*)?(['\"`])[^'\"`\\\n$]{1,200}\1")
+JS_IV_ZERO = re.compile(r"\biv\s*:\s*(?:Buffer\s*\.\s*alloc|new\s+Uint8Array)\s*\(\s*\d+\s*\)")
+JS_IV_DECL = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$]*(?:iv|IV|Iv|nonce|Nonce|NONCE))\s*(?::\s*[\w.]+\s*)?=\s*"
+                        r"(?:" + _JS_ENC_PARSE + r"(['\"`])|Buffer\s*\.\s*(?:from\s*\(\s*(['\"`])|alloc\s*\(\s*\d)|"
+                        r"new\s+Uint8Array\s*\(\s*(?:\d|\[)|(['\"`])[^'\"`\n$]{4,})")
+JS_CIPHERIV_LITERAL_IV = re.compile(r"\bcreate(?:De)?[Cc]ipheriv\s*\(\s*[^,()]+,\s*[^,]+,\s*(?:Buffer\s*\.\s*"
+                                    r"(?:alloc\s*\(\s*\d|from\s*\(\s*['\"`])|['\"`])")
+
+
+def _js_static_iv(ctx: Context) -> Iterable[Hit]:
+    msg = "The IV is a fixed value, so equal messages encrypt to equal ciphertext."
+
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            for rx in (JS_IV_INLINE, JS_IV_ZERO, JS_CIPHERIV_LITERAL_IV):
+                for m in rx.finditer(c):
+                    yield p, c, b, m.start(), msg
+            used: Optional[Set[str]] = None
+            for m in JS_IV_DECL.finditer(c):
+                if used is None:              # names passed as an IV anywhere in the file, found once
+                    used = set(re.findall(r"\biv\s*:\s*([A-Za-z_$][\w$]*)", b))
+                    used |= {a.group(1) for a in re.finditer(r"\bcreate(?:De)?[Cc]ipheriv\s*\([^;()]{0,200}?,[^;()]{0,200}?,"
+                                                              r"\s*([A-Za-z_$][\w$]*)", b)}
+                    if re.search(r"[{,]\s*iv\s*[,}]", b):
+                        used.add("iv")
+                if m.group(1) in used:
+                    yield p, c, b, m.start(), msg
+    yield from _js_hits(ctx, items())
+
+
+JS_KEY_LITERAL_CALL = re.compile(r"\b(?:AES|DES|TripleDES|Rabbit|RC4|Blowfish)\s*\.\s*(?:encrypt|decrypt)\s*\(\s*"
+                                 r"[^,;]{1,200},\s*(?:" + _JS_ENC_PARSE + r")?" + _JS_LIT + r"\1")
+JS_KEY_NAME_CALL = re.compile(r"\b(?:AES|DES|TripleDES|Rabbit|RC4|Blowfish)\s*\.\s*(?:encrypt|decrypt)\s*\(\s*"
+                              r"[^,;]{1,200},\s*([A-Za-z_$][\w$]*)\s*[,)]")
+JS_KEY_DECL = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$]*(?:[Kk]ey|KEY|[Ss]ecret|SECRET|[Pp]assphrase))\s*"
+                         r"(?::\s*[\w.]+\s*)?=\s*" + _JS_ENC_PARSE + _JS_LIT + r"\2")
+JS_CIPHERIV_LITERAL_KEY = re.compile(r"\bcreate(?:De)?[Cc]ipheriv\s*\(\s*[^,()]+,\s*(?:Buffer\s*\.\s*from\s*\(\s*)?"
+                                     + _JS_LIT + r"\1")
+JS_MMKV_KEY = re.compile(r"\bencryptionKey\s*:\s*" + _JS_LIT + r"\1")
+
+
+def _js_hardcoded_key(ctx: Context) -> Iterable[Hit]:
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            for rx in (JS_KEY_LITERAL_CALL, JS_KEY_DECL, JS_CIPHERIV_LITERAL_KEY):
+                for m in rx.finditer(c):
+                    if not _FAKE_VALUE.match(m.group(rx.groups)):
+                        yield p, c, b, m.start(), _KEY_MSG
+            if "MMKV" in c:
+                for m in JS_MMKV_KEY.finditer(c):
+                    if re.search(r"\b(?:new\s+MMKV|createMMKV)\s*\(\s*\{[^}]{0,400}$", b[max(0, m.start() - 400):m.start()]):
+                        yield p, c, b, m.start(), ("The MMKV encryption key is written in the code, so anyone who "
+                                                   "unpacks the app can decrypt the store.")
+            consts = None
+            for m in JS_KEY_NAME_CALL.finditer(c):
+                if consts is None:
+                    consts = {d.group(1): d.group(3) for d in JS_STRING_CONST.finditer(c) if b[d.start(1)] != " "}
+                if m.group(1) in consts and not _FAKE_VALUE.match(consts[m.group(1)]):
+                    yield p, c, b, m.start(), _KEY_MSG
+    yield from _js_hits(ctx, items(), mask=True)
+
+
+JS_WEAK_HASH = re.compile(r"\b(?:CryptoJS\s*\.\s*)?(MD5|SHA1)\s*\(|\bcreateHash\s*\(\s*['\"](md5|sha1)['\"]|"
+                          r"\bmd\s*\.\s*(md5|sha1)\s*\.\s*create\s*\(")
+
+
+def _js_weak_hash(ctx: Context) -> Iterable[Hit]:
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            hashers = set(rn.names_from(c, "crypto-js/md5", "crypto-js/sha1")) | {"CryptoJS"}
+            for m in JS_WEAK_HASH.finditer(c):
+                if m.group(1):
+                    recv = re.search(r"([A-Za-z_$][\w$]*)\s*\.\s*$", b[max(0, m.start(1) - 40):m.start(1)])
+                    name = recv.group(1) if recv else m.group(1)
+                    if name not in hashers and not (recv is None and m.group(1) in hashers):
+                        continue
+                words = _js_context_words(b, m.start())
+                hits = sorted(words & _HASH_SECURITY)
+                if hits and not words & _HASH_PROTOCOL:
+                    algo = (m.group(1) or m.group(2) or m.group(3)).upper().replace("SHA1", "SHA-1")
+                    yield p, c, b, m.start(), f"{algo}, in code that handles `{hits[0]}`."
+    yield from _js_hits(ctx, items())
+
+
+JS_RSA_BITS = re.compile(r"\bgenerateKeyPair(?:Sync)?\s*\(\s*(?:\{[^}]{0,200}?\bbits\s*:\s*(\d+)|(\d+))|"
+                         r"\bmodulusLength\s*:\s*(\d+)|\bRSA\s*\.\s*generateKeys?\s*\(\s*(\d+)")
+
+
+def _js_small_key(ctx: Context) -> Iterable[Hit]:
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            for m in JS_RSA_BITS.finditer(c):
+                bits = safety.small_int(next(g for g in m.groups() if g))
+                if bits is not None and bits < 2048:
+                    yield p, c, b, m.start(), f"A {bits}-bit RSA key; use at least 2048 bits (3072 for new keys)."
+    yield from _js_hits(ctx, items())
+
+
+# CryptoJS.PBKDF2(password, salt, { keySize, iterations, hasher }); pbkdf2Sync(password, salt, n, len, digest);
+# forge.pkcs5.pbkdf2(password, salt, n, len, md).
+JS_PBKDF2 = re.compile(r"\b(?:CryptoJS\s*\.\s*)?PBKDF2\s*\(|\bpbkdf2(?:Sync)?\s*\(")
+
+
+def _js_kdf_calls(ctx: Context) -> Iterable[Tuple[str, str, str, int, str, Optional[int], str, Optional[str]]]:
+    """(path, code, blank, offset, salt text, iterations or None, prf, how the count was set)."""
+    deps = rn.package_deps(ctx)
+    old_cryptojs = not re.search(r"(?:^|[^\d.])(?:4\.(?:[2-9]|\d\d)|[5-9]\.)", deps.get("crypto-js", ""))
+    for p, c, b in _js_crypto_sources(ctx):
+        consts = None
+        for m in JS_PBKDF2.finditer(b):
+            if bracket_match(b, m.end() - 1, "(", ")") - m.end() > 2000:
+                continue                      # unclosed, or too long to be one call
+            args = rn.call_args(b, m.end() - 1)
+            if len(args) < 2:
+                continue
+            salt = c[args[1][0]:args[1][1]]
+            if "PBKDF2" in m.group(0):                        # crypto-js
+                opts = c[args[2][0]:args[2][1]] if len(args) > 2 else ""
+                it = re.search(r"\biterations\s*:\s*([\w$.]+)", opts)
+                hasher = re.search(r"\bhasher\s*:\s*[\w$.]*?(SHA1|SHA256|SHA512|SHA224|SHA384|MD5)\b", opts)
+                prf = hasher.group(1).lower() if hasher else ("sha1" if old_cryptojs else "sha256")
+                if it is None:
+                    yield p, c, b, m.start(), salt, (1 if old_cryptojs else 250_000), prf, "default"
+                    continue
+                expr = it.group(1)
+            else:
+                if len(args) < 3:
+                    continue
+                expr = c[args[2][0]:args[2][1]].strip()
+                digest = c[args[4][0]:args[4][1]] if len(args) > 4 else ""
+                d = re.search(r"(?i)sha-?(1|256|512)\b", digest)
+                prf = "sha" + d.group(1) if d else "sha512"     # unknown: the most lenient floor
+            n = safety.small_int(expr.replace("_", ""))
+            if n is None and re.fullmatch(r"[A-Za-z_$][\w$]*", expr):
+                if consts is None:
+                    consts = {d.group(1): d.group(2) for d in
+                              re.finditer(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::\s*number\s*)?=\s*"
+                                          r"([\d_]{1,12})\s*[;\n,]", c)}
+                n = safety.small_int(consts.get(expr, "").replace("_", ""))
+            yield p, c, b, m.start(), salt, n, prf, "explicit"
+
+
+def _js_pbkdf2_iterations(ctx: Context) -> Iterable[Hit]:
+    for p, c, b, at, _salt, n, prf, how in _js_kdf_calls(ctx):
+        floor = _PBKDF2_MIN.get(prf, 600_000)
+        if n is None or n >= floor:
+            continue
+        if how == "default" and n == 1:
+            msg = ("CryptoJS.PBKDF2 without `iterations` runs a single iteration in crypto-js before 4.2 "
+                   f"(CVE-2023-46233); set `iterations` to at least {floor:,}.")
+        elif how == "default":
+            msg = f"CryptoJS.PBKDF2 without `iterations` runs {n:,}; OWASP's minimum for {prf.upper()} is {floor:,}."
+        else:
+            msg = f"PBKDF2-HMAC-{prf.upper()} with {n:,} iterations; OWASP's minimum is {floor:,}."
+        hit = _hit_at(ctx, p, c, at, msg, b)
+        if n >= 100_000:
+            hit.severity = "medium"
+        yield hit
+
+
+_JS_LITERAL_VALUE = r"(?:" + _JS_ENC_PARSE + r"|Buffer\s*\.\s*from\s*\(\s*)?['\"`][^'\"`$\n]*['\"`]"
+_JS_LITERAL_DECL = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::\s*[\w.]+\s*)?=\s*" + _JS_LITERAL_VALUE)
+
+
+def _js_fixed_salt(ctx: Context) -> Iterable[Hit]:
+    literal_names: Dict[str, Set[str]] = {}       # path -> names declared as a literal, found once per file
+    for p, c, b, at, salt, _n, _prf, _how in _js_kdf_calls(ctx):
+        s = salt.strip()
+        literal = bool(re.match(_JS_LITERAL_VALUE, s))
+        if not literal and re.fullmatch(r"[A-Za-z_$][\w$]*", s):
+            if p not in literal_names:
+                literal_names[p] = {d.group(1) for d in _JS_LITERAL_DECL.finditer(c)}
+            literal = s in literal_names[p]
+        if literal:
+            yield _hit_at(ctx, p, c, at, "The password-hashing salt is a fixed value in the code, so every user's "
+                                         "derived key can be attacked at once.", b, mask=True)
+
+
+JS_MATH_RANDOM = re.compile(r"\bMath\s*\.\s*random\s*\(\s*\)")
+JS_CLOCK = re.compile(r"\bDate\s*\.\s*now\s*\(\s*\)|\bnew\s+Date\s*\(\s*\)\s*\.\s*getTime\s*\(\s*\)")
+# Calls that pass a value through: `Math.floor(Math.random() * n)` is still the random value.
+_JS_PASS_THROUGH = re.compile(r"(?:\bMath\s*\.\s*(?:floor|round|ceil|trunc|abs)|\bString|\bNumber|\bparseInt|\bBigInt|"
+                              r"\bencodeURIComponent)\s*$")
+
+
+def _js_target(blank: str, idx: int) -> Optional[str]:
+    """Where the expression at idx goes: the variable or object key it's assigned to (`const nonce = …`,
+    `{ createdAt: … }`), "<return>" when a function returns it, None for a call argument or anything else."""
+    depth, i, lo = 0, idx - 1, max(0, idx - 300)
+    while i >= lo:
+        ch = blank[i]
+        if ch in ")]}":
+            depth += 1
+        elif ch in "([{":
+            if depth > 0:
+                depth -= 1
+            elif ch == "(" and (_JS_PASS_THROUGH.search(blank, max(0, i - 40), i) or not re.search(
+                    r"[\w$\]).]\s*$", blank[max(0, i - 40):i])):
+                pass                          # a pass-through call or a parenthesised expression
+            else:
+                return None                   # an argument or an element, not an assignment
+        elif depth == 0 and ch in ";,\n":
+            return None
+        elif depth == 0 and ch in ":=":
+            prev, nxt = blank[i - 1:i], blank[i + 1:i + 2]
+            if ch == "=" and nxt == ">":
+                return "<return>"             # an arrow function's expression body
+            if not (ch == "=" and (nxt == "=" or prev in ("=", "!", "<", ">"))) and not (ch == ":" and nxt == ":"):
+                m = re.search(r"([A-Za-z_$][\w$]*)['\"]?\s*(?::\s*[\w<>\[\]| ]{1,40})?\s*$", blank[max(0, i - 100):i])
+                return m.group(1) if m else None
+        elif depth == 0 and blank.startswith("return", i) and not re.match(r"[\w$]", blank[i + 6:i + 7]) \
+                and not re.match(r"[\w$]", blank[i - 1:i]):
+            return "<return>"
+        i -= 1
+    return None
+
+
+def _js_random_words(blank: str, idx: int) -> Tuple[Set[str], str]:
+    """(security-relevant words, the name) of where a random or clock value goes: its variable or key,
+    else the function that returns it."""
+    s, e = _line_span(blank, idx)
+    name = _js_target(blank, idx)
+    if name == "<return>" and re.search(r"[<>]|==|!=|&&|\|\|", blank[s:e].replace("=>", "")):
+        return set(), ""                      # the function returns a comparison, not the value
+    if name == "<return>":
+        head = _last_match(_JS_FUNC_HEAD, blank, max(0, idx - 1500), idx)
+        name = next(g for g in head.groups() if g) if head is not None else None
+    if not name:
+        return set(), ""
+    return _identifier_words(name) | {name.lower()}, name
+
+
+def _js_insecure_random(ctx: Context) -> Iterable[Hit]:
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            for m in JS_MATH_RANDOM.finditer(b):
+                words, name = _js_random_words(b, m.start())
+                strong = sorted(words & RNG_STRONG)
+                if strong and not words & RNG_NON_SECURITY:
+                    yield p, c, b, m.start(), (f"`Math.random()` makes `{name}`, a {strong[0]}; it's predictable. "
+                                               "Use crypto.getRandomValues or expo-crypto.")
+    yield from _js_hits(ctx, items())
+
+
+def _js_time_based_token(ctx: Context) -> Iterable[Hit]:
+    def items():
+        for p, c, b in _js_crypto_sources(ctx):
+            for m in JS_CLOCK.finditer(b):
+                words, name = _js_random_words(b, m.start())
+                if words & _UNGUESSABLE and not words & _TIME_NAME:
+                    yield p, c, b, m.start(), f"`{name}` is taken from the clock, which an attacker can guess."
+    yield from _js_hits(ctx, items())
+
+
+def _js_sources(ctx: Context, needles: Sequence[str]) -> Iterable[Tuple[str, str, str]]:
+    """(path, code, blank) of the RN app's non-test, non-tooling JS files holding a needle."""
+    for path in sorted(_rn_js_set(ctx)):
+        if _js_test_path(path) or scope_of(path) == "build-script" or not holds_any(ctx, path, needles) \
+                or _test_file(ctx, path):
+            continue
+        yield path, ctx.code(path) or "", ctx.code(path, keep_strings=False) or ""
+
+
+def _js_literals(text: str) -> str:
+    return " ".join(re.findall(r"['\"`]([^'\"`\n]{1,80})['\"`]", text))
+
+
+# ---------------------------------------------------------------------------- XPL-033 (JSX)
+
+_JSX_SECRET_TYPE = re.compile(r"^(?:password|newPassword|current-password|new-password|oneTimeCode)$")
+_JSX_LABEL_BEFORE = re.compile(r">\s*(?:[^<>{}\n]{0,30}\s)?(?:Password|PIN|Passcode|password|passcode)\s*:?\s*<")
+
+
+def _js_wrapper_masks(ctx: Context, path: str, module: str) -> Optional[bool]:
+    """For a project component that wraps TextInput (imported from `module`, a relative path): whether its
+    source mentions secureTextEntry. None when it isn't such a wrapper."""
+    if not module.startswith("."):
+        return None
+    folder = path.rsplit("/", 1)[0] if "/" in path else ""
+    parts = [p for p in (folder + "/" + module).split("/") if p and p != "."]
+    norm: List[str] = []
+    for p in parts:
+        if p == "..":
+            if norm:
+                norm.pop()
+        else:
+            norm.append(p)
+    base = "/".join(norm)
+    for cand in [base + ext for ext in rn.JS] + [base + "/index" + ext for ext in rn.JS]:
+        text = ctx.code(cand) if cand in _rn_js_set(ctx) else None
+        if text is not None:
+            return None if "<TextInput" not in text else "secureTextEntry" in text
+    return None
+
+
+def _js_unmasked_field(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("TextInput", "Input")):
+        if not _FIELD_SECRET.search(code):
+            continue
+        local = {n: module for n, (module, _imp) in rn.imports(code).items()
+                 if module.startswith(".") and n[:1].isupper()}
+        names = sorted({"TextInput"} | set(local))
+        for el in rn.jsx_elements(code, blank, names):
+            if el.spread or "secureTextEntry" in el.props:
+                continue
+            props = el.props
+            texts = [props[k].text(code) for k in ("placeholder", "label", "accessibilityLabel", "testID", "nativeID")
+                     if k in props]
+            kinds = [props[k].text(code).strip("{}'\" ") for k in ("textContentType", "autoComplete")
+                     if k in props]
+            values = [props[k].text(code) for k in ("value", "onChangeText") if k in props and props[k].kind == "expr"]
+            secret = any(_JSX_SECRET_TYPE.match(k) for k in kinds) \
+                or any(_FIELD_SECRET.search(t) for t in texts) \
+                or any(_FIELD_SECRET.search(v) for v in values) \
+                or bool(_JSX_LABEL_BEFORE.search(code[max(0, el.start - 200):el.start]))
+            if not secret or any(re.fullmatch(r"(?i)(?:username|email|text|none|oneTimeCode)", k) for k in kinds):
+                continue
+            if el.name != "TextInput":
+                masks = _js_wrapper_masks(ctx, path, local.get(el.name, ""))
+                if masks is None or masks:
+                    continue                  # a library input, or a wrapper that handles masking
+            yield _hit_at(ctx, path, code, el.start, "A password or PIN `TextInput` has no `secureTextEntry`, so it "
+                                                     "shows what's typed.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-046 (JSX)
+
+_SANITIZED = re.compile(r"(?i)sanitiz|purify|xss\s*\(|escape\w*\s*\(|encodeHTML|he\s*\.\s*encode")
+
+
+def _js_dom_injection(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("dangerouslySetInnerHTML", "html")):
+        for m in re.finditer(r"\bdangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:\s*", blank):
+            expr = code[m.end():m.end() + 300].split("}}", 1)[0]
+            if rn.literal(expr) is not rn.UNKNOWN or _SANITIZED.search(expr) or not expr.strip():
+                continue
+            yield _hit_at(ctx, path, code, m.start(), "`dangerouslySetInnerHTML` inserts a value as markup; "
+                                                      "sanitize it or render it as text.", blank)
+        for el in rn.jsx_elements(code, blank, ["WebView"]):
+            src = el.props.get("source")
+            if src is None or src.kind != "expr":
+                continue
+            html = re.search(r"\bhtml\s*:\s*", blank[src.start:src.end])
+            if not html:
+                continue
+            start = src.start + html.end()
+            expr = code[start:src.end]
+            dynamic = re.search(r"`[^`]*\$\{", expr) or re.match(r"\s*['\"`][^'\"`]*['\"`]\s*\+", expr)
+            if dynamic and not _SANITIZED.search(expr):
+                yield _hit_at(ctx, path, code, el.start, "The WebView's HTML is built from variables; a value that "
+                                                         "holds markup or script runs in the page.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-029 (JS)
+
+_JS_WEBVIEW_SECRET = {"token", "password", "passwd", "secret", "session", "sessionid", "jwt", "accesstoken",
+                      "authtoken", "refreshtoken", "cookie", "credentials", "apikey"}
+
+
+def _js_webview_dom_secret(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("injectedJavaScript", "injectJavaScript")):
+        spans: List[Tuple[int, int]] = []
+        for el in rn.jsx_elements(code, blank, ["WebView"]):
+            for name in ("injectedJavaScript", "injectedJavaScriptBeforeContentLoaded"):
+                prop = el.props.get(name)
+                if prop is not None and prop.kind == "expr":
+                    spans.append((prop.start, prop.end))
+        for m in re.finditer(r"\binjectJavaScript\s*\(", blank):
+            close = bracket_match(blank, m.end() - 1, "(", ")")
+            spans.append((m.end(), min(close, m.end() + 3000)))
+        for m in re.finditer(r"\b(?:const|let|var)\s+(\w*(?:[Ss]cript|JS|Js))\s*=\s*", blank):
+            if re.search(r"\b(?:injectedJavaScript\w*\s*=\s*\{\s*|injectJavaScript\s*\(\s*)" + re.escape(m.group(1))
+                         + r"\b", blank):
+                end = blank.find(";", m.end(), m.end() + 3000)
+                spans.append((m.end(), end if end > 0 else min(len(blank), m.end() + 3000)))
+        seen: Set[int] = set()
+        for start, end in spans:
+            region = code[start:end]
+            exprs = " ".join(next(x for x in g.groups() if x is not None) for g in INTERP.finditer(region))
+            exprs += " " + " ".join(re.findall(r"\+\s*([A-Za-z_$][\w$.]*)", blank[start:end]))
+            found = sorted(_words_of(exprs) & _JS_WEBVIEW_SECRET)
+            line = ctx.line_of(code, start)
+            if found and line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, start, f"`{found[0]}` is written into the WebView's page script, "
+                                                      "where any script on the page can read it.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-032 (JS)
+
+_JS_NOTIF_CALL = re.compile(r"\b(?:displayNotification|scheduleNotificationAsync|presentNotificationAsync|"
+                            r"createTriggerNotification|localNotification|presentLocalNotification)\s*\(")
+_JS_NOTIF_PRIVATE = re.compile(r"\bvisibility\s*:\s*(?:[\w.]*\.)?(?:PRIVATE|SECRET)\b|"
+                               r"lockscreenVisibility\s*:\s*(?:[\w.]*\.)?(?:PRIVATE|SECRET)\b")
+
+
+def _js_notification_secret(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("Notification",)):
+        for m in _JS_NOTIF_CALL.finditer(blank):
+            close = bracket_match(blank, m.end() - 1, "(", ")")
+            if close - m.end() > 3000:
+                continue
+            region_code, region_blank = code[m.end():close], blank[m.end():close]
+            if _JS_NOTIF_PRIVATE.search(region_blank):
+                continue
+            texts = []
+            for k in re.finditer(r"\b(?:body|title|subtitle|message|bigText)\s*:\s*", region_blank):
+                stop = re.search(r",\s*[A-Za-z_$][\w$]*\s*:|\}", region_blank[k.end():])
+                end = k.end() + (stop.start() if stop else 200)
+                texts.append((region_code[k.end():end], region_blank[k.end():end]))
+            found = sorted(set().union(*(_notif_found(c, b) for c, b in texts)) if texts else set())
+            if found:
+                yield _hit_at(ctx, path, code, m.start(), f"A notification shows `{found[0]}`, which appears on the "
+                                                          "lock screen; set its visibility to private.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-034 (JS)
+
+_JS_ANALYTICS_CALL = re.compile(r"\b(?:setUserId|setUserID|setUserProperties|setUserProperty|identify|setUser|"
+                                r"setAttributes?|setCustomKey|setPeople|registerSuperProperties)\s*\(")
+_JS_ANALYTICS_SDK = ("@react-native-firebase/analytics", "@react-native-firebase/crashlytics", "@segment/analytics-react-native",
+                     "@sentry/react-native", "mixpanel-react-native", "@amplitude/analytics-react-native",
+                     "@amplitude/react-native", "react-native-appsflyer", "@bugsnag/react-native", "@datadog/mobile-react-native",
+                     "posthog-react-native", "@braze/react-native-sdk", "react-native-clevertap", "@intercom/intercom-react-native",
+                     "@microsoft/react-native-clarity", "@react-native-firebase/app")
+
+
+def _js_analytics_pii(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("setUser", "identify", "setAttribute", "setCustomKey", "setPeople",
+                                               "registerSuperProperties")):
+        if not any(mod in code for mod in _JS_ANALYTICS_SDK):
+            continue                          # the call must belong to an analytics or crash SDK
+        for m in _JS_ANALYTICS_CALL.finditer(blank):
+            close = bracket_match(blank, m.end() - 1, "(", ")")
+            if close - m.end() > 1500:
+                continue
+            args_blank = blank[m.end():close]
+            keys = re.findall(r"([A-Za-z_$][\w$]*)\s*[:,}]", args_blank) + re.findall(
+                r"['\"]([^'\"\n]{1,40})['\"]\s*[:,]", code[m.end():close])
+            words = (_words_of(args_blank) | _words_of(" ".join(keys))) & _PII_WORDS
+            if words and not re.search(r"(?i)hash|sha\d*|digest|anonymi|pseudonym", args_blank):
+                yield _hit_at(ctx, path, code, m.start(), f"The analytics SDK receives `{sorted(words)[0]}`, which "
+                                                          "identifies the user.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-036 (JS)
+
+# An environment switch (`staging: 'https://…'`, `isStaging ? … : …`) picks the host at run time; the
+# release build uses the production entry.
+_JS_ENV_WORDS = {"staging", "stage", "stg", "dev", "develop", "development", "qa", "uat", "sandbox", "test", "testing",
+                 "preprod", "local", "env", "environment", "environments", "e2e", "debug", "mock"}
+JS_URL_HOST = re.compile(r"['\"`]https?://([A-Za-z0-9.-]+)(?::\d+)?(?=[/'\"`?#:])")
+JS_DEBUG_PATH = re.compile(r"['\"`](?:https?://[^'\"`\s/]{1,100}(?:/[\w.-]{1,60}){0,6}|/api(?:/[\w.-]{1,60}){0,6})"
+                           r"/(?:__debug\w{0,20}|debug|admin/debug)(?:/|['\"`?])")
+
+
+def _js_nonprod_endpoint(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("http", "debug")):
+        if scope_of(path) == "debug" or re.match(r"app\.config\.", path.rsplit("/", 1)[-1]):
+            continue                          # app.config.js runs at build time
+        seen: Set[int] = set()
+        for m in JS_URL_HOST.finditer(code):
+            host = m.group(1).lower().rstrip(".")
+            if host in ("10.0.2.2", "10.0.3.2"):
+                why = "the Android emulator's host address"
+            elif _PRIVATE_HOST.match(host):
+                why = "a private network address"
+            else:
+                continue                      # staging host names sit in build-time environment maps in RN apps
+            line = ctx.line_of(code, m.start())
+            if line in seen or blank[m.start()] not in "'\"`" or js_dev_guarded(code, blank, m.start()):
+                continue
+            ls, le = _line_span(blank, m.start())
+            words = _identifier_words(blank[ls:le]) | _identifier_words(blank[max(0, ls - 120):ls])
+            if words & (_JS_ENV_WORDS | _NOT_A_FETCH):
+                continue                      # one entry of an environment switch, or a placeholder
+            seen.add(line)
+            yield _hit_at(ctx, path, code, m.start(), f"`{host}` is {why}, in code that ships.", blank)
+        for m in JS_DEBUG_PATH.finditer(code):
+            line = ctx.line_of(code, m.start())
+            if line in seen or blank[m.start()] not in "'\"`" or js_dev_guarded(code, blank, m.start()):
+                continue
+            seen.add(line)
+            yield _hit_at(ctx, path, code, m.start(), "A debug endpoint is called from code that ships.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-037 (JS)
+
+JS_OAUTH_BAD: List[Tuple[Pattern[str], str]] = [
+    (re.compile(r"\busePKCE\s*:\s*false\b"), "an authorization request without PKCE (`usePKCE: false`)"),
+    (re.compile(r"\bresponseType\s*:\s*(?:[\w.]*ResponseType\s*\.\s*Token\b|['\"](?:id_token )?token['\"])"),
+     "the implicit flow (`responseType: token`)"),
+    (re.compile(r"response_type=(?:id_token(?:\+|%20| ))?token\b(?![-_])"), "the implicit flow (`response_type=token`)"),
+    (re.compile(r"\bgrant_type\s*[:=]\s*['\"]?password\b|grant_type=password\b"), "the password grant"),
+]
+
+
+def _js_oauth_flow(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("usePKCE", "responseType", "response_type", "grant_type")):
+        seen: Set[int] = set()
+        for regex, what in JS_OAUTH_BAD:
+            for m in regex.finditer(code):
+                line = ctx.line_of(code, m.start())
+                if "PKCE" in what and re.search(r"code_?[Cc]hallenge", blank[max(0, m.start() - 1500):m.start()]):
+                    continue                  # the app sends its own PKCE challenge (through `state`)
+                if line not in seen:
+                    seen.add(line)
+                    yield _hit_at(ctx, path, code, m.start(), f"OAuth sign-in uses {what}, which RFC 8252 rules out "
+                                                              "for native apps.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-044 (JS)
+
+_JS_FILE_WRITE = re.compile(r"\b(?:RNFS|FileSystem|RNFetchBlob\s*\.\s*fs|ReactNativeBlobUtil\s*\.\s*fs|fs)\s*\.\s*"
+                            r"(writeFile|appendFile|writeAsStringAsync|write)\s*\(|\bnew\s+File\s*\([^)]{0,200}\)\s*\.\s*"
+                            r"(write)\s*\(")
+_FILE_SECRET = {"password", "passwd", "passcode", "token", "secret", "mnemonic", "seedphrase", "privatekey",
+                "accesstoken", "refreshtoken", "apikey", "credentials", "pin"}
+
+
+def _js_plaintext_secret_file(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("writeFile", "appendFile", "writeAsStringAsync", ".write(")):
+        if not any(mod in code for mod in ("react-native-fs", "expo-file-system", "rn-fetch-blob",
+                                           "react-native-blob-util")):
+            continue
+        for m in _JS_FILE_WRITE.finditer(blank):
+            paren = blank.find("(", m.end() - 1)
+            if bracket_match(blank, paren, "(", ")") - paren > 2000:
+                continue
+            args = rn.call_args(blank, paren)
+            if not args:
+                continue
+            region_blank = blank[args[0][0]:args[-1][1]]
+            found = sorted((_words_of(region_blank) | _words_of(_js_literals(code[args[0][0]:args[0][1]])))
+                           & _FILE_SECRET)
+            if not found or re.search(r"(?i)encrypt|cipher|seal", region_blank):
+                continue
+            yield _hit_at(ctx, path, code, m.start(), f"A `{found[0]}` is written to a file in plain text.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-031 (JS)
+
+JS_REALM_SCHEMA_PROP = re.compile(r"\b([A-Za-z_$][\w$]*)\s*:\s*(?:['\"]string\??['\"]|\{\s*type\s*:\s*['\"]string['\"])")
+JS_CREATE_TABLE = re.compile(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`\"\[]?(\w+)[`\"\]]?\s*\(([^;`'\"]{0,2000})\)")
+_DB_SECRET_COL = {"password", "passwd", "passcode", "pin", "token", "accesstoken", "refreshtoken", "authtoken",
+                  "secret", "privatekey", "mnemonic", "apikey", "sessiontoken", "cvv", "cardnumber"}
+
+
+def _js_db_plain_credentials(ctx: Context) -> Iterable[Hit]:
+    deps = rn.package_deps(ctx)
+    encrypted_sqlite = any("sqlcipher" in d for d in deps)
+    for path, code, blank in _js_sources(ctx, ("realm", "Realm", "CREATE TABLE", "create table")):
+        if "realm" in code and re.search(r"['\"]realm['\"]|@realm/react", code) and "encryptionKey" not in code:
+            done = 0                          # end of the text already read (schemas don't nest)
+            for m in re.finditer(r"\bproperties\s*:\s*\{", blank):
+                close = bracket_match(blank, m.end() - 1, "{", "}")
+                start, done = max(m.end(), done), max(done, min(close, m.end() + 3000))
+                for p in JS_REALM_SCHEMA_PROP.finditer(code, start, done):
+                    name = p.group(1)
+                    if (_identifier_words(name) | {name.lower()}) & _DB_SECRET_COL and blank[p.start()] != " ":
+                        yield _hit_at(ctx, path, code, p.start(), f"Realm property `{name}` is stored in an "
+                                                                  "unencrypted Realm file.", blank)
+        if encrypted_sqlite or re.search(r"(?i)PRAGMA\s+key|encryptionKey|SQLCipher", code):
+            continue
+        if not re.search(r"react-native-sqlite-storage|expo-sqlite|@op-engineering/op-sqlite|react-native-quick-sqlite|"
+                         r"react-native-sqlite-2|@nozbe/watermelondb", code):
+            continue
+        for t in JS_CREATE_TABLE.finditer(code):
+            for col in re.split(r",", t.group(2)):
+                cm = re.match(r"\s*[`\"\[]?(\w+)[`\"\]]?\s+(?:TEXT|VARCHAR|CHAR|BLOB|STRING)", col, re.IGNORECASE)
+                if cm and (_identifier_words(cm.group(1)) | {cm.group(1).lower()}) & _DB_SECRET_COL:
+                    yield _hit_at(ctx, path, code, t.start(), f"Column `{cm.group(1)}` of `{t.group(1)}` is stored "
+                                                              "in a plain SQLite file.", blank)
+                    break
+
+
+# ---------------------------------------------------------------------------- XPL-018 (JS)
+
+JS_BIO_FALLBACK: List[Tuple[Pattern[str], str]] = [
+    (re.compile(r"\bACCESS_CONTROL\s*\.\s*(?:BIOMETRY_ANY_OR_DEVICE_PASSCODE|BIOMETRY_CURRENT_SET_OR_DEVICE_PASSCODE|"
+                r"DEVICE_PASSCODE|USER_PRESENCE)\b"),
+     "The Keychain item opens with the device passcode as well as a biometric."),
+    (re.compile(r"\ballowDeviceCredentials\s*:\s*true\b"),
+     "The biometric prompt accepts the device PIN, pattern, or password instead of a biometric."),
+    (re.compile(r"\bdisableDeviceFallback\s*:\s*false\b"),
+     "The biometric prompt falls back to the device passcode; for a sensitive action, require biometrics."),
+]
+
+
+def _js_biometric_fallback(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _js_sources(ctx, ("ACCESS_CONTROL", "allowDeviceCredentials", "disableDeviceFallback")):
+        seen: Set[int] = set()
+        for regex, what in JS_BIO_FALLBACK:
+            for m in regex.finditer(blank):
+                line = ctx.line_of(code, m.start())
+                if line not in seen:
+                    seen.add(line)
+                    yield _hit_at(ctx, path, code, m.start(), what, blank)

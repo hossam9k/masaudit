@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "android": {
+      "package": "com.bank.app"
+    },
+    "ios": {
+      "bundleIdentifier": "com.bank.app"
+    }
+  }
+}

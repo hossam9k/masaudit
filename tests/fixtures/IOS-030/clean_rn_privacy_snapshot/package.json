@@ -1,0 +1,4 @@
+{
+  "name": "bank",
+  "dependencies": {"react-native": "0.76.0", "react-native-privacy-snapshot": "1.0.0"}
+}

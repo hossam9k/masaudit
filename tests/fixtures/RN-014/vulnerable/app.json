@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "shop",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0f6c2f9e-1111-4c2d-9a55-3b7a8e2d4c10",
+      "fallbackToCacheTimeout": 0
+    }
+  }
+}

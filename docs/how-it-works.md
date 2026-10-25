@@ -55,15 +55,26 @@ changing the type: only you know whether that code ships and what the app protec
 ## What masaudit reads, and what it doesn't
 
 masaudit reads source and configuration: manifests, Gradle files, `Info.plist`, Xcode projects and
-schemes, entitlements, Kotlin, Java, Swift, Objective-C, Dart, and C or C++ code, and GitHub workflows.
-Code rules run after comments are removed, so a comment never triggers a finding.
+schemes, entitlements, Kotlin, Java, Swift, Objective-C, Dart, JavaScript, TypeScript, and C or C++
+code, and GitHub workflows. Code rules run after comments are removed, so a comment never triggers a
+finding.
 
-- **React Native:** masaudit scans the `android/` and `ios/` folders, but not the JavaScript code yet.
+- **React Native and Expo:** a project is React Native when a `package.json` lists `react-native` or
+  `expo` as a dependency. masaudit then reads the JavaScript and TypeScript (`.js`, `.jsx`, `.ts`,
+  `.tsx`, `.mjs`, `.cjs`), `package.json`, the Expo config (`app.json`, `app.config.*`, `eas.json`), the
+  `.env` files that build tools compile into the app, and `.npmrc` and `.yarnrc`, along with the native
+  `android/` and `ios/` folders. A managed Expo app commits no native folders; `expo prebuild` generates
+  them from its config, so masaudit runs the Android and iOS checks that apply to that config. Tests
+  (`__tests__`, `__mocks__`, `*.test.*`, `*.spec.*`, and `e2e`, Detox, and Maestro folders) count as
+  test code, Storybook stories (`*.stories.*` and the `.storybook` folder) and code inside
+  `if (__DEV__)` as debug code, and bundler and Babel configs as build scripts. A backend kept in the
+  same repository (`server/`, `backend/`, or `api-server/`) isn't scanned as app code.
 - **Built apps:** it doesn't read APK or IPA files. To test a built app and the running app, use a
   tool such as [MobSF](https://github.com/MobSF/Mobile-Security-Framework-MobSF) alongside masaudit.
 - **Skipped folders:** build output, dependencies, and tool folders are never scanned: `build`, `out`,
   `generated`, `intermediates`, `.cxx`, `.externalNativeBuild`, `.gradle`, `DerivedData`, `Pods`,
-  `Carthage`, `node_modules`, `.dart_tool`, `.build`, `.swiftpm`, `xcuserdata`, version-control and
+  `Carthage`, `node_modules`, `.dart_tool`, `.build`, `.swiftpm`, `xcuserdata`, `.expo`, `.expo-shared`,
+  `dist`, `web-build`, `coverage`, version-control and
   IDE folders, and Python virtual environments. A source folder with one of these names is skipped
   too. To skip more, use `exclude` in the [config file](config.md).
 - **Skipped files:** files over 2 MiB (16 MiB for `project.pbxproj`), hard links, symbolic links to

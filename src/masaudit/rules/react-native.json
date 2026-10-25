@@ -1,0 +1,513 @@
+{
+  "rules": [
+    {
+      "id": "RN-001",
+      "title": "Token or password stored in AsyncStorage, unencrypted MMKV, or redux-persist",
+      "platform": "react-native",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "AsyncStorage and MMKV without an `encryptionKey` write plain files in the app's private folder, and redux-persist saves through them. These files are copied into backups and are readable by anyone with access to the device's files, so a long-lived token there can be lifted and replayed.",
+      "fix": "Keep short-lived tokens in memory. Store long-lived tokens and passwords with react-native-keychain or expo-secure-store, which use the Android Keystore and the iOS Keychain. For MMKV, pass an `encryptionKey` that you generate once and keep in the Keychain or Keystore. For redux-persist, leave the auth slice out of `whitelist` or persist it through encrypted storage.",
+      "verify": "Sign in on an emulator, then run `adb shell run-as <package> ls -R databases files` and print the storage files (AsyncStorage uses `databases/RKStorage`, MMKV uses `files/mmkv`). Confirm no token or password appears in readable form.",
+      "effort": "hours",
+      "book": "§6.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import * as SecureStore from 'expo-secure-store';\n\n// Instead of AsyncStorage.setItem('authToken', token):\nexport async function saveToken(token: string): Promise<void> {\n  await SecureStore.setItemAsync('authToken', token, {\n    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,\n  });\n}\n\nexport function loadToken(): Promise<string | null> {\n  return SecureStore.getItemAsync('authToken');\n}"
+      },
+      "confidence": "medium",
+      "detector": "rn_plain_token_storage"
+    },
+    {
+      "id": "RN-002",
+      "title": "Secret bundled into the app through build-time config",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "react-native-config, `EXPO_PUBLIC_` variables, react-native-dotenv, and Expo's `extra` copy their values into the app when it is built. Anyone who downloads the app can read them, so a secret placed there can be used against your accounts.",
+      "fix": "Rotate the secret first, because it has already shipped. Then move the call that needs it behind your backend. Keep build-only secrets in EAS environment variables with secret visibility or in your CI secret store, without the `EXPO_PUBLIC_` prefix, and don't copy them into `extra`. Public client identifiers, such as a Sentry DSN or a Firebase web `apiKey`, may stay.",
+      "verify": "Build a release, unzip the APK or IPA, and search the JavaScript bundle (`index.android.bundle` or `main.jsbundle`), `BuildConfig`, and `Info.plist` for the secret's value. Nothing should come back.",
+      "effort": "hours",
+      "book": "§15.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#152-secrets-classify-then-protect",
+      "maswe": "MASWE-0004",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "rn_bundled_secret"
+    },
+    {
+      "id": "RN-003",
+      "title": "HTTP requests or responses are logged in every build",
+      "platform": "react-native",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An axios interceptor that prints headers or bodies, redux-logger, and react-native-network-logger also run in release builds unless you guard them. The `Authorization` header, tokens, and API responses then reach the device log, bug reports, or an in-app screen.",
+      "fix": "Add logging interceptors, redux-logger, and `startNetworkLogging()` only under `if (__DEV__)`. Log the method, URL, and status, never headers or bodies. Remove console calls from release builds with babel-plugin-transform-remove-console.",
+      "verify": "Install a release build, sign in, and watch `adb logcat` or Console.app: no request headers, tokens, or response bodies should appear.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0231",
+        "MASTG-TEST-0297"
+      ],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import axios from 'axios';\n\nexport const api = axios.create({ baseURL: 'https://api.example.com' });\n\nif (__DEV__) {\n  api.interceptors.request.use((config) => {\n    console.log(config.method, config.url); // never the headers or the body\n    return config;\n  });\n}"
+      },
+      "confidence": "medium",
+      "detector": "rn_http_logging"
+    },
+    {
+      "id": "RN-004",
+      "title": "JS networking library accepts any server certificate",
+      "platform": "react-native",
+      "severity": "critical",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`disableAllSecurity: true` in react-native-ssl-pinning and `trusty: true` in rn-fetch-blob or react-native-blob-util turn off certificate checks for those requests. Anyone on the same network can impersonate your server and read or change the traffic.",
+      "fix": "Remove the option, or set it to `false`. For a local test server, trust its certificate in a debug-only network security config on Android or a debug-only trust setting on iOS. To pin certificates, pass `sslPinning: { certs: [...] }` to react-native-ssl-pinning, which keeps the normal checks.",
+      "verify": "Send the app's traffic through a proxy whose CA the phone doesn't trust, and confirm these requests fail.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import { fetch } from 'react-native-ssl-pinning';\n\nexport async function getProfile(): Promise<unknown> {\n  const res = await fetch('https://api.example.com/profile', {\n    method: 'GET',\n    // api_example_com.cer ships in the app; the normal certificate checks stay on\n    sslPinning: { certs: ['api_example_com'] },\n    headers: { Accept: 'application/json' },\n  });\n  return res.json();\n}"
+      },
+      "confidence": "high",
+      "detector": "rn_trust_any_cert"
+    },
+    {
+      "id": "RN-005",
+      "title": "WebView can read local files",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "With file access on, a page in the WebView can open file:// URLs. With file-URL access also on, a script in a file:// page can read the app's private files and send them to a server.",
+      "fix": "Remove `allowFileAccess`, `allowFileAccessFromFileURLs` and `allowUniversalAccessFromFileURLs`. They are off by default. Pass bundled HTML with `source={{ html }}` or `require()`. On iOS, point `allowingReadAccessToURL` at the one folder that holds the page.",
+      "verify": "Load a page that runs `fetch('file:///data/data/<your.package>/shared_prefs/')` and confirm the request fails.",
+      "effort": "minutes",
+      "book": "§16.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
+      "maswe": "MASWE-0034",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0250",
+        "MASTG-TEST-0252",
+        "MASTG-TEST-0253"
+      ],
+      "fix_code": {
+        "lang": "tsx",
+        "code": "// File access stays off: these are the react-native-webview defaults.\n<WebView\n  source={require('./help.html')}   // or source={{ html: helpHtml }}\n  allowFileAccess={false}\n  allowFileAccessFromFileURLs={false}\n  allowUniversalAccessFromFileURLs={false}\n/>"
+      },
+      "confidence": "high",
+      "safe_fix": false,
+      "detector": "rn_webview_file_access"
+    },
+    {
+      "id": "RN-006",
+      "title": "WebView may navigate to any origin or URL scheme",
+      "platform": "react-native",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`originWhitelist={['*']}` lets the WebView itself open every URL it is sent to, in any scheme. A link, a redirect, or a script on a remote page can then load file://, data: or an attacker's site inside your app.",
+      "fix": "Remove `originWhitelist` to keep the default (http and https), or list the exact origins you own, such as `['https://app.example.com']`. Keep `['*']` only for a WebView that shows your own HTML string.",
+      "verify": "From the page, navigate to a URL outside the list and confirm the WebView doesn't load it inside the app.",
+      "effort": "minutes",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0398"
+      ],
+      "fix_code": {
+        "lang": "tsx",
+        "code": "<WebView\n  source={{ uri: 'https://app.example.com/help' }}\n  // Only these origins load inside the app. Other URLs go to the system, which opens them outside it.\n  originWhitelist={['https://app.example.com', 'https://help.example.com']}\n/>"
+      },
+      "confidence": "high",
+      "safe_fix": false,
+      "detector": "rn_webview_origin_wildcard"
+    },
+    {
+      "id": "RN-007",
+      "title": "WebView loads a URL from navigation params or user input with no allowlist",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "The WebView loads whatever URL a screen receives in its params, or whatever the user types. A deep link or another app can then choose the page that runs inside your app, next to its bridge and cookies.",
+      "fix": "Parse the URL with `new URL()`, require https, and compare the hostname with an exact allowlist before you render the WebView. Run the same check in `onShouldStartLoadWithRequest`.",
+      "verify": "Open the screen with `https://evil.example/` as its URL param and confirm the WebView refuses it.",
+      "effort": "hours",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0398",
+        "MASTG-TEST-0332"
+      ],
+      "fix_code": {
+        "lang": "tsx",
+        "code": "const ALLOWED_HOSTS = new Set(['app.example.com', 'help.example.com']);\n\n// Older React Native versions need react-native-url-polyfill for URL.hostname.\nfunction isAllowed(url: string): boolean {\n  try {\n    const u = new URL(url);\n    return u.protocol === 'https:' && ALLOWED_HOSTS.has(u.hostname);\n  } catch {\n    return false;\n  }\n}\n\nexport function HelpScreen({ route }) {\n  const url = route.params?.url;\n  if (!url || !isAllowed(url)) return null;\n  return (\n    <WebView\n      source={{ uri: url }}\n      onShouldStartLoadWithRequest={(req) => isAllowed(req.url)}\n    />\n  );\n}"
+      },
+      "confidence": "manual",
+      "safe_fix": false,
+      "detector": "rn_webview_variable_url"
+    },
+    {
+      "id": "RN-008",
+      "title": "WebView bridge trusts the page",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An `onMessage` handler that acts on every message lets any page the WebView reaches, or an iframe inside it, call your app code. A value placed in an injected script without encoding can run its own JavaScript in the page.",
+      "fix": "In `onMessage`, check `new URL(event.nativeEvent.url).origin` against your origin, then validate the message. Send data to the page with `postMessage`, or encode it with `JSON.stringify` before you put it in a script.",
+      "verify": "Load a page from another origin, call `window.ReactNativeWebView.postMessage(...)` from it, and confirm the app ignores the message.",
+      "effort": "hours",
+      "book": "§16.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#162-the-javascript-bridge-and-why-its-the-sharpest-edge",
+      "maswe": "MASWE-0033",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0334",
+        "MASTG-TEST-0376"
+      ],
+      "fix_code": {
+        "lang": "tsx",
+        "code": "const APP_ORIGIN = 'https://app.example.com';\n\nfunction onMessage(event: WebViewMessageEvent) {\n  // 1. Who sent it? Act only on messages from your own page.\n  let origin = '';\n  try { origin = new URL(event.nativeEvent.url).origin; } catch { return; }\n  if (origin !== APP_ORIGIN) return;\n\n  // 2. What did it send? Untrusted input.\n  let msg: { type?: unknown };\n  try { msg = JSON.parse(event.nativeEvent.data); } catch { return; }\n  if (msg.type === 'close') closeScreen();\n}\n\n// Send data to the page as a message, never as script text.\nwebViewRef.current?.postMessage(JSON.stringify({ userName }));"
+      },
+      "confidence": "manual",
+      "safe_fix": false,
+      "detector": "rn_webview_bridge"
+    },
+    {
+      "id": "RN-009",
+      "title": "Deep-link data reaches openURL, fetch, a WebView, or navigation without an allowlist",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Anyone can send the user a link to your app, so every part of a deep link is attacker input. If the link's URL or a query value is opened with `Linking.openURL`, fetched, loaded in a WebView, or handed to a screen as a URL, the attacker picks the destination.",
+      "fix": "Parse the link with `new URL()` and compare `protocol` and `hostname` to a fixed allowlist before using it. Map link paths to screen names and plain IDs, never to raw URLs.",
+      "verify": "Open `myapp://open?next=https://evil.example` (or `adb shell am start -d '<link>'` on Android). The app should refuse it and stay on a safe screen.",
+      "effort": "hours",
+      "book": "§17.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#175-deep-links-and-the-verification-that-makes-them-safe",
+      "maswe": "MASWE-0029",
+      "masvs": "MASVS-PLATFORM-1",
+      "mastg": [
+        "MASTG-BEST-0071",
+        "MASTG-TEST-0394",
+        "MASTG-TEST-0395"
+      ],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import { Linking } from 'react-native';\n\nconst ALLOWED_HOSTS = new Set(['example.com', 'help.example.com']);\n\nfunction safeTarget(raw: string | null): URL | null {\n  try {\n    const u = new URL(raw ?? '');\n    return u.protocol === 'https:' && ALLOWED_HOSTS.has(u.hostname) ? u : null;\n  } catch {\n    return null;\n  }\n}\n\nLinking.addEventListener('url', ({ url }) => {\n  const target = safeTarget(new URL(url).searchParams.get('next'));\n  if (target) Linking.openURL(target.toString());\n});"
+      },
+      "confidence": "medium",
+      "detector": "rn_deeplink_sink"
+    },
+    {
+      "id": "RN-010",
+      "title": "JavaScript code is built from a string at runtime",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`eval`, `new Function`, and `setTimeout` with a string run text as code. If any part of that text comes from a server, a deep link, a WebView message, or storage, an attacker's text runs with everything the app can reach.",
+      "fix": "Remove the runtime code. Parse data with `JSON.parse`, pick behavior from a fixed map of functions, and pass functions, not strings, to `setTimeout` and `setInterval`.",
+      "verify": "Search the app's own code for `eval(`, `Function(`, and `setTimeout(` with a string. No call should take text that is built at runtime.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "ts",
+        "code": "// Data, not code: parse it, then choose behavior from a fixed map.\nconst actions: Record<string, (p: unknown) => void> = { refresh, logout };\nconst msg = JSON.parse(text);\nconst run = actions[msg.type];\nif (run) run(msg.payload);\n\n// A function, not a string.\nsetTimeout(() => refresh(), 1000);"
+      },
+      "confidence": "high",
+      "detector": "rn_eval"
+    },
+    {
+      "id": "RN-011",
+      "title": "SQLite query built by joining strings",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "When a value is pasted into the SQL text, a quote in that value changes the query. An attacker who controls a search term, a message, or a deep-link value can read or delete other rows in the local database.",
+      "fix": "Write `?` placeholders in the SQL and pass the values in the parameters array (`executeSql(sql, [a, b])`, `runAsync(sql, a, b)`). Pick table, column, and sort names from a fixed list.",
+      "verify": "Pass a value such as `' OR '1'='1` through the code path and confirm the query treats it as plain text.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [
+        "MASTG-TEST-0339"
+      ],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import * as SQLite from 'expo-sqlite';\n\nconst db = await SQLite.openDatabaseAsync('app.db');\n// Values go in the parameters, never in the SQL text.\nconst rows = await db.getAllAsync('SELECT * FROM notes WHERE folder = ? AND title LIKE ?', folderId, `%${term}%`);"
+      },
+      "confidence": "medium",
+      "detector": "rn_sqlite_concat"
+    },
+    {
+      "id": "RN-012",
+      "title": "React Native biometric check only returns a boolean",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L2"
+      ],
+      "why": "`authenticateAsync()`, `simplePrompt()`, and similar calls return success or failure and unlock nothing. On a rooted or jailbroken device a hook makes them return success, and since no key needed the biometric, the protected data opens anyway.",
+      "fix": "Keep the secret in an item that only biometric authentication releases: react-native-keychain with `accessControl: ACCESS_CONTROL.BIOMETRY_CURRENT_SET`, or expo-secure-store with `requireAuthentication: true`. Or sign a server challenge with react-native-biometrics `createSignature`.",
+      "verify": "Hook the prompt to return success with Frida (`frida -U -f <app>`). The protected data should stay locked, because no key was released.",
+      "effort": "days",
+      "book": "§11.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#111-decorative-versus-real",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0266",
+        "MASTG-TEST-0327",
+        "MASTG-BEST-0036"
+      ],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import * as Keychain from 'react-native-keychain';\n\nawait Keychain.setGenericPassword('session', token, {\n  accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET,\n  accessible: Keychain.ACCESSIBLE.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,\n});\n// The OS shows the prompt; the token is released only after a real match.\nconst creds = await Keychain.getGenericPassword({ authenticationPrompt: { title: 'Unlock' } });"
+      },
+      "confidence": "medium",
+      "detector": "rn_biometric_boolean"
+    },
+    {
+      "id": "RN-013",
+      "title": "crypto-js derives the AES key from a passphrase string",
+      "platform": "react-native",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "When `CryptoJS.AES.encrypt` gets a string key, crypto-js treats it as a passphrase. It makes the real key and IV with one round of MD5 (OpenSSL EVP_BytesToKey), so an attacker who copies the data can test billions of guesses per second.",
+      "fix": "Pass a random 256-bit key as a WordArray, kept in the Keychain or Keystore (for example through react-native-keychain), with a random IV for each message. Better, use native AES-GCM. If the key must come from a password, use PBKDF2 with SHA-256 and at least 600,000 iterations.",
+      "verify": "Search for `AES.encrypt(` and `AES.decrypt(`. Each call should get a WordArray key and an `iv` option, never a string.",
+      "effort": "hours",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0014",
+      "masvs": "MASVS-CRYPTO-2",
+      "mastg": [],
+      "fix_code": {
+        "lang": "ts",
+        "code": "import CryptoJS from 'crypto-js';\n\n// rawKeyHex: 32 random bytes, generated once and kept in the Keychain/Keystore.\nconst key = CryptoJS.enc.Hex.parse(rawKeyHex);\nconst iv = CryptoJS.lib.WordArray.random(16);          // new for every message\nconst ct = CryptoJS.AES.encrypt(plaintext, key, { iv });\nconst stored = iv.toString() + ':' + ct.toString();     // keep the IV with the ciphertext"
+      },
+      "confidence": "high",
+      "detector": "rn_cryptojs_passphrase"
+    },
+    {
+      "id": "RN-014",
+      "title": "Over-the-air JavaScript updates are not signature-checked",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "expo-updates and CodePush replace the app's JavaScript after install. Without code signing, the app runs whatever bundle the update server sends, so anyone who controls that server, its account, or the network path controls the app.",
+      "fix": "For expo-updates, generate a key pair with `npx expo-updates codesigning:generate`, then set `updates.codeSigningCertificate` and `updates.codeSigningMetadata` and sign each update. For CodePush, release with a private key and add `CodePushPublicKey` to Info.plist and strings.xml.",
+      "verify": "Publish an update without the signature (or with a different key) to a test channel, and confirm the app refuses it and keeps running the embedded bundle.",
+      "effort": "hours",
+      "book": "§19.5",
+      "maswe": "MASWE-0049",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "json",
+        "code": "{\n  \"expo\": {\n    \"updates\": {\n      \"url\": \"https://u.expo.dev/<project-id>\",\n      \"codeSigningCertificate\": \"./certs/certificate.pem\",\n      \"codeSigningMetadata\": { \"keyid\": \"main\", \"alg\": \"rsa-v1_5-sha256\" }\n    }\n  }\n}"
+      },
+      "confidence": "high",
+      "safe_fix": false,
+      "detector": "rn_ota_unsigned",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#195-dynamic-code-loading"
+    },
+    {
+      "id": "RN-015",
+      "title": "JavaScript console output ships in release builds",
+      "platform": "react-native",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "React Native release builds keep every `console.log`, and send it to logcat on Android and the system log on iOS. A logged token, email, or API response is readable over adb, in bug reports, and by crash tools that collect recent log lines.",
+      "fix": "Add `babel-plugin-transform-remove-console` to the production env of your babel config (keep `error` and `warn` if you need them), or set metro's `minifierConfig.compress.drop_console` to true. Wrap the remaining debug logging in `if (__DEV__)`.",
+      "verify": "Build a release bundle with `npx react-native bundle --dev false` (or `npx expo export`), and confirm `grep -c console.log` on the output finds none of your own log lines.",
+      "effort": "minutes",
+      "book": "§6.6",
+      "maswe": "MASWE-0005",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0231",
+        "MASTG-BEST-0002"
+      ],
+      "fix_code": {
+        "lang": "js",
+        "code": "// babel.config.js\nmodule.exports = {\n  presets: ['module:@react-native/babel-preset'],\n  env: {\n    production: {\n      plugins: [['transform-remove-console', { exclude: ['error', 'warn'] }]],\n    },\n  },\n};"
+      },
+      "confidence": "manual",
+      "safe_fix": false,
+      "detector": "rn_console_release",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#66-how-to-implement-it"
+    },
+    {
+      "id": "RN-016",
+      "title": "Hermes is turned off",
+      "platform": "react-native",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "With Hermes off, the app ships its JavaScript as a readable text bundle. Anyone who unzips the app can read, search, and edit the logic, including root and integrity checks. Hermes ships compiled bytecode, which costs more to read and change.",
+      "fix": "Turn Hermes back on: `hermesEnabled=true` in android/gradle.properties, remove `:hermes_enabled => false` from the Podfile, and remove `\"jsEngine\": \"jsc\"` from app.json. Hermes is the default since React Native 0.70.",
+      "verify": "Unzip the release APK and run `xxd -l 4 assets/index.android.bundle`: a Hermes bundle starts with the bytes `c61f bc03`, while a JavaScript bundle starts with readable text.",
+      "effort": "minutes",
+      "book": "§14.3",
+      "maswe": "MASWE-0059",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [],
+      "fix_code": {
+        "lang": "properties",
+        "code": "# android/gradle.properties\nhermesEnabled=true"
+      },
+      "confidence": "high",
+      "safe_fix": false,
+      "detector": "rn_hermes_off",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#143-where-obfuscation-genuinely-helps"
+    },
+    {
+      "id": "RN-017",
+      "title": "JavaScript source map ships inside the app",
+      "platform": "react-native",
+      "severity": "low",
+      "profiles": [
+        "R"
+      ],
+      "why": "A source map turns the minified bundle back into the original file names, function names, and code layout. Packaged in the app, it gives anyone who unzips it your readable source.",
+      "fix": "Write source maps to the build folder, upload them to your crash reporter (Sentry, Bugsnag) from CI, and keep them out of the app's assets and Xcode resources.",
+      "verify": "Run `unzip -l app-release.apk | grep '\\.map'` and list the .ipa's app folder: no `.map` file should appear.",
+      "effort": "minutes",
+      "book": "§15.8",
+      "maswe": "MASWE-0061",
+      "masvs": "MASVS-RESILIENCE-3",
+      "mastg": [],
+      "confidence": "high",
+      "safe_fix": false,
+      "detector": "rn_sourcemap_shipped",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#158-build-configuration-in-code"
+    },
+    {
+      "id": "RN-018",
+      "title": "Debug tooling connects in release builds",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Reactotron, Flipper plugins, and remote Redux DevTools stream app state, network calls, and storage to a desktop tool. Started outside `__DEV__`, they run in the store build and send that data to whatever host they are set to.",
+      "fix": "Start the tool only inside `if (__DEV__) { ... }`, and load its config file with `if (__DEV__) require('./ReactotronConfig')`. Keep `developmentClient: true` out of store build profiles in eas.json.",
+      "verify": "Build a release bundle and search it for `reactotron`, `flipper`, and `remotedev`: none should be found, and the app should open no connection to port 9090 or 8000.",
+      "effort": "minutes",
+      "book": "§14.1",
+      "maswe": "MASWE-0063",
+      "masvs": "MASVS-RESILIENCE-4",
+      "mastg": [
+        "MASTG-BEST-0007"
+      ],
+      "fix_code": {
+        "lang": "js",
+        "code": "// index.js\nif (__DEV__) {\n  require('./ReactotronConfig');\n}"
+      },
+      "confidence": "high",
+      "safe_fix": false,
+      "detector": "rn_debug_tool_release",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do"
+    },
+    {
+      "id": "RN-019",
+      "title": "npm dependencies can be swapped at the source or in transit",
+      "platform": "react-native",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A dependency taken from a git branch or tag, a plain-HTTP address, or `*` can change with no change to your code. A registry over HTTP or with TLS checks off lets anyone on the network swap packages, and a committed registry token lets anyone with the repository publish as you.",
+      "fix": "Pin git dependencies to a full commit SHA, or publish them to a registry. Use version ranges with a committed lockfile. Use an https registry, keep `strict-ssl` and `enableStrictSsl` on, and read registry tokens from the environment, for example `_authToken=${NPM_TOKEN}`.",
+      "verify": "Check that every git dependency in package.json ends in `#` and a 40-character commit SHA, and that .npmrc and .yarnrc.yml have no `http://` registry, no `false` TLS setting, and no literal token. Then run `npm ci` or `yarn install --immutable` on a clean checkout.",
+      "effort": "minutes",
+      "book": "§15.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs",
+      "mastg": [],
+      "fix_code": {
+        "lang": "ini",
+        "code": "# .npmrc: an https registry, TLS checks on, and the token read from the environment\nregistry=https://registry.npmjs.org/\nstrict-ssl=true\n//registry.npmjs.org/:_authToken=${NPM_TOKEN}"
+      },
+      "confidence": "high",
+      "detector": "rn_npm_sources"
+    },
+    {
+      "id": "RN-020",
+      "title": "Native module runs a shell command or opens a file path sent from JavaScript",
+      "platform": "react-native",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Every JavaScript file in the app can call a native module method. If the method passes its argument to a shell or opens it as a file path, any script that runs in the app (a WebView injection or a bad update) can run commands or read the app's private files.",
+      "fix": "Remove generic `exec` and `readFile` bridge methods. Expose only the specific action the app needs, take a name from a fixed list instead of a path, and check that the resolved canonical path stays inside the app's folder.",
+      "verify": "Call the method from JavaScript with `../../databases/app.db` or `id; ls`. It should refuse both.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "@ReactMethod\nfun readConfig(name: String, promise: Promise) {\n    val allowed = setOf(\"theme\", \"locale\")            // names, not paths\n    if (name !in allowed) { promise.reject(\"E_DENIED\", \"not allowed\"); return }\n    val base = File(reactApplicationContext.filesDir, \"config\").canonicalFile\n    val file = File(base, \"$name.json\").canonicalFile\n    if (!file.path.startsWith(base.path + File.separator)) { promise.reject(\"E_DENIED\", \"bad path\"); return }\n    promise.resolve(file.readText())\n}"
+      },
+      "confidence": "medium",
+      "detector": "rn_native_module_exec"
+    }
+  ]
+}

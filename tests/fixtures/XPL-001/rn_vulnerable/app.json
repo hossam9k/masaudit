@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "name": "demo",
+    "extra": {
+      "awsAccessKeyId": "{{FAKE_AWS_KEY_ID}}"
+    }
+  }
+}

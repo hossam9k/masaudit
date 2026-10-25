@@ -1,0 +1,19 @@
+apply plugin: "com.android.application"
+
+react {
+    hermesFlags = ["-O", "-output-source-map"]
+}
+
+android {
+    sourceSets {
+        release {
+            assets.srcDirs += "${buildDir}/generated/shipped_sourcemap/release"
+        }
+    }
+}
+
+tasks.register("copyReleaseSourcemap", Copy) {
+    dependsOn "createBundleReleaseJsAndAssets"
+    from "${buildDir}/generated/sourcemaps/react/release/index.android.bundle.map"
+    into "${buildDir}/generated/shipped_sourcemap/release"
+}

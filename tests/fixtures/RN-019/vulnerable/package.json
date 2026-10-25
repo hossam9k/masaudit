@@ -1,0 +1,15 @@
+{
+  "name": "vulnerable-app",
+  "dependencies": {
+    "react-native": "0.76.1",
+    "a-lib": "github:acme/a-lib#main",
+    "b-lib": "git+https://github.com/acme/b-lib.git",
+    "c-lib": "acme/c-lib#v1.2.0",
+    "d-lib": "http://packages.example.com/d-lib-1.0.0.tgz",
+    "e-lib": "*",
+    "f-lib": "latest"
+  },
+  "devDependencies": {
+    "g-lib": "git+ssh://git@github.com/acme/g-lib.git#develop"
+  }
+}

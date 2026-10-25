@@ -81,6 +81,50 @@ class Lexer(unittest.TestCase):
                     self.assertEqual(out.splitlines()[-1], "d")
 
 
+class JavaScript(unittest.TestCase):
+    """Template literals, regex literals, and JSX text in .js/.ts/.tsx."""
+
+    def test_template_literal_keeps_url_and_code_after_it(self):
+        code = "const u = `http://${host}/x`; send(token)\n"
+        kept = lexer.strip(code, "js")
+        self.assertEqual(kept, code)                          # `//` inside a template isn't a comment
+        blanked = lexer.strip(code, "js", keep_strings=False)
+        self.assertTrue(same_shape(code, blanked))
+        self.assertNotIn("http", blanked)
+        self.assertIn("${host}", blanked)                     # the expression stays code
+        self.assertIn("send(token)", blanked)
+
+    def test_nested_templates_and_braces(self):
+        code = "t = `a ${ b ? `in ${c}` : {x: 1}.x } z` + 'q'\nnext()"
+        blanked = lexer.strip(code, "js", keep_strings=False)
+        self.assertIn("${ b ? `   ${c}` : {x: 1}.x }", blanked)
+        self.assertIn("next()", blanked)
+
+    def test_regex_literal_vs_division(self):
+        code = 'r = /"/; k = "secret"; y = a / b / c; return /x[/]y/g.test(s) // note\n'
+        blanked = lexer.strip(code, "js", keep_strings=False)
+        self.assertTrue(same_shape(code, blanked))
+        self.assertNotIn("secret", blanked)                   # the quote in /"/ opened no string
+        self.assertIn("y = a / b / c;", blanked)
+        self.assertIn("/g.test(s)", blanked)
+        self.assertNotIn("note", blanked)
+
+    def test_apostrophe_in_jsx_text_is_not_a_string(self):
+        code = "<Text>Don't share</Text>\nsend(token)\n"
+        self.assertEqual(lexer.strip(code, "js", keep_strings=False), code)
+
+    def test_typescript_and_jsx_suffixes(self):
+        for suffix in (".ts", ".tsx", ".jsx", ".mjs", ".cjs"):
+            self.assertEqual(lexer.LANG_BY_SUFFIX[suffix], "js")
+
+    def test_crafted_input_is_fast(self):
+        import time
+        for crafted in ("(/[" * 300_000, "`${" * 300_000, "'a" * 450_000, "`" + "\\" * 900_000):
+            start = time.monotonic()
+            lexer.strip(crafted, "js", keep_strings=False)
+            self.assertLess(time.monotonic() - start, 3.0, crafted[:6])
+
+
 class SameAsReference(unittest.TestCase):
     """The fast lexer must give exactly what the original character-by-character one gave."""
 
@@ -93,6 +137,15 @@ class SameAsReference(unittest.TestCase):
         '#"a"# ##"b"## #"""c"""#',       # Swift raw strings
         "#!/usr/bin/env x\n# comment",   # Groovy line comments
         '"""unterminated',               # triple quote to end of file
+        "u = `http://${host}/x`; f()",   # JS template literal holding `//`
+        "t = `a ${ b ? `in ${c}` : {x: 1}.x } z`",  # nested templates and braces in ${...}
+        "s = `open ${ x",                # template expression never closed
+        'r = /"/; k = "secret"',         # regex literal holding a quote
+        "return /a[/]b/g.exec(s) // c",  # slash inside a class, then a comment
+        "x = a / b / c",                 # division, not a regex
+        "<Text>Don't // x</Text>\nf()",  # apostrophe in JSX text
+        "s = `esc \\` ${y} z`",        # escaped backtick
+        "(/[" * 50,                      # unclosed regex classes
     ]
 
     def test_fixtures_mutations_and_edge_cases(self):

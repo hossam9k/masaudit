@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "ios": {
+      "bundleIdentifier": "com.bank.app",
+      "entitlements": {
+        "com.apple.developer.default-data-protection": "NSFileProtectionCompleteUntilFirstUserAuthentication"
+      }
+    }
+  }
+}

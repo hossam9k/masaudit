@@ -1,12 +1,12 @@
 ---
 name: masaudit
-description: Audit an Android, iOS, Kotlin Multiplatform, or Flutter app for security weaknesses and fix them, with advice scaled to the app's risk (a news app is never told to pin certificates; a banking app is). Use this whenever someone asks to check, audit, review, harden, or "make secure" a mobile project or pull request, asks whether their app is ready for a security review or pentest, mentions OWASP MASVS/MASWE/MASTG, certificate pinning, Keystore/Keychain storage, Play Integrity, App Attest, WebViews, deep links, exported components, or mobile CI security, or wants a SECURITY-AUDIT report or a fix plan, even if they don't say "audit".
+description: Audit an Android, iOS, React Native, Kotlin Multiplatform, or Flutter app for security weaknesses and fix them, with advice scaled to the app's risk (a news app is never told to pin certificates; a banking app is). Use this whenever someone asks to check, audit, review, harden, or "make secure" a mobile project or pull request, asks whether their app is ready for a security review or pentest, mentions OWASP MASVS/MASWE/MASTG, certificate pinning, Keystore/Keychain storage, AsyncStorage, Expo config, Play Integrity, App Attest, WebViews, deep links, exported components, or mobile CI security, or wants a SECURITY-AUDIT report or a fix plan, even if they don't say "audit".
 license: Apache-2.0 (code), MIT-0 (fix snippets), CC-BY-SA-4.0 (explanations)
 metadata:
   author: Hossam Atef
   homepage: https://github.com/hossam9k/masaudit
   book: https://github.com/hossam9k/mobile-app-security
-  version: "0.5.0"
+  version: "0.6.0"
 ---
 
 # masaudit: risk-calibrated mobile security audits

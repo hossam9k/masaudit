@@ -15,7 +15,7 @@ from typing import Callable, Dict, Iterable, Iterator, List, Optional, Set, Tupl
 
 from masaudit import guards
 from masaudit.detect import scope_of as _scope_of
-from masaudit.detectors import flutter
+from masaudit.detectors import flutter, rn_expo
 from masaudit.guards import guarded_by
 from masaudit.textscan import bracket_match, finditer_lit, holds_all, holds_any, text_memo, xml_tags
 from masaudit.engine import Context, Hit, detector
@@ -735,6 +735,25 @@ def _default_cleartext(ctx: Context, path: str, app: Element) -> Optional[Hit]:
                                      "(usesCleartextTraffic=\"false\" or a network security config) turns it off.")
 
 
+def _managed_expo(ctx: Context) -> Optional["rn_expo.ExpoApp"]:
+    """The Expo app config of a managed app (no android/ folder and no app manifest): prebuild generates the
+    manifest from it, so the manifest rules read it instead."""
+    if not rn_expo.is_rn_app(ctx) or _main_application(ctx) is not None:
+        return None
+    return rn_expo.managed_android(ctx)
+
+
+def _expo_dynamic_path(ctx: Context, expo: "rn_expo.ExpoApp") -> str:
+    """The app.config.js/ts next to the Expo config (its own path when the config is computed)."""
+    if not expo.path.endswith(".json"):
+        return expo.path
+    for name in ("app.config.js", "app.config.ts", "app.config.mjs", "app.config.cjs"):
+        path = posixpath.join(expo.folder, name)
+        if path in ctx.files(name=name):
+            return path
+    return expo.path
+
+
 @detector("android_cleartext")
 def cleartext(ctx: Context, rule: Rule) -> Iterable[Hit]:
     # Network security config: cleartext allowed in the base config.
@@ -768,6 +787,20 @@ def cleartext(ctx: Context, rule: Rule) -> Iterable[Hit]:
             else:
                 msg = "The manifest allows plain HTTP for the whole app."
             yield _hit(ctx, path, app.line, msg)
+    expo = _managed_expo(ctx)
+    if expo is not None:
+        # expo-build-properties writes android:usesCleartextTraffic into the generated manifest.
+        props = expo.plugin("expo-build-properties") or {}
+        android = props.get("android") if isinstance(props.get("android"), dict) else {}
+        flag = expo.js_flag("usesCleartextTraffic")
+        if android.get("usesCleartextTraffic") is True:
+            line = expo.line("expo-build-properties", "usesCleartextTraffic")
+            yield _hit(ctx, expo.path, line, "expo-build-properties sets android.usesCleartextTraffic to true, so the "
+                                             "generated manifest allows plain HTTP for the whole app.")
+        elif flag is not None and flag[0] and expo.dynamic is not None:
+            dyn = _expo_dynamic_path(ctx, expo)
+            yield _hit(ctx, dyn, flag[1], "The app config sets usesCleartextTraffic to true, so the generated manifest "
+                                          "allows plain HTTP for the whole app.")
 
 
 # Loopback, private ranges, and special-use names that never resolve on the public internet (RFC 6761,
@@ -1004,15 +1037,44 @@ def _main_application(ctx: Context) -> Optional[Tuple[str, Element]]:
     return apps[0]
 
 
+_OKHTTP_FACTORY = re.compile(r"\bOkHttpClientProvider\s*\.\s*setOkHttpClientFactory\s*\(\s*(?:new\s+)?([A-Z]\w{0,80})\s*\(")
+
+
+def _hidden_okhttp_factory(ctx: Context) -> Optional[str]:
+    """The class React Native's OkHttp client comes from (`OkHttpClientProvider.setOkHttpClientFactory(X())`)
+    when no Kotlin or Java file in the repository declares it, else None. A declared factory is scanned like
+    any other code, so its pinning counts."""
+    for _path, _code, blank in _code_files(ctx, "setOkHttpClientFactory"):
+        m = _OKHTTP_FACTORY.search(blank)
+        if not m:
+            continue
+        declared = re.compile(r"\b(?:class|object)\s+" + m.group(1) + r"\b")
+        if not any(declared.search(b) for _p, _c, b in _code_files(ctx, m.group(1))):
+            return m.group(1)
+    return None
+
+
 @detector("android_pinning_missing")
 def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    is_flutter = flutter.is_flutter(ctx)
+    is_rn = not is_flutter and rn_expo.is_rn_app(ctx)
+    if is_rn and rn_expo.pinning_call(ctx):
+        return                     # react-native-ssl-public-key-pinning or react-native-ssl-pinning is called
+    expo = rn_expo.managed_android(ctx) if is_rn else None
+    if expo is not None and not _main_application(ctx):
+        # A managed Expo app: prebuild writes the manifest (INTERNET included) from app.json.
+        if not rn_expo.config_pins(expo) and not _has_pinning_evidence(ctx):
+            line = expo.line("android") if expo.get("android") is not None else expo.line("expo")
+            yield _hit(ctx, expo.path, line,
+                       "No certificate pinning found for this Expo app: no pinning library is called "
+                       "(initializeSslPinning or an sslPinning option) and no config plugin adds a <pin-set>.")
+        return
     internet = any(p.get("android:name") == "android.permission.INTERNET"
                    for _path, root in _manifests(ctx) for p in manifest.uses_permissions(root))
     anchor = _main_application(ctx)
     if anchor is None or not internet:
         return
-    is_flutter = flutter.is_flutter(ctx)
-    if not is_flutter and any(f.rsplit("/", 1)[-1] == "package.json" for f in ctx.project.files):
+    if not is_flutter and not is_rn and any(f.rsplit("/", 1)[-1] == "package.json" for f in ctx.project.files):
         ctx.note_unknown("Pinning check skipped: React Native code may pin outside the Android sources.")
         return
     if is_flutter and flutter.dart_pinning_evidence(ctx):
@@ -1026,11 +1088,22 @@ def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if "checkServerTrusted" in blank:
             ctx.note_unknown(f"Pinning check skipped: {path} has a custom TrustManager that may pin.")
             return
+    if is_rn:
+        hidden = _hidden_okhttp_factory(ctx)
+        if hidden:
+            ctx.note_unknown(f"Pinning check skipped: React Native's HTTP client comes from `{hidden}`, whose source "
+                             "isn't in the repository (a private module added at build time), so it may pin.")
+            return
     path, app = anchor
     if is_flutter:
         yield _hit(ctx, path, app.line,
                    "No certificate pinning found: no <pin-set>, no OkHttp CertificatePinner, no pinning library, "
                    "and no Dart-side pinning (SecurityContext or a pinning package).")
+        return
+    if is_rn:
+        yield _hit(ctx, path, app.line,
+                   "No certificate pinning found: no <pin-set>, no OkHttp CertificatePinner, and no JavaScript "
+                   "pinning (initializeSslPinning or an sslPinning option of a pinning library).")
         return
     yield _hit(ctx, path, app.line,
                "No certificate pinning found: no <pin-set>, no OkHttp CertificatePinner, and no pinning library.")
@@ -1057,6 +1130,17 @@ def pin_set(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     problems.append(f"its pins expired on {exp}, so Android no longer enforces them")
             if problems:
                 yield _hit(ctx, path, ps.line, "This pin-set is risky: " + "; ".join(problems) + ".")
+    if rn_expo.is_rn_app(ctx):
+        # react-native-ssl-public-key-pinning: initializeSslPinning({ host: { publicKeyHashes, expirationDate } })
+        for js in rn_expo.js_pin_sets(ctx):
+            problems = []
+            if 0 <= js.pins < 2:
+                problems.append(f"it has {js.pins} public key hash{'es' if js.pins != 1 else ''} and no backup pin")
+            if not js.expiration:
+                problems.append("it has no expirationDate")
+            if problems:
+                yield _hit(ctx, js.path, js.line,
+                           f"The JavaScript pin set for {js.host} is risky: " + "; ".join(problems) + ".")
 
 
 _GATED_TRUST = re.compile(r"certificatePinner\s*\(|CertificatePinner|sslSocketFactory\s*\(|hostnameVerifier\s*\("
@@ -1480,6 +1564,43 @@ def _debug_only(ctx: Context, blank: str, idx: int) -> bool:
 _DEBUGGISH = re.compile(r"BuildConfig\.DEBUG|FLAG_DEBUGGABLE|R\.bool\.|[Dd]ebug")
 
 
+_MIXED_ALWAYS = re.compile(r"(?:mixedContentMode\s*=\s*|setMixedContentMode\s*\(\s*)(?:WebSettings\.)?"
+                           r"(?:MIXED_CONTENT_ALWAYS_ALLOW\b|0\b)")
+
+
+@detector("android_mixed_content")
+def mixed_content(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        raw = ctx.text(path)
+        if raw is None or "ixedContentMode" not in raw:
+            continue
+        blank = ctx.code(path, keep_strings=False)
+        if blank is None:
+            continue
+        for m in _MIXED_ALWAYS.finditer(blank):
+            line = ctx.line_of(blank, m.start())
+            yield Hit(path, line, ctx.snippet(path, line), "The WebView always allows HTTP content inside HTTPS pages.")
+    if not rn_expo.is_rn_app(ctx):
+        return
+    # react-native-webview: mixedContentMode="never" is the default; "always" maps to MIXED_CONTENT_ALWAYS_ALLOW
+    # and "compatibility" to MIXED_CONTENT_COMPATIBILITY_MODE (images and media over HTTP, not scripts).
+    for use in rn_expo.webview_prop(ctx, "mixedContentMode"):
+        if use.inline_html:
+            continue                     # no https page, so nothing is mixed
+        scope = "debug" if use.debug else ""
+        if use.value == "always":
+            yield Hit(use.path, use.line, ctx.snippet(use.path, use.line),
+                      "mixedContentMode=\"always\" lets this WebView load HTTP scripts inside HTTPS pages on Android.",
+                      scope=scope)
+        elif use.value == "compatibility":
+            yield Hit(use.path, use.line, ctx.snippet(use.path, use.line),
+                      "mixedContentMode=\"compatibility\" lets this WebView load HTTP images and media inside HTTPS "
+                      "pages on Android, which a network attacker can replace.", scope=scope, severity="low")
+        elif use.value is rn_expo.UNKNOWN and not (use.debug or use.passthrough):
+            ctx.note_unknown(f"{use.path}:{use.line}: mixedContentMode is set from `{use.text[:60]}`; confirm it is "
+                             "\"never\" in release builds.")
+
+
 @detector("android_webview_debugging")
 def webview_debugging(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, _code, blank in _code_files(ctx, "setWebContentsDebuggingEnabled"):
@@ -1502,6 +1623,20 @@ def webview_debugging(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                  "flag masaudit can't resolve; confirm it's false in release.")
                 continue
             yield _hit(ctx, path, line, "WebView debugging is turned on for every build, including release.")
+    if rn_expo.is_rn_app(ctx):
+        yield from _js_webview_debugging(ctx, "Android")
+
+
+def _js_webview_debugging(ctx: Context, platform: str) -> Iterator[Hit]:
+    """react-native-webview's `webviewDebuggingEnabled` prop (Chrome DevTools on Android, Safari on iOS)."""
+    for use in rn_expo.webview_prop(ctx, "webviewDebuggingEnabled"):
+        if use.value is True:
+            yield Hit(use.path, use.line, ctx.snippet(use.path, use.line),
+                      f"webviewDebuggingEnabled is on for this WebView in every build, so on {platform} anyone with "
+                      "the device can inspect the page and run scripts in it.", scope="debug" if use.debug else "")
+        elif use.value is rn_expo.UNKNOWN and not (use.debug or use.passthrough):
+            ctx.note_unknown(f"{use.path}:{use.line}: webviewDebuggingEnabled is set from `{use.text[:60]}`; "
+                             "confirm it is false in release builds.")
 
 
 _URL_SOURCE = re.compile(
@@ -2122,6 +2257,45 @@ def app_links(ctx: Context, rule: Rule) -> Iterable[Hit]:
                            f"Web links for {', '.join(own)} open {c.get('android:name')} without "
                            "android:autoVerify, so another app can claim them.",
                            ack=_ack(ctx, path, f, "AppLinksAutoVerify", "AppLinkUrlError"))
+    expo = _managed_expo(ctx)
+    if expo is not None:
+        yield from _expo_app_links(ctx, expo)
+
+
+def _expo_app_links(ctx: Context, expo: "rn_expo.ExpoApp") -> Iterator[Hit]:
+    """expo.android.intentFilters: prebuild adds each one to the main activity."""
+    filters = expo.get("android", "intentFilters")
+    if not isinstance(filters, list):
+        return
+    package = expo.get("android", "package")
+    tokens = {t for t in package.lower().split(".") if len(t) >= 3 and t not in _GENERIC_LABELS} \
+        if isinstance(package, str) else set()
+    for i, f in enumerate(filters):
+        if not isinstance(f, dict):
+            continue
+        actions = f.get("action") if isinstance(f.get("action"), list) else [f.get("action")]
+        categories = f.get("category") if isinstance(f.get("category"), list) else [f.get("category")]
+        if not any(a in ("VIEW", "android.intent.action.VIEW") for a in actions) or \
+                not any(c in ("BROWSABLE", "android.intent.category.BROWSABLE") for c in categories):
+            continue
+        data = f.get("data") if isinstance(f.get("data"), list) else [f.get("data")]
+        data = [d for d in data if isinstance(d, dict)]
+        schemes = {str(d.get("scheme", "")).lower() for d in data}
+        hosts = [str(d["host"]) for d in data if isinstance(d.get("host"), str) and d.get("host")]
+        if not (schemes & _WEB_SCHEMES and hosts) or f.get("autoVerify") is True:
+            continue
+        own = [h for h in hosts if _own_host(h, tokens)] if tokens else hosts
+        if not own:
+            ctx.note_unknown(f"{expo.path}: intent filter {i + 1} handles web links for {', '.join(hosts[:3])} "
+                             "without verification; that's expected if the app doesn't own these domains.")
+            continue
+        line = expo.line("android", "intentFilters", "host")
+        for h in own[:1]:
+            m = re.search(r"[\"']host[\"']?\s*:\s*[\"']" + re.escape(h) + r"[\"']", expo.text)
+            if m:
+                line = expo.text.count("\n", 0, m.start()) + 1
+        yield _hit(ctx, expo.path, line, f"Web links for {', '.join(own)} open the app without autoVerify in "
+                                         "android.intentFilters, so another app can claim them.")
 
 
 # ---------------------------------------------------------------------------- SQL
@@ -3290,6 +3464,35 @@ def backup(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if xmlsafe.is_true(app.get("android:allowBackup")):
                 yield _hit(ctx, path, app.line, "allowBackup is true and there are no rules excluding sensitive "
                                                 "files.", ack=_ack(ctx, path, app, "AllowBackup"))
+    expo = _managed_expo(ctx) if not apps else None
+    if expo is not None:
+        yield from _expo_backup(ctx, expo)
+
+
+def _expo_backup(ctx: Context, expo: "rn_expo.ExpoApp") -> Iterator[Hit]:
+    """expo.android.allowBackup: Expo writes it into the generated manifest, and it defaults to true."""
+    value = expo.get("android", "allowBackup")
+    flag = expo.js_flag("allowBackup")
+    if value is False or (flag is not None and not flag[0]):
+        return
+    if rn_expo.has_dep(ctx, "expo-secure-store") or expo.plugin("expo-secure-store") is not None:
+        ctx.note_unknown(f"{expo.path}: expo-secure-store's config plugin can add backup rules to the generated "
+                         "manifest; check android:dataExtractionRules after prebuild.")
+        return
+    if value is True:
+        yield _hit(ctx, expo.path, expo.line("android", "allowBackup"),
+                   "android.allowBackup is true in the Expo config and there are no rules excluding sensitive files.")
+    elif flag is not None:
+        yield _hit(ctx, _expo_dynamic_path(ctx, expo), flag[1],
+                   "allowBackup is true in the Expo config and there are no rules excluding sensitive files.")
+    elif rn_expo.config_mentions(ctx, expo, re.compile(r"allowBackup|dataExtractionRules|fullBackupContent")):
+        ctx.note_unknown(f"{expo.path}: the app config or one of its local config plugins may set allowBackup or "
+                         "backup rules.")
+    else:
+        line = expo.line("android") if expo.get("android") is not None or not expo.data else expo.line("expo")
+        yield _hit(ctx, expo.path, line, "The Expo config doesn't set android.allowBackup, so it defaults to true: "
+                                         "Android backs up the app's files, and there are no rules excluding "
+                                         "sensitive files.")
 
 
 # A file written under filesDir: File(filesDir, "name"), File(context.filesDir, "name"), openFileOutput("name", ...).
@@ -4295,6 +4498,57 @@ def release_native_debug(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                f"The {block.name} build type sets {key} = true, which {what}.")
 
 
+# `def enableProguardInReleaseBuilds = false` (the React Native template), `val minify = true` (Kotlin DSL), and
+# Expo's `def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()`.
+_SCRIPT_VAR = re.compile(r"^[ \t]*(?:def|val|var|boolean|final\s+def)\s+(\w+)\s*(?::\s*Boolean\s*)?=[ \t]*([^\n]{1,300})$",
+                         re.MULTILINE)
+_FIND_PROPERTY = re.compile(r"^\(?\s*(?:project\s*\.\s*)?(?:findProperty|property)\s*\(\s*['\"]([\w.-]{1,100})['\"]\s*\)"
+                            r"\s*(?:\?\.\s*toString\s*\(\s*\)\s*)?(?:\?\.\s*toBoolean\s*\(\s*\)\s*)?\?:\s*(true|false)\s*\)?"
+                            r"(?:\s*\.\s*toBoolean\s*\(\s*\))?\s*$")
+
+
+_PROPERTY_LINE = re.compile(r"^[ \t]*([\w.-]{1,100})[ \t]*[=:][ \t]*(\S{1,40})[ \t]*$", re.MULTILINE)
+
+
+def _gradle_property(ctx: Context, build_file: str, name: str) -> Optional[Tuple[str, str]]:
+    """(value, path) of a gradle.properties entry visible to this build file (its folder or a parent)."""
+    folder = posixpath.dirname(build_file)
+    best: Optional[Tuple[int, str, str]] = None
+    for path in ctx.files(name="gradle.properties"):
+        base = posixpath.dirname(path)
+        if base and not (folder == base or folder.startswith(base + "/")):
+            continue
+        props = _memo(ctx, "gradle_props:" + path, lambda p=path: {
+            m.group(1): m.group(2).lower() for m in _PROPERTY_LINE.finditer(ctx.text(p) or "")})
+        if name in props and (best is None or len(base) > best[0]):
+            best = (len(base), props[name], path)
+    return (best[1], best[2]) if best else None
+
+
+def _script_flag(ctx: Context, path: str, code: str, name: str) -> Optional[Tuple[str, str]]:
+    """("true" | "false", how) for a boolean variable the same build script defines, or None."""
+    def index() -> Dict[str, Tuple[str, int]]:
+        out: Dict[str, Tuple[str, int]] = {}
+        for m in _SCRIPT_VAR.finditer(code):
+            out.setdefault(m.group(1), (m.group(2).strip().rstrip(";").strip(), m.start()))
+        return out
+    found_var = _memo(ctx, "script_vars:" + path, index).get(name)
+    if found_var is None:
+        return None
+    rhs, at = found_var
+    line = ctx.line_of(code, at)
+    if rhs in ("true", "false"):
+        return rhs, f"{name} is {rhs} on line {line}"
+    prop = _FIND_PROPERTY.match(rhs)
+    if prop:
+        found = _gradle_property(ctx, path, prop.group(1))
+        if found is None:
+            return prop.group(2), f"{name} defaults to {prop.group(2)}: no gradle.properties sets {prop.group(1)}"
+        if found[0] in ("true", "false"):
+            return found[0], f"{found[1]} sets {prop.group(1)}={found[0]}"
+    return None
+
+
 @detector("android_r8_off")
 def r8_off(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _build_files(ctx):
@@ -4304,9 +4558,14 @@ def r8_off(ctx: Context, rule: Rule) -> Iterable[Hit]:
         opts: Optional[_Unreported] = None
         for block in gradle.blocks_named_within(code, blank, "buildTypes", "release"):
             for idx, val in _new_settings(code, _MINIFY, block, minify):
+                via = ""
+                if val not in ("true", "false"):
+                    resolved = _script_flag(ctx, path, code, val)
+                    if resolved is not None:
+                        val, via = resolved
                 if val == "false":
                     yield _hit(ctx, path, ctx.line_of(code, idx),
-                               "R8 minification is off in the release build type.")
+                               "R8 minification is off in the release build type" + (f" ({via})." if via else "."))
                 elif val != "true":
                     ctx.note_unknown(f"{path}: release minification is set from '{val}'.")
             named, lo, hi = gradle.named_range(code, blank, "optimization", block)
@@ -4720,8 +4979,8 @@ _SCREEN_NEEDLES = ("FLAG_SECURE", "setRecentsScreenshotEnabled", "SecureFlagPoli
                    "screen_protector", "no_screenshot", "secure_application", "flutter_windowmanager",
                    "creenshotPrevent", "reventScreenCapture", "reventScreenshot")
 _SCREEN_DEPS = re.compile(r"screen_protector|no_screenshot|secure_application|flutter_windowmanager|"
-                          r"react-native-(?:screenshot-prevent|prevent-screenshot|screenguard|capture-protection)|"
-                          + _RASP, re.IGNORECASE)
+                          r"react-native-(?:screenshot-prevent|prevent-screenshot|screenguard|capture-protection"
+                          r"|flag-secure)|expo-screen-capture|" + _RASP, re.IGNORECASE)
 
 
 @detector("android_no_screenshot_protection")
@@ -4885,8 +5144,9 @@ _INTEGRITY_EVIDENCE = re.compile(r"IntegrityManagerFactory|StandardIntegrityMana
 _INTEGRITY_NEEDLES = ("IntegrityManagerFactory", "StandardIntegrityManager", "prepareIntegrityToken",
                       "requestIntegrityToken", "PlayIntegrityAppCheckProviderFactory", "playIntegrity",
                       "app_integrity_checker")
-_INTEGRITY_DEPS = re.compile(r"com\.google\.android\.play:integrity|play[-.]integrity|firebase[-_]app[-_]?check|"
-                             r"app_integrity_checker|appcheck-playintegrity|" + _RASP, re.IGNORECASE)
+# React Native: @react-native-firebase/app-check, react-native-google-play-integrity, @expo/app-integrity.
+_INTEGRITY_DEPS = re.compile(r"com\.google\.android\.play:integrity|play[-.]integrity|firebase[-_/]app[-_]?check|"
+                             r"app_integrity_checker|appcheck-playintegrity|@expo/app-integrity|" + _RASP, re.IGNORECASE)
 
 
 @detector("android_no_play_integrity")
@@ -4976,6 +5236,23 @@ class _Perm:
     acks: List[str] = field(default_factory=list)
 
 
+def _expo_permissions(ctx: Context) -> Optional[Tuple["rn_expo.ExpoApp", int, List[str]]]:
+    """A managed Expo app's android.permissions (less blockedPermissions): (config, line, short names)."""
+    expo = _managed_expo(ctx)
+    listed = expo.get("android", "permissions") if expo is not None else None
+    if not isinstance(listed, list):
+        return None
+    blocked = {str(b).rsplit(".", 1)[-1] for b in rn_expo.rn.as_list(expo.get("android", "blockedPermissions"))
+               if isinstance(b, str)}
+    names = []
+    for p in listed:
+        if isinstance(p, str) and (p.startswith("android.permission.") or "." not in p):
+            short = p.rsplit(".", 1)[-1]
+            if short in DANGEROUS_PERMISSIONS and short not in blocked and short not in names:
+                names.append(short)
+    return expo, expo.line("android", "permissions"), sorted(names)
+
+
 def _permission_inventory(ctx: Context) -> Tuple[Optional[Tuple[str, Element]], Dict[str, _Perm], str]:
     """The app's effective sensitive permissions, merged across modules: (anchor, permissions, scope)."""
     def compute():
@@ -5014,6 +5291,13 @@ def _perm_sites(entry: _Perm) -> str:
 @detector("android_dangerous_permissions")
 def dangerous_permissions(ctx: Context, rule: Rule) -> Iterable[Hit]:
     anchor, perms, scope = _permission_inventory(ctx)
+    expo = _expo_permissions(ctx) if not perms else None
+    if expo is not None and expo[2]:
+        items = [f"{p}: {DANGEROUS_PERMISSIONS[p]}" for p in expo[2]]
+        yield _hit(ctx, expo[0].path, expo[1],
+                   f"The Expo config asks for {len(items)} sensitive permission{'s' if len(items) != 1 else ''}: "
+                   + "; ".join(items) + ". Check that a feature needs each one and that a narrower option won't do.")
+        return
     if not perms:
         return
     release_perms = {k: v for k, v in perms.items() if any(_scope(ctx, p) == "main" for p, _e in v.sites)}
@@ -5044,6 +5328,13 @@ def high_risk_permissions(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if c.get("android:permission") == "android.permission.BIND_ACCESSIBILITY_SERVICE":
                 accessibility.append((path, c))
     if not risky and not accessibility:
+        expo = _expo_permissions(ctx) if not perms else None
+        shown_expo = [p for p in expo[2] if p in HIGH_RISK_PERMISSIONS] if expo else []
+        if shown_expo:
+            yield _hit(ctx, expo[0].path, expo[1],
+                       f"The Expo config requests fraud-relevant access: {', '.join(shown_expo)}. These let it read "
+                       "one-time codes, draw over other apps, list installed apps or install packages; Play restricts "
+                       "them and reviewers expect a written justification.")
         return
     release = {k: v for k, v in risky.items() if any(_scope(ctx, p) == "main" for p, _e in v.sites)}
     acc_release = [a for a in accessibility if _scope(ctx, a[0]) == "main"]

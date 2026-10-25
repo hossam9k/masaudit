@@ -1,0 +1,20 @@
+{
+  "name": "clean-app",
+  "dependencies": {
+    "react-native": "0.76.1",
+    "x-lib": "^1.2.3",
+    "y-lib": "github:acme/y-lib#0123456789abcdef0123456789abcdef01234567",
+    "y2-lib": "acme/y2-lib#commit=89abcdef0123456789abcdef0123456789abcdef",
+    "z-lib": "workspace:*",
+    "w-lib": "file:../w-lib",
+    "v-lib": "npm:@acme/v-lib@^1.0.0",
+    "u-lib": "patch:u-lib@1.0.0#./patches/u.patch",
+    "t-lib": "https://cdn.example.com/t-lib-1.0.0.tgz"
+  },
+  "devDependencies": {
+    "eslint": "*"
+  },
+  "peerDependencies": {
+    "react": "*"
+  }
+}

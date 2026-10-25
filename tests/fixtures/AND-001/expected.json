@@ -1,1 +1,1 @@
-{"vulnerable": 2, "clean": 0, "clean_nsc_wins": 0, "vulnerable_acknowledged": 1, "vulnerable_old_min_sdk": 1, "vulnerable_old_target": 1, "clean_old_target_opted_out": 0}
+{"vulnerable": 2, "clean": 0, "clean_nsc_wins": 0, "vulnerable_acknowledged": 1, "vulnerable_old_min_sdk": 1, "vulnerable_old_target": 1, "clean_old_target_opted_out": 0, "vulnerable_expo": 1, "clean_expo": 0}

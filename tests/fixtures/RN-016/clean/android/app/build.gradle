@@ -1,0 +1,3 @@
+project.ext.react = [
+    enableHermes: true,  // clean and rebuild if changing
+]

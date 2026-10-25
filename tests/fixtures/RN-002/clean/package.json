@@ -1,0 +1,9 @@
+{
+  "name": "vulnerable-app",
+  "dependencies": {
+    "expo": "~52.0.0",
+    "react-native": "0.76.1",
+    "react-native-config": "1.5.3",
+    "react-native-dotenv": "3.4.11"
+  }
+}

@@ -1,0 +1,1 @@
+{ "name": "vulnerable-app", "dependencies": { "react-native": "0.76.1", "react-native-ssl-pinning": "1.5.5", "rn-fetch-blob": "0.12.0", "react-native-blob-util": "0.19.11" } }

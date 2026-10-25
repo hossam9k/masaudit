@@ -181,7 +181,7 @@
         "L2"
       ],
       "why": "Without pinning, any CA in the system trust store can issue a certificate for your server, so a rogue or hacked CA can intercept the app's traffic. Apps that move money or hold health data are worth that extra protection.",
-      "fix": "Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).",
+      "fix": "Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request, or add the `<pin-set>` to the Android project.",
       "verify": "Configure a wrong pin on a test build and confirm connections fail with a pin error. Then restore the real pins.",
       "effort": "days",
       "book": "§8.8",
@@ -214,7 +214,7 @@
         "L2"
       ],
       "why": "With one pin and no backup, a routine key change locks every user on that build out of your server until they update. With no expiration, an app nobody updates stays broken forever.",
-      "fix": "Add a second pin for an intermediate at another CA (or a spare key you hold), and set `expiration` a little past the longest time you support a build. Set a reminder well before that date.",
+      "fix": "Add a second pin for an intermediate at another CA (or a spare key you hold), and set `expiration` a little past the longest time you support a build. Set a reminder well before that date. With react-native-ssl-public-key-pinning, list two or more `publicKeyHashes` and an `expirationDate` for each host.",
       "verify": "Read `network_security_config.xml` in the release APK and confirm each `<pin-set>` has two or more pins and a future `expiration`.",
       "effort": "hours",
       "book": "§8.6",
@@ -292,25 +292,14 @@
         "L1"
       ],
       "why": "`MIXED_CONTENT_ALWAYS_ALLOW` lets an HTTPS page pull scripts and images over plain HTTP. Anyone on the network can replace those scripts and take over the page.",
-      "fix": "Remove the `mixedContentMode` line. Apps targeting API 21+ default to `MIXED_CONTENT_NEVER_ALLOW`. Serve every resource over HTTPS.",
+      "fix": "Remove the `mixedContentMode` line (or the `mixedContentMode` prop of a React Native WebView). Apps targeting API 21+ default to `MIXED_CONTENT_NEVER_ALLOW`, and react-native-webview defaults to \"never\". Serve every resource over HTTPS.",
       "verify": "Load your pages in a debug build with WebView debugging on and confirm the console shows no mixed-content requests succeeding.",
       "effort": "minutes",
       "book": "§16.3",
       "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing",
       "mastg": [],
       "confidence": "high",
-      "pattern": {
-        "suffixes": [
-          ".kt",
-          ".java"
-        ],
-        "prefilter": "ixedContentMode",
-        "regex": "(?:mixedContentMode\\s*=\\s*|setMixedContentMode\\s*\\(\\s*)(?:WebSettings\\.)?(?:MIXED_CONTENT_ALWAYS_ALLOW\\b|0\\b)",
-        "flags": "",
-        "strings": "blank",
-        "unless_file": "",
-        "message": "The WebView always allows HTTP content inside HTTPS pages."
-      }
+      "detector": "android_mixed_content"
     },
     {
       "id": "AND-012",
@@ -348,7 +337,7 @@
         "L1"
       ],
       "why": "With WebView debugging on, anyone with the phone and a USB cable can open Chrome DevTools, read the page, change its content, and call your JavaScript bridge.",
-      "fix": "Tie debugging to the build type: `WebView.setWebContentsDebuggingEnabled(debuggable)`, where `debuggable` comes from `FLAG_DEBUGGABLE`. Never pass a plain `true`.",
+      "fix": "Tie debugging to the build type: `WebView.setWebContentsDebuggingEnabled(debuggable)`, where `debuggable` comes from `FLAG_DEBUGGABLE`. Never pass a plain `true`. In React Native, pass `webviewDebuggingEnabled={__DEV__}`.",
       "verify": "Install the release build, open `chrome://inspect` on a computer, and confirm the app's WebViews aren't listed.",
       "effort": "minutes",
       "book": "§16.6",
@@ -561,7 +550,7 @@
         "L1"
       ],
       "why": "Android Auto Backup copies the app's files, including tokens and databases, to cloud storage and to new phones. Keystore keys are never backed up, so restored ciphertext can also crash the app.",
-      "fix": "Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`.",
+      "fix": "Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`. In a managed Expo app, set `android.allowBackup` to false in app.json, or add the rules through a config plugin.",
       "verify": "Run `adb shell bmgr backupnow <package>` over an encrypted local transport, reinstall, and confirm the excluded files are gone after the restore.",
       "effort": "hours",
       "book": "§6.5",
@@ -710,7 +699,7 @@
         "L1"
       ],
       "why": "Without R8, the release build keeps every class and method name, which hands a reverse engineer a map of your code, and ships unused code you never meant to include.",
-      "fix": "Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs.",
+      "fix": "Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs. In React Native, set `def enableProguardInReleaseBuilds = true` in android/app/build.gradle.",
       "verify": "Decompile the release APK with jadx and confirm your class names are shortened.",
       "effort": "hours",
       "book": "§14.1",

@@ -124,7 +124,7 @@ Book: [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-
 
 ## AND-007: No certificate pinning (needed for high-risk apps)
 
-Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
+Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request, or add the `<pin-set>` to the Android project.
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -150,7 +150,7 @@ Book: [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-
 
 ## AND-008: Pin set has no backup pin or no expiration date
 
-Add a second pin for an intermediate at another CA (or a spare key you hold), and set `expiration` a little past the longest time you support a build. Set a reminder well before that date.
+Add a second pin for an intermediate at another CA (or a spare key you hold), and set `expiration` a little past the longest time you support a build. Set a reminder well before that date. With react-native-ssl-public-key-pinning, list two or more `publicKeyHashes` and an `expirationDate` for each host.
 
 ```xml
 <pin-set expiration="2027-12-31">
@@ -228,7 +228,7 @@ Book: [§16.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/07
 
 ## AND-013: WebView debugging is on in release
 
-Tie debugging to the build type: `WebView.setWebContentsDebuggingEnabled(debuggable)`, where `debuggable` comes from `FLAG_DEBUGGABLE`. Never pass a plain `true`.
+Tie debugging to the build type: `WebView.setWebContentsDebuggingEnabled(debuggable)`, where `debuggable` comes from `FLAG_DEBUGGABLE`. Never pass a plain `true`. In React Native, pass `webviewDebuggingEnabled={__DEV__}`.
 
 ```kotlin
 import android.content.pm.ApplicationInfo
@@ -370,7 +370,7 @@ Book: [§19.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07
 
 ## AND-021: Backup is on with no exclusion rules
 
-Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`.
+Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`. In a managed Expo app, set `android.allowBackup` to false in app.json, or add the rules through a config plugin.
 
 ```xml
 <!-- AndroidManifest.xml -->
@@ -514,7 +514,7 @@ Book: [§11.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/04
 
 ## AND-027: R8 is off in the release build
 
-Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs.
+Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs. In React Native, set `def enableProguardInReleaseBuilds = true` in android/app/build.gradle.
 
 ```kotlin
 // app/build.gradle.kts

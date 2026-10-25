@@ -1,12 +1,13 @@
 {
  "schema_version": 1,
- "rules_version": "2.1.0",
+ "rules_version": "2.2.0",
  "rule_files": [
   "android.json",
   "ios.json",
   "cross.json",
   "ci.json",
   "kmp.json",
-  "flutter.json"
+  "flutter.json",
+  "react-native.json"
  ]
 }

@@ -1,0 +1,7 @@
+{
+  "build": {
+    "production": {
+      "env": { "EXPO_PUBLIC_ENV": "production", "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}" }
+    }
+  }
+}

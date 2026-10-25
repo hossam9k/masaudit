@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "android": {
+      "package": "com.bank.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [{ "scheme": "https", "host": "pay.bank.example", "pathPrefix": "/transfer" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    }
+  }
+}

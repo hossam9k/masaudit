@@ -1,0 +1,4 @@
+{
+  "name": "bank",
+  "dependencies": {"react-native": "0.76.0", "expo-screen-capture": "~7.0.0"}
+}

@@ -1,0 +1,12 @@
+{
+  "build": {
+    "base": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store"
+    }
+  }
+}

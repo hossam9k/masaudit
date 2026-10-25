@@ -1,0 +1,1 @@
+{ "name": "vulnerable-app", "dependencies": { "react-native": "0.76.1", "axios": "1.7.7", "redux-logger": "3.0.6" } }
