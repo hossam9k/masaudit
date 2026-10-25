@@ -720,8 +720,8 @@
       "profiles": [
         "L2"
       ],
-      "why": "Room, Realm, and Hive write plain files in the app sandbox. They reach backups and anyone with file access, so a token or password column there can be lifted and replayed.",
-      "fix": "Keep tokens out of the database, or encrypt it: SQLCipher through `SupportOpenHelperFactory` with a Keystore-wrapped passphrase, Realm's `encryptionKey`, or Hive's `encryptionCipher`.",
+      "why": "Room, raw SQLite, Realm, Core Data, and Hive write plain files in the app sandbox. They reach backups and anyone with file access, so a token or password column there can be lifted and replayed.",
+      "fix": "Keep tokens out of the database, or encrypt it: SQLCipher through `SupportOpenHelperFactory` with a Keystore-wrapped passphrase, Realm's `encryptionKey`, Hive's `encryptionCipher`, or on iOS a file protection class (`NSPersistentStoreFileProtectionKey`).",
       "verify": "Pull the database file from a test device and open it with `sqlite3`; no token or password should be readable.",
       "effort": "days",
       "book": "§6.7",
@@ -767,7 +767,7 @@
         "L2"
       ],
       "why": "An unmasked password or PIN field shows the secret to anyone looking at the screen and to screen recording, and the keyboard may learn and suggest it later.",
-      "fix": "Use a password input type (`textPassword`, `numberPassword`), `PasswordVisualTransformation`, `SecureField`, or `obscureText: true`. A show-password toggle is fine.",
+      "fix": "Use a password input type (`textPassword`, `numberPassword`), `PasswordVisualTransformation`, `SecureField`, `isSecureTextEntry = true`, or `obscureText: true`. A show-password toggle is fine.",
       "verify": "Type into the field and confirm the characters are masked, and that the keyboard offers no suggestions.",
       "effort": "hours",
       "book": "§6.5",
@@ -984,6 +984,127 @@
       "mastg": [],
       "confidence": "medium",
       "detector": "xpl_shell_command"
+    },
+    {
+      "id": "XPL-043",
+      "title": "Password, PIN, or username is checked against a value in the code",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A login, PIN, or developer backdoor that compares input with a fixed string ships that string in the app. Anyone who unpacks the app can read it and pass the check.",
+      "fix": "Check credentials on your server, never against a value in the app. Remove developer or debug accounts from release builds.",
+      "verify": "Search the release build with `strings` for the value; it should be gone, and the login should fail without the server.",
+      "effort": "hours",
+      "book": "§15.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#152-secrets-classify-then-protect",
+      "maswe": "MASWE-0004",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_hardcoded_credential_check"
+    },
+    {
+      "id": "XPL-044",
+      "title": "Password or token is written to a file in plain text",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "A file, plist, cookie, or document store in the app's folder is readable on a rooted or jailbroken device and is copied into backups. A password or token there can be lifted and reused.",
+      "fix": "Keep credentials in the Android Keystore or the iOS Keychain. If a file must hold one, encrypt it with a Keystore- or Keychain-protected key, and better still, don't store it at all.",
+      "verify": "Pull the app's data folder from a test device and search it for the password or token; it should not appear.",
+      "effort": "hours",
+      "book": "§6.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#64-the-uncomfortable-question-nobody-asked",
+      "maswe": "MASWE-0001",
+      "masvs": "MASVS-STORAGE-1",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_plaintext_secret_file"
+    },
+    {
+      "id": "XPL-045",
+      "title": "Token, nonce, or random value is taken from the clock",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "The current time is known to anyone within a few seconds. A token, nonce, or one-time code made from it can be guessed by trying the times around when it was made.",
+      "fix": "Use `SecureRandom` on Android, `SecRandomCopyBytes` or `SystemRandomNumberGenerator` on iOS, and `Random.secure()` in Dart. Keep timestamps for expiry only.",
+      "verify": "Make two values a millisecond apart; they should share no visible pattern.",
+      "effort": "minutes",
+      "book": "Chapter 0.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-02-cryptography-you-actually-need",
+      "maswe": "MASWE-0012",
+      "masvs": "MASVS-CRYPTO-1",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_time_based_token"
+    },
+    {
+      "id": "XPL-046",
+      "title": "Web page or HTML string inserts untrusted text as markup",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "Text from the page's URL, or typed by the user, becomes HTML. A crafted link or entry can then add a script that runs inside your WebView, with access to its data and any JavaScript bridge.",
+      "fix": "Set `textContent` instead of `innerHTML`, or escape the value before you add it to HTML. Don't build `loadHTMLString` or `loadDataWithBaseURL` content from input.",
+      "verify": "Enter `<img src=x onerror=alert(1)>` as the value; it should show as text, and no alert should appear.",
+      "effort": "hours",
+      "book": "§19.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#193-injection-the-shape-of-the-bug",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "confidence": "medium",
+      "detector": "xpl_dom_injection"
+    },
+    {
+      "id": "XPL-047",
+      "title": "Native code copies Java input into a fixed buffer without a length check",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "`strcpy`, `strcat`, `sprintf`, and `gets` copy until the input ends. A string from Java that is longer than the buffer overwrites memory next to it, which can crash the app or run code.",
+      "fix": "Use `strlcpy`, `strlcat`, or `snprintf` with the buffer size, and check the length of the input against the buffer before you copy.",
+      "verify": "Pass a string longer than the buffer from Java; the app should reject it or truncate it without crashing.",
+      "effort": "hours",
+      "book": "§19.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#192-validate-positively-at-the-boundary",
+      "maswe": "MASWE-0050",
+      "masvs": "MASVS-CODE-4",
+      "mastg": [],
+      "confidence": "high",
+      "detector": "xpl_native_buffer_overflow"
+    },
+    {
+      "id": "XPL-048",
+      "title": "App reads sensitive page data in the page's JavaScript world",
+      "platform": "cross",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "`evaluateJavaScript` without a content world runs in the page's own world. A script on the page can replace `document.querySelector` first, so the app reads an account number or amount the attacker chose.",
+      "fix": "Run app scripts in `.defaultClient` or a named `WKContentWorld` with `evaluateJavaScript(_:in:in:completionHandler:)` (iOS 14 or later).",
+      "verify": "Override `document.querySelector` from the page, then trigger the read; the app should still get the real value.",
+      "effort": "hours",
+      "book": "§16.2",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#162-the-javascript-bridge-and-why-its-the-sharpest-edge",
+      "mastg": [
+        "MASTG-TEST-0379",
+        "MASTG-BEST-0061"
+      ],
+      "confidence": "medium",
+      "detector": "xpl_webview_page_world_read"
     }
   ]
 }

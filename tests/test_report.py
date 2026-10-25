@@ -4,6 +4,7 @@
 import json
 import sys
 import os
+import re
 import unittest
 from unittest import mock
 
@@ -126,6 +127,19 @@ class Terminal(unittest.TestCase):
         self.assertIn("Fix before release: 1", out)
         self.assertIn("Top fixes:", out)
         self.assertEqual(out.strip().splitlines()[-1], "Next: open SECURITY-AUDIT.md and start with Top fixes.")
+
+    def test_colors_survive_and_text_from_the_repo_cannot_add_its_own(self):
+        # Colors were printed as " [1m" from 0.1.0 to 0.4.3: cleaning ran after coloring.
+        r = rule("AND-030")
+        hit = f(r)
+        hit.location = Location(path="app/\x1b[2JEvil.kt", line=3)
+        out = terminal.render(result([hit], [r]), report_path="/x/SECURITY-AUDIT.md", color=True)
+        self.assertIn("\033[1mmasaudit ", out)
+        self.assertIn(f"\033[31m{'1'}\033[0m", out)
+        self.assertNotIn("\x1b[2J", out)
+        self.assertNotIn(" [1m", out)
+        escapes = re.findall(r"\x1b\[[0-9;]*m", out)
+        self.assertEqual(out.count("\x1b"), len(escapes))     # every ESC starts one of our colors
 
     def test_next_line_offers_fix_safe_only_when_a_safe_fix_exists(self):
         import shutil

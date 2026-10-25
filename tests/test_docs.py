@@ -113,6 +113,7 @@ class UsageGuide(unittest.TestCase):
 
 
 REPO_URL = "https://github.com/hossam9k/masaudit/"
+RAW_URL = "https://raw.githubusercontent.com/hossam9k/masaudit/main/"
 
 
 def _slug(heading):
@@ -142,6 +143,8 @@ class Links(unittest.TestCase):
                         path, _, anchor = rest[len("blob/main/"):].partition("#")
                     else:
                         continue                                  # releases, issues, sponsors
+                elif target.startswith(RAW_URL):
+                    path, anchor = target[len(RAW_URL):], ""            # images such as docs/demo.gif
                 elif target.startswith(("http:", "https:", "mailto:")):
                     continue
                 else:

@@ -730,3 +730,48 @@ Set NSPrivacyTracking to true and add every tracking domain you contact to NSPri
 Verify: Archive the app, generate the privacy report in Xcode's Organizer, and confirm the domain appears under tracking domains.
 
 Book: [§18.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#183-transparency-and-control)
+
+## IOS-043: Sensitive text field lets the keyboard learn what is typed
+
+Use isSecureTextEntry = true (SecureField in SwiftUI) for passwords and PINs. For other sensitive fields, set autocorrectionType = .no and spellCheckingType = .no, or .autocorrectionDisabled() in SwiftUI.
+
+```swift
+pinField.isSecureTextEntry = true          // passwords and PINs
+cardField.autocorrectionType = .no         // other sensitive fields
+cardField.spellCheckingType = .no
+// SwiftUI: SecureField("PIN", text: $pin), or
+// TextField("Card number", text: $card).autocorrectionDisabled()
+```
+
+Verify: Type a test value into the field, then start typing it in Notes. Confirm the keyboard doesn't suggest it.
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
+## IOS-044: Socket connection sends data without TLS
+
+Use TLS for the connection: NWParameters(tls:) or .tls for Network.framework, or URLSession for HTTP. Keep plain TCP only for devices on the local network.
+
+```swift
+let connection = NWConnection(host: "api.example.com", port: .https,
+                              using: NWParameters(tls: NWProtocolTLS.Options()))
+```
+
+Verify: Capture the app's traffic with a proxy or packet capture and confirm this connection is TLS, not readable text.
+
+Book: [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
+
+## IOS-046: Secret file is written where backups copy it
+
+Keep secrets in the Keychain with a ThisDeviceOnly class. If a file must hold one, set isExcludedFromBackup = true on the file's URLResourceValues after you write it.
+
+```swift
+try data.write(to: url, options: [.atomic, .completeFileProtection])
+var values = URLResourceValues()
+values.isExcludedFromBackup = true
+var fileURL = url
+try fileURL.setResourceValues(values)
+```
+
+Verify: Make an unencrypted computer backup of a test device and confirm the file isn't in it.
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)

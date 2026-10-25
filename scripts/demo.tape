@@ -1,32 +1,49 @@
-# Renders docs/demo.gif with charmbracelet/vhs:   vhs scripts/demo.tape
-# Shows the core idea in under a minute: the same app, two profiles, different advice.
+# Renders docs/demo.gif with charmbracelet/vhs. Run from the repository root:   vhs scripts/demo.tape
+# Shows the core idea in about 30 seconds: one question, then the same app gets different advice
+# as a banking app and as a news app. `uvx masaudit` runs this checkout (uvx --from), so the GIF
+# matches the version being released.
 
 Output docs/demo.gif
-Set FontSize 18
-Set Width 1200
-Set Height 700
+Set Shell "bash"
+Set FontSize 16
+Set Width 1600
+Set Height 900
+Set Padding 24
 Set Theme "GitHub Dark"
-Set TypingSpeed 40ms
+Set TypingSpeed 35ms
 
 Hide
-Type "export PYTHONPATH=src && cp -R examples/acme-wallet /tmp/acme-wallet && clear"
+Type `export REPO="$PWD" && rm -rf /tmp/acme-wallet && cp -R examples/acme-wallet /tmp/acme-wallet && cd /tmp/acme-wallet`
 Enter
+Type `command uvx --refresh --from "$REPO" masaudit --version`
+Enter
+Type `uvx() { shift; command uvx --from "$REPO" masaudit "$@"; } && export PS1='$ ' && clear`
+Enter
+Sleep 3s
 Show
 
-Type "# A banking app: pinning, Keychain hardening, biometric key binding all matter."
+Type "uvx masaudit ."
+Sleep 300ms
 Enter
-Type "python3 -m masaudit /tmp/acme-wallet --app-type banking --format text"
+Sleep 2s
+Type "banking"
+Sleep 500ms
 Enter
-Sleep 4s
-
-Type "clear"
-Enter
-Type "# The same code as a news app: advice it doesn't need moves to 'Not needed', with reasons."
-Enter
-Type "python3 -m masaudit /tmp/acme-wallet --app-type news --format text"
-Enter
-Sleep 4s
-
-Type "python3 -m masaudit --explain AND-004 | head -12"
+Sleep 1s
 Enter
 Sleep 5s
+
+Hide
+Type "clear"
+Enter
+Show
+Type "# The same code as a news app: what it doesn't need moves to 'Not needed', with the reason."
+Enter
+Type "uvx masaudit . --app-type news --format text"
+Sleep 300ms
+Enter
+Sleep 6s
+
+Hide
+Type `cd / && rm -rf /tmp/acme-wallet`
+Enter

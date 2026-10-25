@@ -1,0 +1,9 @@
+# This fixture pins dio 4.0.6 on purpose: rule FLT-003 must fire on dio versions below 5, whose
+# LogInterceptor prints request headers. It is test data, never built or shipped.
+[[IgnoredVulns]]
+id = "GHSA-9324-jv53-9cc8"
+reason = "Deliberately old dependency in a masaudit test fixture; not built or shipped."
+
+[[IgnoredVulns]]
+id = "CVE-2021-31402"
+reason = "Same advisory as GHSA-9324-jv53-9cc8: deliberately old dependency in a test fixture."

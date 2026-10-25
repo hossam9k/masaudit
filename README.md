@@ -19,6 +19,8 @@ masaudit needs no AI, no account, and no network connection after the first down
 **[Getting started](https://github.com/hossam9k/masaudit/blob/main/docs/getting-started.md)** ·
 **[Rules](https://github.com/hossam9k/masaudit/blob/main/docs/rules.md)**
 
+![masaudit asks what kind of app it is, then shows the top fixes; the same app as a news app gets fewer findings and 18 marked Not needed](https://raw.githubusercontent.com/hossam9k/masaudit/main/docs/demo.gif)
+
 ## Quick start
 
 Use masaudit on its own, or with an AI assistant. The scan, the report, and every fix work without AI.
@@ -97,14 +99,14 @@ fix, how long it takes, its OWASP IDs, and the section of a free book that expla
 
 ## What it checks
 
-172 rules: 66 Android, 42 iOS, 42 cross-platform code, 8 Flutter, 8 CI and supply chain, 6 Kotlin
-Multiplatform. Together they cover 52 of the 78 weaknesses in OWASP's MASWE catalog and cite 132
+187 rules: 70 Android, 47 iOS, 48 cross-platform code, 8 Flutter, 8 CI and supply chain, 6 Kotlin
+Multiplatform. Together they cover 52 of the 78 weaknesses in OWASP's MASWE catalog and cite 138
 OWASP MASTG tests.
 
-- **Network:** cleartext, ATS exceptions, user CAs, TLS bypasses, old TLS versions, gRPC plaintext, and pinning where the app type needs it.
-- **Storage:** tokens in plain preferences or UserDefaults, Keychain classes, backups and device transfer, shared and world-readable files.
-- **Crypto:** hardcoded keys, ECB, CBC without a MAC, fixed IVs and salts, broken ciphers, small keys, weak PBKDF2.
-- **Platform:** exported components, intent redirection, deep links, FileProvider, Dirty Stream, Zip Slip, WebView risks, screenshot and overlay protection.
+- **Network:** cleartext (including raw sockets and old targetSdk defaults), ATS exceptions, user CAs, TLS bypasses, missing host-name checks, old TLS versions, gRPC plaintext, and pinning where the app type needs it.
+- **Storage:** tokens in plain preferences, UserDefaults, files, and databases, Keychain classes, backups and device transfer, shared and world-readable files, keyboard caching of sensitive fields.
+- **Crypto:** hardcoded keys and credential checks, ECB, CBC without a MAC, fixed IVs and salts, broken ciphers, small keys, weak PBKDF2, tokens from the clock.
+- **Platform:** exported components, intent redirection, deep links, FileProvider, Dirty Stream, Zip Slip, SQL and HTML injection, WebView risks, native buffer overflows, screenshot and overlay protection.
 - **Auth:** biometrics not bound to a key, passcode fallback for sensitive actions, keys that survive new enrollments.
 - **Privacy:** sensitive permissions, hardware identifiers, IDFA without App Tracking Transparency, privacy manifests, tracking domains.
 - **Build and CI:** debuggable releases, debug tools in release, R8 keep rules, unpinned actions, persisted tokens, script injection, committed signing keys.

@@ -3,16 +3,43 @@
 
 from __future__ import annotations
 
+import os
 import re
-from typing import List
+from typing import List, Optional
+
+# An Android import at the start of a line: `import android.os.Bundle`, `import androidx.webkit.*`.
+_ANDROID_IMPORT = re.compile(rb"^[ \t]*import[ \t]+(?:static[ \t]+)?androidx?\.", re.MULTILINE)
+_SNIFF_BYTES = 16384          # imports sit at the top of a file
+_SNIFF_FILES = 2000
 
 
-def platforms(files: List[str]) -> List[str]:
+def _imports_android(root: str, files: List[str]) -> bool:
+    """Does a Kotlin or Java production file import android.* or androidx.*? For a folder of sources with no
+    manifest or Gradle file (a copied module, decompiled code). Reads only the head of each file."""
+    checked = 0
+    for f in files:
+        if not f.endswith((".kt", ".java")) or scope_of(f) == "test":
+            continue
+        checked += 1
+        if checked > _SNIFF_FILES:
+            return False
+        try:
+            with open(os.path.join(root, f), "rb") as fh:
+                head = fh.read(_SNIFF_BYTES)
+        except OSError:
+            continue
+        if _ANDROID_IMPORT.search(head):
+            return True
+    return False
+
+
+def platforms(files: List[str], root: Optional[str] = None) -> List[str]:
+    """Platforms from file names; with `root`, also Android from the imports of Kotlin and Java files."""
     names = set(files)
     found: List[str] = []
     if any(f.endswith("AndroidManifest.xml") for f in names) or any(
         f.endswith(("build.gradle", "build.gradle.kts")) for f in names
-    ):
+    ) or (root is not None and _imports_android(root, files)):
         found.append("android")
     if any(".xcodeproj/" in f or f.endswith(("Info.plist", ".entitlements", "Package.swift", "Podfile"))
            for f in names) or any(f.endswith(".swift") for f in names):

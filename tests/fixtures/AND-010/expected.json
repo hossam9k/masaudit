@@ -1,1 +1,1 @@
-{"vulnerable": 3, "clean": 0, "vulnerable_web_only": 1, "vulnerable_file_page": 1}
+{"vulnerable": 3, "clean": 0, "vulnerable_web_only": 1, "vulnerable_file_page": 1, "vulnerable_default_access": 2, "clean_default_access": 0, "clean_default_access_target_30": 0}

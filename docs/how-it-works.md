@@ -69,7 +69,8 @@ Code rules run after comments are removed, so a comment never triggers a finding
 - **Skipped files:** files over 2 MiB (16 MiB for `project.pbxproj`), hard links, symbolic links to
   folders, symbolic links to files outside the folder, and anything that isn't a regular file, such
   as a FIFO. A scan reads at most 200,000 files; in a
-  larger repository, scan each app's folder separately.
+  larger repository, scan each app's folder separately. The report's *Residual risk* section lists
+  every source or config file it skipped, and why.
 - **Where it runs:** see [Install and upgrade](install.md).
 
 It can't see your server, how the app behaves at runtime, or your business logic, which is where many

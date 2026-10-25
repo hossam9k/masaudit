@@ -3,6 +3,24 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.5.0 — unreleased
+
+- **Colors work in the terminal.** Since 0.1.0, the summary printed color codes as text (` [1m`)
+  instead of colors: text cleaning ran after coloring and removed the escape character. Text from
+  the scanned project is now cleaned before colors are added, and it still can't add its own.
+- **GitHub Action job summary:** the run's page shows the app type, the verdict, and the top fixes.
+- **Skipped files are reported.** Source and config files left out for safety (over the size limit,
+  hard links, symbolic links out of the folder, FIFOs, unreadable files, the 200,000-file cap) are
+  listed under *Residual risk*, so a skipped manifest never looks clean.
+- **At most 50 findings per rule per file,** with a note giving the total, so a generated or crafted
+  file can't flood the report or the SARIF upload.
+- **SARIF paths are percent-encoded** (spaces, `#`, `%`, non-ASCII), as URI references must be.
+- **README demo GIF,** recorded from this release with `scripts/demo.tape`.
+- **Release:** the GitHub release is created with `gh release create` instead of a third-party
+  action.
+- **Repository hygiene:** test fixtures use a placeholder for the fake Google API key, and the
+  deliberately old dio in a fixture is marked as test data for OSV-Scanner and Scorecard.
+
 ## 0.4.3 — 2026-10-24
 
 From an independent audit before launch (newcomer walkthrough, docs against code, production

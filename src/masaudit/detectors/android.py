@@ -711,6 +711,29 @@ def _conditions(blank: str, lo: int, idx: int) -> List[str]:
 # ---------------------------------------------------------------------------- network
 
 
+def _default_cleartext(ctx: Context, path: str, app: Element) -> Optional[Hit]:
+    """An app manifest with no usesCleartextTraffic: apps targeting API 27 or lower allow plain HTTP by
+    default, unless a network security config's base-config turns it off."""
+    module = _module_of(path)
+    if _module_kinds(ctx).get(module, "unknown") == "lib":
+        return None
+    # this module's own targetSdk when its build file sets one (a repository can hold several apps)
+    own = [e[2] for e in _sdk_entries(ctx, "targetSdk") if e[2] is not None and posixpath.dirname(e[0]) == module]
+    target = max(own) if own else _sdk_value(ctx, "targetSdk")
+    if target is None or target > 27:
+        return None           # unknown, or Android 9's default (no cleartext) applies
+    if _nsc_names(ctx):
+        files = list(_nsc_files(ctx))
+        if not files:
+            ctx.note_unknown(f"{path}: the network security config it names wasn't found; check that it turns "
+                             "off cleartext traffic.")
+            return None
+        if any(b.get("cleartextTrafficPermitted") is not None for _p, root in files for b in root.iter("base-config")):
+            return None       # turned off, or turned on and reported on the base-config itself
+    return _hit(ctx, path, app.line, f"targetSdk is {target}, so Android allows plain HTTP by default, and nothing "
+                                     "(usesCleartextTraffic=\"false\" or a network security config) turns it off.")
+
+
 @detector("android_cleartext")
 def cleartext(ctx: Context, rule: Rule) -> Iterable[Hit]:
     # Network security config: cleartext allowed in the base config.
@@ -728,6 +751,11 @@ def cleartext(ctx: Context, rule: Rule) -> Iterable[Hit]:
             value = app.get("android:usesCleartextTraffic")
             if manifest.is_placeholder(value):
                 ctx.note_unknown(f"{path}: android:usesCleartextTraffic comes from a placeholder.")
+                continue
+            if value is None and _release_path(ctx, path) and _source_set(path) == "main":
+                hit = _default_cleartext(ctx, path, app)
+                if hit is not None:
+                    yield hit
                 continue
             if not xmlsafe.is_true(value):
                 continue
@@ -902,6 +930,32 @@ def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 # Pinning evidence counts only in shipping code, and never in comments: a test or a comment that
 # mentions "pinning" must not silence the finding.
+_HANDSHAKE = re.compile(r"\.\s*startHandshake\s*\(\s*\)")
+_CREATE_SOCKET = re.compile(r"\.\s*createSocket\s*\(")
+# Any sign that the host name is checked: a HostnameVerifier, SSLParameters endpoint identification, or a helper.
+_HOST_CHECK = re.compile(r"HostnameVerifier|\.\s*verify\s*\(|[Ee]ndpointIdentificationAlgorithm|[Hh]ostnameVerif"
+                         r"|\bverify\w*Host\w*\s*\(|\bcheck\w*Host\w*\s*\(")
+
+
+@detector("android_sslsocket_hostname")
+def sslsocket_hostname(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, _code, blank in _code_files(ctx, "startHandshake", "createSocket", "SSL"):
+        if _HOST_CHECK.search(blank) or re.search(r"TrustManager\b", blank):
+            # The file checks host names somewhere, or decides trust itself (a peer's self-signed certificate,
+            # a pin): assume it covers this socket. A TrustManager that trusts everything is AND-005.
+            continue
+        seen: Set[int] = set()
+        for m in _sites(_HANDSHAKE.finditer(blank)):
+            lo, hi, _fn = _function_at(blank, m.start())
+            if lo in seen or not _CREATE_SOCKET.search(blank, lo, m.start()) or \
+                    re.search(r"\bsetUseClientMode\s*\(\s*false\s*\)|\buseClientMode\s*=\s*false\b", blank[lo:hi]):
+                continue          # no socket made here, or the server side of the handshake
+            seen.add(lo)
+            yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                       "This SSLSocket completes the TLS handshake without checking the server's host name. SSLSocket "
+                       "doesn't do that check itself, so a valid certificate for any other site is accepted.")
+
+
 _PIN_CODE = re.compile(r"\bCertificatePinner\b|\bTrustKit\b|\w*[Pp]inning\w*|\w*Pinner\b")
 _PIN_VALUE = re.compile(r"sha256/[A-Za-z0-9+/]{43}=")
 _PIN_DEPS = re.compile(r"trustkit|ssl-?pinning", re.IGNORECASE)
@@ -1539,7 +1593,10 @@ def _origin_kinds(ctx: Context, path: str, code: str, blank: str) -> Set[str]:
     return kinds
 
 
-_ADD_JS = re.compile(r"\.addJavascriptInterface\s*\(")
+# `webView.addJavascriptInterface(` or a bare call inside `webView.apply { }` or a WebView subclass.
+_ADD_JS = re.compile(r"(?:\.|(?<![\w.$]))addJavascriptInterface\s*\(")
+# What comes before a declaration (`fun addJavascriptInterface(`, `public void addJavascriptInterface(`).
+_DECL_BEFORE = re.compile(r"(?:\bfun|\bvoid|\b(?!return\b|else\b|in\b|is\b)[A-Za-z_]\w*(?:<[^<>\n]*>)?\??)[ \t]+$")
 _FIXED_ORIGINS = {"https", "asset", "config"}
 # A host allowlist or an origin test on the page URL (reading webView.url alone isn't a check).
 _ORIGIN_CHECK = re.compile(r"allowed(?:Domains|Hosts|Origins|Urls)|isAllowed\w*\(|\.host\s+(?:!)?in\b|\bhost\s*[!=]=|"
@@ -1551,6 +1608,10 @@ _ORIGIN_CHECK = re.compile(r"allowed(?:Domains|Hosts|Origins|Urls)|isAllowed\w*\
 def js_bridge(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, _code, blank in _code_files(ctx, "addJavascriptInterface"):
         for m in _sites(_ADD_JS.finditer(blank)):
+            if not m.group(0).startswith(".") and (
+                    _is_import(blank, m.start())
+                    or _DECL_BEFORE.search(blank, max(0, m.start() - 80), m.start())):
+                continue          # a declaration or an override, not a call
             spans = _args(blank, m.end() - 1)
             if not spans:
                 continue
@@ -1560,19 +1621,72 @@ def js_bridge(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if cm:
                 where += _class_index(ctx)[2].get(cm.group(1), [])
             checked = all(_ORIGIN_CHECK.search(ctx.code(p, False) or "") for p in where[1:]) if len(where) > 1 \
-                else bool(_ORIGIN_CHECK.search(blank))
+                else bool(text_memo(blank, ("origin_check",), lambda b=blank: _ORIGIN_CHECK.search(b)))
             line = ctx.line_of(blank, m.start())
             if checked:
                 ctx.note_unknown(f"{path}:{line}: the JavaScript bridge appears to check the page origin in code; "
                                  "confirm every @JavascriptInterface method checks it.")
                 continue
-            kinds = _origin_kinds(ctx, path, _code, blank)
+            kinds = text_memo(blank, ("origin_kinds", path),
+                              lambda p=path, c=_code, b=blank: _origin_kinds(ctx, p, c, b))
             if kinds and kinds <= _FIXED_ORIGINS:
                 yield _hit(ctx, path, line, "addJavascriptInterface exposes native methods to every frame in this "
                                             "WebView. It loads only fixed https or bundled pages, so an attacker needs "
                                             "a frame or script inside them.", severity="medium")
                 continue
             yield _hit(ctx, path, line, "addJavascriptInterface exposes native methods to every frame in this WebView.")
+
+
+_OVERRIDE_URL = re.compile(r"\bshouldOverrideUrlLoading\s*\(")
+# Anything that inspects or compares the URL: its parts, a string test, or an allowlist helper.
+_URL_INSPECT = re.compile(r"\.\s*(?:host|scheme|path|authority)\b|\bget(?:Host|Scheme|Path|Authority)\s*\(|startsWith|endsWith"
+                          r"|\bcontains\s*\(|\bequals\s*\(|==|\bmatches\s*\(|\bin\b|[Aa]llow|[Tt]rust|[Ss]afe|[Dd]omain"
+                          r"|[Ww]hitelist|[Bb]lacklist|[Dd]eny|[Bb]lock|[Oo]rigin|\bwhen\b|\bswitch\b|\bif\b")
+_RETURN = re.compile(r"\breturn\b\s*([^;\n}]*)")
+
+
+def _js_files(ctx: Context) -> List[str]:
+    """Files that turn JavaScript on in a WebView."""
+    return _memo(ctx, "js_files", lambda: [p for p, _c, b in _code_files(ctx, "avaScriptEnabled") if _JS_ON.search(b)])
+
+
+@detector("android_webview_no_url_check")
+def webview_no_url_check(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, _code, blank in _code_files(ctx, "shouldOverrideUrlLoading"):
+        reported: Set[str] = set()          # one finding per class (the two overloads are one client)
+        for m in _sites(_OVERRIDE_URL.finditer(blank)):
+            head = blank[max(0, m.start() - 60):m.start()]
+            if not re.search(r"\b(?:fun|boolean)\s*$", head):
+                continue                          # a call (super.shouldOverrideUrlLoading), not the override
+            close = _match(blank, m.end() - 1, "(", ")")
+            after = re.match(r"\s*(?::\s*Boolean\s*)?(\{|=)", blank[close + 1:close + 40])
+            if not after:
+                continue
+            if after.group(1) == "=":
+                body = blank[close + 1:blank.find("\n", close + 1) if "\n" in blank[close + 1:] else len(blank)]
+                returns = [body.split("=", 1)[1]]
+            else:
+                start = close + 1 + after.end() - 1
+                body = blank[start:_match(blank, start, "{", "}") + 1]
+                returns = [r.group(1) for r in _RETURN.finditer(body)]
+            if not returns or _URL_INSPECT.search(body):
+                continue
+            values = {re.sub(r"\s+", "", r) for r in returns}
+            loads_itself = bool(re.search(r"\.\s*loadUrl\s*\(", body))
+            if not (values <= {"false"} or re.fullmatch(r"super\.shouldOverrideUrlLoading\(.*\)", "".join(values))
+                    or (values <= {"true"} and loads_itself)):
+                continue
+            cls = _class_at(blank, m.start())
+            if cls in reported:
+                continue
+            js = path in _js_files(ctx) or (cls and _memo(ctx, "js_ref:" + cls, lambda c=cls: any(
+                re.search(r"\b" + re.escape(c) + r"\b", ctx.code(p, False) or "") for p in _js_files(ctx))))
+            if not js:
+                continue          # without JavaScript, a page the WebView navigates to can do much less
+            reported.add(cls)
+            yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                       "shouldOverrideUrlLoading lets the WebView open every URL without checking its host or scheme, "
+                       "so a link or redirect can load any site into a WebView that runs JavaScript.")
 
 
 _SAFE_BROWSING_OFF = re.compile(r"\bsetSafeBrowsingEnabled\s*\(\s*(?:[\w.]+\s*,\s*)?false\s*\)"
@@ -1650,6 +1764,43 @@ def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
             else:
                 yield _hit(ctx, path, line, "This WebView setting lets page content read local files. The WebView loads "
                                             "only web pages here, so turn it off as hardening.", severity="low")
+    yield from _default_file_access(ctx)
+
+
+_FILE_ACCESS_OFF = re.compile(r"\bsetAllowFileAccess\s*\(\s*false\s*\)|\ballowFileAccess\s*=\s*false\b")
+_SHARED_DIR = re.compile(r"\bgetExternalStorage(?:Public)?Directory\s*\(|\bexternalStorageDirectory\b|"
+                         r"\bgetExternalFilesDir\s*\(|\bexternalCacheDir\b|\bgetExternalCacheDir\s*\(|\"/sdcard/")
+
+
+def _default_file_access(ctx: Context) -> Iterator[Hit]:
+    """File access is on by default for apps targeting API 29 or lower. A WebView that runs JavaScript and loads a
+    file:// page from shared storage (which other apps can write), or a URL the user types, can then read local
+    files without any setAllowFileAccess(true) call."""
+    target: Optional[int] = None
+    checked = False
+    for path, code, blank in _code_files(ctx, "loadUrl"):
+        if not _JS_ON.search(blank) or _FILE_ACCESS_ON.search(blank) or _FILE_ACCESS_OFF.search(blank):
+            continue
+        if not checked:
+            target, checked = _sdk_value(ctx, "targetSdk"), True
+        if target is not None and target > 29:
+            return
+        for m in _sites(_LOAD_URL.finditer(blank)):
+            spans = _args(blank, m.end() - 1)
+            if not spans:
+                continue
+            first = code[spans[0][0]:spans[0][1]].strip()
+            if first.startswith("\"file:") and _SHARED_DIR.search(first):
+                yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                           "This WebView runs JavaScript on a file:// page in shared storage, which other apps can "
+                           "write, and file access is on by default (targetSdk 29 or lower), so that page can read "
+                           "the app's local files.")
+            elif target is not None and _TYPED_TEXT.search(first) and \
+                    re.fullmatch(r"[\w.]+(?:\s*\(\s*\))?\s*\.\s*toString\s*\(\s*\)", first):
+                yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                           "This WebView runs JavaScript and loads whatever URL the user types, and file access is on "
+                           f"by default (targetSdk {target}), so a file:// URL can open the app's private files.",
+                           severity="medium")
 
 
 # ---------------------------------------------------------------------------- components and IPC
@@ -2321,6 +2472,94 @@ def sql_concat(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield _hit(ctx, path, line,
                            f"This SQL puts `{shown}` into a value position by joining strings, so input can change "
                            "the query.")
+    yield from _query_builder(ctx)
+
+
+_APPEND_WHERE = re.compile(r"\.\s*appendWhere(?:Standalone)?\s*\(")
+_QB_NEW = re.compile(r"(?:\b(?:val|var)\s+(\w+)\s*(?::\s*SQLiteQueryBuilder\??)?|\bSQLiteQueryBuilder\s+(\w+))\s*=\s*"
+                     r"(?:new\s+)?(?<![\w.])SQLiteQueryBuilder\s*\(\s*\)")
+_QB_STRICT = re.compile(r"\bsetStrict\s*\(\s*true\s*\)|\b(?:isStrict|strict)\s*=\s*true\b|\bsetStrictGrammar\s*\(\s*true"
+                        r"|\bstrictGrammar\s*=\s*true\b")
+_PROVIDER_QUERY = re.compile(r"(?:\boverride\s+fun|\bpublic\s+(?:final\s+)?(?:@\w+\s+)?Cursor)\s+query\s*\(")
+
+
+def _open_providers(ctx: Context) -> Set[str]:
+    """Simple class names of content providers any app can query: exported, with no read permission (or only
+    one any app can request) and no path permissions."""
+    def compute() -> Set[str]:
+        declared = _declared_permissions(ctx)
+        out: Set[str] = set()
+        for path, root in _manifests(ctx):
+            if scope_of(path) == "test":
+                continue
+            for c in manifest.components(root, ("provider",)):
+                if not xmlsafe.is_true(c.get("android:exported")) or \
+                        any(ch.tag == "path-permission" for ch in c.children):
+                    continue
+                perms = [c.get(a) for a in ("android:readPermission", "android:permission") if c.get(a)]
+                if any(manifest.is_placeholder(p) or _permission_strength((p or "").strip(), declared) != "weak"
+                       for p in perms):
+                    continue
+                out.add(_simple(c.get("android:name") or ""))
+        return out
+    return _memo(ctx, "open_providers", compute)
+
+
+def _query_builder(ctx: Context) -> Iterator[Hit]:
+    """SQLiteQueryBuilder in a content provider: a WHERE fragment built from input (appendWhere), and a caller's
+    selection passed to query() by a provider any app can call, with the builder not in strict mode."""
+    for path, code, blank in _code_files_any(ctx, ("appendWhere", "SQLiteQueryBuilder")):
+        kotlin = path.endswith(".kt")
+        safe: Dict[str, bool] = {}          # expression -> constant or numeric, once per file
+        for m in _sites(_APPEND_WHERE.finditer(blank)):
+            spans = _args(blank, m.end() - 1)
+            if len(spans) != 1:
+                continue
+            for kind, text in _sql_pieces(code, spans[0][0], spans[0][1], kotlin)[:400]:
+                expr = text.strip()
+                if kind == "lit" or expr.startswith((".", "?.")):
+                    continue
+                if expr not in safe:
+                    safe[expr] = _sql_is_constant(expr, code, blank, m.start()) or _sql_is_numeric(expr, code) \
+                        or _enum_typed(ctx, expr, code)
+                if safe[expr]:
+                    continue
+                shown = re.sub(r"\s+", " ", expr)[:60]
+                yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                           f"appendWhere() adds `{shown}` to the WHERE clause as raw SQL, so input can change the "
+                           "query.")
+                break
+        if "SQLiteQueryBuilder" not in blank or _QB_STRICT.search(blank):
+            continue
+        builders = {b.group(1) or b.group(2) for b in _QB_NEW.finditer(blank)}
+        if not builders:
+            continue
+        for pm in _sites(_PROVIDER_QUERY.finditer(blank)):
+            params = _args(blank, pm.end() - 1)
+            if len(params) != 5:
+                continue
+            sel = re.search(r"(\w+)\s*(?::\s*String\??\s*)?$", blank[params[2][0]:params[2][1]].strip())
+            if not sel:
+                continue
+            close = _match(blank, pm.end() - 1, "(", ")")
+            body_open = blank.find("{", close)
+            if body_open == -1:
+                continue
+            body_close = _match(blank, body_open, "{", "}")
+            for qm in re.finditer(r"\b(\w+)\s*\.\s*query\s*\(", blank[body_open:body_close]):
+                if qm.group(1) not in builders:
+                    continue
+                q_open = body_open + qm.end() - 1
+                args = [blank[s:e].strip() for s, e in _args(blank, q_open)]
+                if sel.group(1) not in args[1:4]:
+                    continue
+                cls = _class_at(blank, pm.start())
+                if not cls or cls not in _open_providers(ctx):
+                    continue
+                yield _hit(ctx, path, ctx.line_of(blank, q_open),
+                           f"The exported provider {cls} passes the caller's selection to SQLiteQueryBuilder.query() "
+                           "without setStrict(true), so another app can add SQL that reads other tables.")
+                break
 
 
 # ---------------------------------------------------------------------------- PendingIntent and intents
@@ -2413,6 +2652,27 @@ def _intent_vars_in(ctx: Context, code: str, blank: str, lo: int, hi: int) -> Di
     return out
 
 
+def _pi_intent_kind(ctx: Context, code: str, blank: str, spans: List[Tuple[int, int]], idx: int) -> str:
+    """"explicit" | "implicit" | "unknown": the Intent a PendingIntent.get*( call (args `spans`) wraps."""
+    arg = code[spans[2][0]:spans[2][1]].strip()
+    arg_b = blank[spans[2][0]:spans[2][1]]
+    im = _NEW_INTENT.search(arg_b)
+    if im and im.start() < 4:
+        kind, _a = _intent_kind(ctx, code, blank, spans[2][0] + im.end() - 1)
+        return "explicit" if re.search(_EXPLICIT_CALL, arg) else kind
+    nm = re.fullmatch(r"(\w+)(?:!!)?", arg)
+    if nm:
+        lo, hi, _fn = _function_at(blank, idx)
+        return _intent_vars(ctx, code, blank, lo, hi).get(nm.group(1), (0, "unknown", None))[1]
+    return "unknown"
+
+
+# Flags written out as constants and numbers (`PendingIntent.FLAG_UPDATE_CURRENT or Intent.FLAG_X`, `0`), so
+# masaudit can tell that neither FLAG_IMMUTABLE nor FLAG_MUTABLE is among them.
+_LITERAL_FLAGS = re.compile(r"\s*(?:(?:[A-Za-z_]\w*\.)*[A-Z][A-Z0-9_]*|\d+)(?:\s*(?:\bor\b|\|)\s*"
+                            r"(?:(?:[A-Za-z_]\w*\.)*[A-Z][A-Z0-9_]*|\d+))*\s*")
+
+
 @detector("android_pending_intent_mutable")
 def pending_intent_mutable(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _code_files(ctx, "FLAG_"):
@@ -2431,19 +2691,7 @@ def pending_intent_mutable(ctx: Context, rule: Rule) -> Iterable[Hit]:
             spans = _args(blank, call.end() - 1)
             if len(spans) < 3:
                 continue
-            arg = code[spans[2][0]:spans[2][1]].strip()
-            arg_b = blank[spans[2][0]:spans[2][1]]
-            lo, hi, _fn = _function_at(blank, m.start())
-            kind = "unknown"
-            im = _NEW_INTENT.search(arg_b)
-            if im and im.start() < 4:
-                kind, _a = _intent_kind(ctx, code, blank, spans[2][0] + im.end() - 1)
-                if re.search(_EXPLICIT_CALL, arg):
-                    kind = "explicit"
-            else:
-                nm = re.fullmatch(r"(\w+)(?:!!)?", arg)
-                if nm:
-                    kind = _intent_vars(ctx, code, blank, lo, hi).get(nm.group(1), (0, "unknown", None))[1]
+            kind = _pi_intent_kind(ctx, code, blank, spans, m.start())
             if kind == "implicit":
                 yield _hit(ctx, path, line,
                            "A mutable PendingIntent wraps an implicit Intent, so the app that receives it can "
@@ -2451,12 +2699,35 @@ def pending_intent_mutable(ctx: Context, rule: Rule) -> Iterable[Hit]:
             elif kind == "unknown":
                 ctx.note_unknown(f"{path}:{line}: a mutable PendingIntent wraps an Intent masaudit can't resolve; "
                                  "confirm it names a component or package.")
+    # No mutability flag at all: before Android 12 (API 31) such a PendingIntent is mutable.
+    min_sdk = None
+    for path, code, blank in _code_files(ctx, "PendingIntent"):
+        for c in _sites(_PI_CALL.finditer(blank)):
+            spans = _args(blank, c.end() - 1)
+            if len(spans) < 4 or "Compat" in c.group(0):
+                continue          # PendingIntentCompat sets the mutability flag from its isMutable argument
+            flags = blank[spans[3][0]:spans[3][1]]
+            if not _LITERAL_FLAGS.fullmatch(flags) or "IMMUTABLE" in flags or _FLAG_MUTABLE.search(flags):
+                continue          # a flags variable or helper, or a flag that sets mutability
+            if _pi_intent_kind(ctx, code, blank, spans, c.start()) != "implicit":
+                continue
+            if min_sdk is None:
+                min_sdk = _sdk_value(ctx, "minSdk") or 0
+            if min_sdk >= 31:
+                continue
+            yield _hit(ctx, path, ctx.line_of(blank, c.start()),
+                       "This PendingIntent wraps an implicit Intent and sets no FLAG_IMMUTABLE, so on Android 11 and "
+                       "lower it is mutable: the app that receives it can redirect it and act with this app's "
+                       "identity.")
 
 
 _SEND = re.compile(r"\b(?:startActivit(?:y|yForResult)|startService|startForegroundService|sendBroadcast"
                    r"|sendOrderedBroadcast|sendBroadcastAsUser)\s*\(")
 _SENSITIVE_EXTRA = re.compile(r"(?i)token|password|passwd|secret|session_?id|sessionid|\botp\b|jwt|credential"
-                              r"|auth_?code|authorization|access_?key|\bpin\b|private_?key")
+                              r"|auth_?code|authorization|access_?key|\bpin\b|private_?key"
+                              r"|(?<![a-z0-9])(?:new_?|old_?|user_?)?(?:pass|pwd)(?![a-z0-9])")
+# An extra whose value is a boolean flag (`putExtra(KEY, true)`, a Boolean variable) carries no secret.
+_BOOL_LITERAL = re.compile(r"\s*(?:true|false|Boolean\.(?:TRUE|FALSE))\s*")
 
 
 def _sends(ctx: Context, code: str, blank: str, lo: int, hi: int) -> Iterator[Tuple[int, str, Optional[str], str]]:
@@ -2490,6 +2761,18 @@ def _sends(ctx: Context, code: str, blank: str, lo: int, hi: int) -> Iterator[Tu
             yield m.start(), kind, action, body_text
 
 
+def _boolean_value(value: str, code: str) -> bool:
+    """Is a putExtra value a boolean: a literal, or a variable declared Boolean or set from a check?"""
+    if _BOOL_LITERAL.fullmatch(value):
+        return True
+    name = re.fullmatch(r"\s*(\w+)\s*", value)
+    if not name:
+        return False
+    var = re.escape(name.group(1))
+    return bool(text_memo(code, ("bool_var", var), lambda: re.search(r"\b(?:boolean|Boolean)\s+" + var + r"\b|\b" + var + r"\s*:\s*Boolean\b|\b(?:val|var)\s+" + var
+                          + r"\s*=\s*(?:true|false|[^\n;=]*\.\s*(?:isChecked|isEnabled|isSelected)\b)", code)))
+
+
 @detector("android_implicit_intent_secret")
 def implicit_intent_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _code_files(ctx, "putExtra"):
@@ -2507,6 +2790,9 @@ def implicit_intent_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 hit_key = None
                 for key, value in extras:
                     k = key.strip()
+                    if _boolean_value(value, code) or text_memo(code, ("bool_extra", k), lambda k=k, c=code: re.search(
+                            r"getBooleanExtra\s*\(\s*" + re.escape(k), c)):
+                        continue
                     kc = re.fullmatch(r"(?:[\w.]+\.)?([A-Z][A-Z0-9_]*)", k)
                     k_text = k + " " + (_string_constants(ctx).get(kc.group(1), "") if kc else "")
                     # the value counts when it's a variable or getter named for a secret (not getAuthTokenType())
@@ -2968,7 +3254,10 @@ def backup(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if ab is not None and manifest.is_placeholder(ab[2]):
             ctx.note_unknown(f"{ab[0]}: android:allowBackup comes from a placeholder.")
             continue
-        if rules or (ab is not None and not xmlsafe.is_true(ab[2])):
+        if ab is not None and not xmlsafe.is_true(ab[2]):
+            continue
+        if rules:
+            yield from _secret_files_backed_up(ctx, entry, len(apps) == 1)
             continue
         if ab is not None:
             path, app, _v = ab
@@ -2987,6 +3276,59 @@ def backup(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if xmlsafe.is_true(app.get("android:allowBackup")):
                 yield _hit(ctx, path, app.line, "allowBackup is true and there are no rules excluding sensitive "
                                                 "files.", ack=_ack(ctx, path, app, "AllowBackup"))
+
+
+# A file written under filesDir: File(filesDir, "name"), File(context.filesDir, "name"), openFileOutput("name", ...).
+_FILES_DIR_WRITE = re.compile(r"\bFile\s*\(\s*(?P<dir>(?:[\w.]+\s*\.\s*)?(?:filesDir|getFilesDir\s*\(\s*\))|\w+)\s*,\s*"
+                              r"\"(?P<name>[^\"\n/]{1,120})\"\s*\)|\bopenFileOutput\s*\(\s*\"(?P<out>[^\"\n/]{1,120})\"")
+_SECRET_NAME = re.compile(r"(?i)secret|token|passw|credential|(?<![a-z])keys?(?![a-z])|private_?key|api_?key")
+
+
+def _backed_up(section: Optional[Element], name: str) -> bool:
+    """Does a backup rules section (<full-backup-content> or <cloud-backup>) back up filesDir/<name>?"""
+    if section is None:
+        return True
+    def covers(el: Element) -> bool:
+        p = (el.get("path") or ".").strip().strip("/")
+        return (el.get("domain") or "") == "file" and p in (".", "", name)
+    if any(covers(c) for c in section.iter("exclude")):
+        return False
+    includes = list(section.iter("include"))
+    return not includes or any(covers(c) for c in includes)
+
+
+def _secret_files_backed_up(ctx: Context, entry: _AppBackup, only_app: bool) -> Iterator[Hit]:
+    """Backup rules exist, but a file the app writes under filesDir with a secret's name isn't excluded. With one
+    app module, its libraries' code counts too; with several, only the module's own code."""
+    sections: List[Optional[Element]] = []
+    for attr, tag in (("android:dataExtractionRules", "cloud-backup"), ("android:fullBackupContent", None)):
+        found = entry.attr(attr)
+        if found is None or not found[2].startswith("@xml/"):
+            continue
+        roots = _resolve_xml(ctx, entry.module, found[2])
+        if not roots:
+            ctx.note_unknown(f"{found[0]}: {found[2]} wasn't found; check that it excludes sensitive files.")
+            return
+        for _p, root in roots:
+            sections.append(next(iter(root.iter(tag)), None) if tag else root)
+    if not sections:
+        return
+    prefix = entry.module + "/" if entry.module and not only_app else ""
+    for path, code, _blank in _code_files_any(ctx, ("filesDir", "FilesDir", "openFileOutput")):
+        if not path.startswith(prefix) or _scope(ctx, path) != "main":
+            continue
+        dirs = {d.group(1) for d in re.finditer(r"\b(?:val|var)\s+(\w+)\s*(?::\s*File\??\s*)?=\s*(?:[\w.]+\s*\.\s*)?"
+                                                r"(?:filesDir|getFilesDir\s*\(\s*\))\s*$", code, re.MULTILINE)}
+        for m in _sites(_FILES_DIR_WRITE.finditer(code)):
+            name = m.group("name") or m.group("out")
+            d = m.group("dir")
+            if d is not None and not re.search(r"ilesDir", d) and d not in dirs:
+                continue
+            if not _SECRET_NAME.search(name) or not any(_backed_up(sec, name) for sec in sections):
+                continue
+            yield _hit(ctx, path, ctx.line_of(code, m.start()),
+                       f"The app writes `{name}` to its files directory, and the backup rules don't exclude it, so "
+                       "this secret is copied into backups.")
 
 
 def _resolve_xml(ctx: Context, module: str, ref: str) -> List[Tuple[str, Element]]:
@@ -3277,6 +3619,44 @@ def _is_prefs_editor(blank: str, idx: int) -> bool:
     return False
 
 
+# Text the user typed, stored as it is.
+_TYPED_TEXT = re.compile(r"\.\s*getText\s*\(\s*\)|\.\s*text\s*\.\s*toString\s*\(\s*\)")
+
+
+def _plain_value(code: str, blank: str, open_paren: int) -> bool:
+    """In a file that encrypts: is the value of the putString( at open_paren visibly plain text? Only a string
+    literal, typed text, or a variable initialized with one counts. Anything else may be ciphertext."""
+    spans = _args(blank, open_paren)
+    if len(spans) < 2:
+        return False
+    value = code[spans[1][0]:spans[1][1]].strip()
+    if _ENCRYPTS.search(value):
+        return False
+    if re.fullmatch(r"\"[^\"\n]*\"", value) or _TYPED_TEXT.search(value):
+        return True
+    name = re.fullmatch(r"(?:this\s*\.\s*)?(\w+)(?:\s*!!)?(?:\s*\.\s*toString\s*\(\s*\))?", value)
+    if not name:
+        return False
+    plain, sealed = text_memo(code, ("plain_vars",), lambda: _plain_vars(code))
+    return name.group(1) in plain and name.group(1) not in sealed
+
+
+def _plain_vars(code: str) -> Tuple[Set[str], Set[str]]:
+    """(variables first declared with a string literal or typed text, variables assigned an encrypt call),
+    from one pass over the file."""
+    plain: Set[str] = set()
+    declared: Set[str] = set()
+    for d in re.finditer(r"\b(?:val|var|String)\s+(\w+)\s*(?::\s*String\??\s*)?=\s*([^\n;]*)", code):
+        if d.group(1) in declared:
+            continue
+        declared.add(d.group(1))
+        if re.fullmatch(r"\s*\"[^\"\n]*\"\s*", d.group(2)) or _TYPED_TEXT.search(d.group(2)):
+            plain.add(d.group(1))
+    sealed = {a.group(1) for a in re.finditer(r"(?<![\w.])(\w+)[ \t]*=(?!=)([^\n;=]*)", code)
+              if re.search(r"(?i)encrypt|cipher|aead|seal", a.group(2))}
+    return plain, sealed
+
+
 @detector("android_prefs_token")
 def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(".kt", ".java"):
@@ -3287,15 +3667,20 @@ def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue                                   # AND-022 covers the deprecated wrapper
         code = ctx.code(path, keep_strings=True) or ""
         blank = ctx.code(path, keep_strings=False) or ""
-        if _ENCRYPTS.search(blank):
-            continue
+        # A file that encrypts may store ciphertext: judge each value there, and skip DataStore keys (the value
+        # isn't visible where the key is declared).
+        encrypts = bool(_ENCRYPTS.search(blank))
         seen: Set[int] = set()
         for regex, store in ((_PREFS_WRITE, "SharedPreferences"), (_DATASTORE_KEY, "DataStore")):
+            if encrypts and store == "DataStore":
+                continue
             for m in regex.finditer(code):
                 key = _key_name(code, m.group(1))
                 if not _SENSITIVE_KEY.search(key) or _NOT_SENSITIVE.search(key):
                     continue
                 if store == "SharedPreferences" and not _is_prefs_editor(blank, m.start() + m.group(0).index("putString")):
+                    continue
+                if encrypts and not _plain_value(code, blank, m.start() + m.group(0).index("(")):
                     continue
                 line = ctx.line_of(code, m.start())
                 if line in seen:
@@ -3320,6 +3705,27 @@ _SHARED_WRITE = re.compile(r"\bFileOutputStream\s*\(|\.writeBytes\s*\(|\.writeTe
                            r"|setDestinationInExternalPublicDir")
 
 
+# File names and written text that mark a secret (narrower than _SENSITIVE_FILE: an export or a report saved to
+# Downloads is usually what the user asked for).
+_SECRET_FILE_NAME = re.compile(r"(?i)\"[^\"\n]*(?:secret|token|passw|credential|private_?key|api_?key|\.key\b|keystore"
+                               r"|\.db\b|database)[^\"\n]*\"")
+_SECRET_CONTENT = re.compile(r"(?i)\"[^\"\n]*(?:passw|secret|api_?key|token|private_?key)[^\"\n]*\"\s*\.\s*"
+                             r"(?:toByteArray|getBytes)\s*\(")
+
+
+def _mediastore_secret(ctx: Context, path: str, code: str, blank: str, idx: int, seen: Set[int]) -> Optional[Hit]:
+    lo, hi, _fn = _function_at(blank, idx)
+    if lo in seen or not re.search(r"\.\s*insert\s*\(", blank[lo:hi]):
+        return None
+    body = code[lo:hi]
+    if not (_SECRET_FILE_NAME.search(body) or _SECRET_CONTENT.search(body)):
+        return None
+    seen.add(lo)
+    return _hit(ctx, path, ctx.line_of(blank, idx),
+                "The app saves a file to the shared Downloads or Files collection, which the user and other apps can "
+                "open, and its name or content suggests a secret.")
+
+
 @detector("android_external_storage")
 def external_storage(ctx: Context, rule: Rule) -> Iterable[Hit]:
     broad = None
@@ -3335,12 +3741,18 @@ def external_storage(ctx: Context, rule: Rule) -> Iterable[Hit]:
         for app in manifest.applications(root):
             if xmlsafe.is_true(app.get("android:requestLegacyExternalStorage")):
                 broad = broad or f"requestLegacyExternalStorage in {path}"
-    if broad is None:
-        return
     for path, code, blank in _code_files_any(ctx, _PUBLIC_WRITE_NEEDLES):
         seen: Set[int] = set()
         for m in _sites(_PUBLIC_WRITE.finditer(blank)):
             if _is_import(blank, m.start()):
+                continue
+            if broad is None:
+                # Without broad storage access, only a MediaStore Downloads or Files insert reaches shared storage
+                # (no permission is needed for it), and only one that looks sensitive is reported.
+                if "MediaStore" in m.group(0):
+                    hit = _mediastore_secret(ctx, path, code, blank, m.start(), seen)
+                    if hit is not None:
+                        yield hit
                 continue
             lo, hi, _fn = _function_at(blank, m.start())
             if lo in seen:
@@ -3430,6 +3842,42 @@ def biometric_enrollment(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield _hit(ctx, path, ctx.line_of(blank, m.start()),
                            f"The key stays unlocked for {m.group(1)} seconds after authentication, so it isn't "
                            "tied to each use or invalidated on new enrollment.")
+
+
+_VALIDITY_CALL = re.compile(r"\b(?:setUserAuthenticationParameters|setUserAuthenticationValidityDurationSeconds)\s*\(")
+_LONG_VALIDITY = 30          # seconds; a few seconds covers one unlock followed by its crypto operations
+
+
+def _seconds(expr: str, code: str) -> Optional[int]:
+    """The value of a duration argument: an integer literal, a product of literals (`60 * 60 * 24`), or a
+    constant set to one in the same file. None when masaudit can't tell."""
+    e = expr.strip()
+    const = re.fullmatch(r"(?:[A-Za-z_]\w*\.)*([A-Z][A-Z0-9_]*)", e)
+    if const:
+        m = re.search(r"\b" + re.escape(const.group(1)) + r"\s*(?::\s*Int\s*)?=[ \t]*(-?[\d_ \t*L]+?)[ \t]*(?:;|$)", code,
+                      re.MULTILINE)
+        e = m.group(1).strip() if m else ""
+    if not re.fullmatch(r"-?\d[\d_]*L?(?:\s*\*\s*\d[\d_]*L?)*", e):
+        return None
+    value = 1
+    for part in e.split("*"):
+        value *= int(part.strip().rstrip("L").replace("_", ""))
+    return value
+
+
+@detector("android_auth_validity_long")
+def auth_validity_long(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, code, blank in _code_files(ctx, "KeyGenParameterSpec", "UserAuthentication"):
+        for m in _sites(_VALIDITY_CALL.finditer(blank)):
+            spans = _args(blank, m.end() - 1)
+            if not spans:
+                continue
+            seconds = _seconds(code[spans[0][0]:spans[0][1]], code)
+            if seconds is None or seconds <= _LONG_VALIDITY:
+                continue          # 0 or -1: authentication for every use; a short window is accepted
+            yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                       f"After one authentication the key stays usable for {seconds} seconds, so anyone holding the "
+                       "unlocked phone in that window can use it without the biometric prompt.")
 
 
 _ALLOWED_AUTH = re.compile(r"\bsetAllowedAuthenticators\s*\(|\bcanAuthenticate\s*\(")
@@ -3526,6 +3974,90 @@ def crypto_provider(ctx: Context, rule: Rule) -> Iterable[Hit]:
                        "platform's maintained implementation for later crypto calls.")
 
 
+# ---------------------------------------------------------------------------- input fields
+
+_SECRET_WORDS = {"password", "passwd", "passcode", "pin", "pincode"}
+_SENSITIVE_WORDS = {"otp", "cvv", "cvc", "cvv2", "iban", "ssn"}
+_SENSITIVE_PAIRS = {("card", "number"), ("account", "number"), ("security", "code"), ("verification", "code"),
+                    ("one", "time")}
+_EDIT_NEW = re.compile(r"(?<![\w.])(?:new\s+)?(?:EditText|AppCompatEditText|TextInputEditText)\s*\(")
+# Input types that keep the keyboard from learning: password variations and the no-suggestions flag.
+_NO_LEARN = re.compile(r"PASSWORD|NO_SUGGESTIONS|NO_PERSONALIZED_LEARNING|[Pp]assword|textNoSuggestions"
+                       r"|flagNoPersonalizedLearning")
+
+
+def _field_kind(text: str) -> str:
+    """"secret" (password, PIN), "sensitive" (one-time code, card or account number), or ""."""
+    tokens = [t for piece in re.findall(r"[A-Za-z0-9]+", text) for t in _camel(piece)]
+    if any(t in _SECRET_WORDS for t in tokens):
+        return "secret"
+    if any(t in _SENSITIVE_WORDS for t in tokens) or any(p in _SENSITIVE_PAIRS for p in zip(tokens, tokens[1:])):
+        return "sensitive"
+    return ""
+
+
+def _learns(kind: str, input_type: Optional[str]) -> bool:
+    """Does a field of this kind with this input type let the keyboard learn what is typed? A password or PIN
+    field needs a password type or no suggestions; another sensitive field only when it takes free text."""
+    if input_type is not None and _NO_LEARN.search(input_type):
+        return False
+    if kind == "secret":
+        return True
+    return input_type is None or not re.search(r"(?i)number|phone|datetime|date\b", input_type)
+
+
+@detector("android_keyboard_cache")
+def keyboard_cache(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    # Layout XML: password and PIN fields belong to XPL-033 (shown and learned); here, other sensitive fields.
+    for path in ctx.files(".xml"):
+        if "/res/layout" not in "/" + path:
+            continue
+        text = ctx.text(path) or ""
+        if "EditText" not in text:
+            continue
+        clean = _XML_COMMENT.sub(lambda c: re.sub(r"[^\n]", " ", c.group(0)), text)
+        for m in re.finditer(r"<(?:[\w.]+\.)?(?:EditText|TextInputEditText|AppCompatEditText)\b[^>]*>", clean):
+            tag = m.group(0)
+            names = " ".join(re.findall(r"android:(?:id|hint|autofillHints)\s*=\s*\"([^\"]*)\"", tag))
+            if _field_kind(names) != "sensitive" or "android:password=\"true\"" in tag or _NO_LEARN.search(tag):
+                continue
+            it = re.search(r"android:inputType\s*=\s*\"([^\"]*)\"", tag)
+            if _learns("sensitive", it.group(1) if it else None):
+                yield _hit(ctx, path, ctx.line_of(clean, m.start()),
+                           "This field takes a one-time code, card or account number as free text, so the keyboard "
+                           "can learn it and suggest it later (no textNoSuggestions).")
+    # Code: an EditText built in Kotlin or Java, with its hint and the last input type it is given.
+    for path, code, blank in _code_files_any(ctx, ("EditText(",)):
+        for m in _sites(_EDIT_NEW.finditer(blank)):
+            lo, hi, _fn = _function_at(blank, m.start())
+            end = _match(blank, m.end() - 1, "(", ")")
+            block = re.match(r"\s*\.\s*(?:apply|also)\s*\{", blank[end + 1:end + 40])
+            region_end = _match(blank, end + 1 + block.end() - 1, "{", "}") if block else end
+            region = code[m.start():region_end + 1]
+            var = re.search(r"\b(?:val|var)\s+(\w+)\s*(?::\s*\w+\s*)?=\s*$|\b(?:EditText|\w*EditText)\s+(\w+)\s*=\s*$",
+                            blank[max(lo, m.start() - 80):m.start()])
+            name = (var.group(1) or var.group(2)) if var else None
+            later = ""
+            if name:
+                later = " ".join(x.group(0) for x in re.finditer(
+                    r"\b" + re.escape(name) + r"\s*\.\s*(?:hint\s*=|setHint\s*\(|inputType\s*=|setInputType\s*\("
+                    r"|imeOptions\s*=|setImeOptions\s*\()[^\n;]*", code[region_end + 1:hi]))
+            hint = re.search(r"(?:\bhint\s*=|\bsetHint\s*\()\s*\"([^\"\n]*)\"", region + " " + later)
+            kind = _field_kind(hint.group(1)) if hint else ""
+            if not kind or re.search(r"(?:imeOptions\s*=|setImeOptions\s*\()[^\n;]*NO_PERSONALIZED_LEARNING",
+                                     region + " " + later):
+                continue
+            types = list(re.finditer(r"(?:\binputType\s*=|\bsetInputType\s*\()\s*([^\n;]*)", region + " " + later))
+            input_type = types[-1].group(1) if types else None
+            if input_type is not None and not re.search(r"InputType\s*\.|TYPE_", input_type):
+                continue          # a type masaudit can't resolve
+            if _learns(kind, input_type):
+                what = "password or PIN" if kind == "secret" else "one-time code, card or account number"
+                yield _hit(ctx, path, ctx.line_of(blank, m.start()),
+                           f"This {what} field's input type lets the keyboard learn what is typed and suggest it "
+                           "later (no password type or TYPE_TEXT_FLAG_NO_SUGGESTIONS).")
+
+
 # ---------------------------------------------------------------------------- privacy: identifiers
 
 _HW_ID = re.compile(
@@ -3594,15 +4126,20 @@ def dirty_stream(ctx: Context, rule: Rule) -> Iterable[Hit]:
             foreign = bool(_FOREIGN_URI.search(code))
             # variables that hold the provided name
             names: Set[str] = set()
-            for am in re.finditer(r"\b(?:val|var|String)\s+(\w+)\s*(?::\s*String\??)?\s*=\s*([^\n;]*)", body):
+            # declarations, and bare reassignments of a variable declared earlier (`fileName = it.getString(i)`)
+            for am in re.finditer(r"(?:\b(?:val|var|String)\s+|^[ \t]*)(\w+)\s*(?::\s*String\??)?\s*=(?!=)\s*([^\n;]*)",
+                                  body, re.MULTILINE):
                 rhs = am.group(2)
                 src = _DISPLAY_NAME.search(rhs)
-                if src and "isplay" not in src.group(0) and not foreign:
+                if src and "display" not in src.group(0).lower() and not foreign:
                     continue
                 if (src or re.search(r"getString\s*\(\s*\w*[Ii]ndex|getString\s*\(\s*"
                                      r"(?:cursor|it|c)\.getColumnIndex", rhs)) and not _SANITIZED.search(rhs):
                     names.add(am.group(1))
-            if not names or re.search(r"canonical(?:Path|File)|getCanonical|normalize\s*\(|toRealPath", body):
+            if not names:
+                continue
+            # a path check in code counts (a canonical path shown inside a string template is not a check)
+            if re.search(r"canonical(?:Path|File)|getCanonical|normalize\s*\(|toRealPath", blank[lo:hi]):
                 continue
             for sm in _FILE_SINK.finditer(blank, lo, hi):
                 close = _match(blank, sm.end() - 1, "(", ")")
@@ -4188,9 +4725,109 @@ _OVERLAY_NEEDLES = ("filterTouchesWhenObscured", "setHideOverlayWindows", "FLAG_
                     "onFilterTouchEventForSecurity")
 
 
+# A label for an action an overlay would trick the user into confirming.
+_SENSITIVE_ACTION = re.compile(r"(?i)\b(?:pay(?:ment)?|transfer|send\s+money|confirm|authori[sz]e|approve|withdraw"
+                               r"|purchase|grant)\b")
+_BUTTON_NEW = re.compile(r"(?<![\w.])(?:new\s+)?(?:Button|MaterialButton|AppCompatButton)\s*\(")
+_XML_BUTTON = re.compile(r"<(?:[\w.]+\.)?(?:Button|MaterialButton|AppCompatButton)\b[^>]*>")
+_VIEW_FILTER = re.compile(r"filterTouchesWhenObscured|setFilterTouchesWhenObscured|onFilterTouchEventForSecurity"
+                          r"|FLAG_WINDOW_IS_(?:PARTIALLY_)?OBSCURED")
+
+
+def _window_overlay_filter(ctx: Context) -> bool:
+    """Is the filter set for a whole window: on the decor view, in a theme or style (res/values), or by hiding
+    overlay windows?"""
+    def compute() -> bool:
+        for path, _code, blank in _code_files(ctx, "setHideOverlayWindows"):
+            if scope_of(path) != "test" and re.search(r"\bsetHideOverlayWindows\s*\(\s*true", blank):
+                return True
+        for path, _code, blank in _code_files(ctx, "filterTouchesWhenObscured"):
+            if scope_of(path) != "test" and re.search(r"decorView\s*\.\s*(?:filterTouchesWhenObscured\s*=\s*true|"
+                                                      r"setFilterTouchesWhenObscured\s*\(\s*true)|getDecorView\s*\("
+                                                      r"\s*\)\s*\.\s*setFilterTouchesWhenObscured\s*\(\s*true", blank):
+                return True
+        for path in ctx.files(".xml"):
+            if re.search(r"/res/values[\w-]*/", "/" + path) and "filterTouchesWhenObscured" in (ctx.text(path) or ""):
+                return True
+        return False
+    return bool(_memo(ctx, "overlay_window", compute))
+
+
+def _string_res(ctx: Context) -> Dict[str, str]:
+    """`@string/name` values from res/values*/strings*.xml (the first one found wins)."""
+    def compute() -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for path in ctx.files(".xml"):
+            if not re.search(r"/res/values[\w-]*/[^/]*strings[^/]*\.xml$", "/" + path):
+                continue
+            for m in re.finditer(r"<string\s+name=\"(\w+)\"[^>]*>([^<]{0,200})</string>", ctx.text(path) or ""):
+                out.setdefault(m.group(1), m.group(2))
+        return out
+    return _memo(ctx, "string_res", compute)
+
+
+def _unprotected_sensitive_buttons(ctx: Context) -> Iterator[Hit]:
+    """The app filters obscured touches on some views only: report buttons for sensitive actions (pay, confirm,
+    transfer) that don't, in code (`Button(context).apply { text = ... }`) and in layout XML."""
+    msg = ("This button confirms a sensitive action but doesn't filter touches when another window covers it, while "
+           "other views in the app do. A partial overlay can trick the user into tapping it.")
+    for path, code, blank in _code_files_any(ctx, ("Button(",)):
+        if scope_of(path) == "test":
+            continue
+        for m in _sites(_BUTTON_NEW.finditer(blank)):
+            end = _match(blank, m.end() - 1, "(", ")")
+            rest = re.match(r"\s*\{", blank[end + 1:end + 40])
+            if rest:                                       # object : Button(context) { ... }
+                end = _match(blank, end + 1 + rest.end() - 1, "{", "}")
+            block = re.match(r"\s*\.\s*(?:apply|also)\s*\{", blank[end + 1:end + 40])
+            if not block:
+                continue
+            open_brace = end + 1 + block.end() - 1
+            region = code[m.start():_match(blank, open_brace, "{", "}") + 1]
+            label = re.search(r"(?:\btext\s*=|\bsetText\s*\()\s*\"([^\"\n]*)\"", region)
+            if not label or not _SENSITIVE_ACTION.search(label.group(1)) or _VIEW_FILTER.search(region):
+                continue
+            var = re.search(r"\b(?:val|var)\s+(\w+)\s*(?::\s*\w+\s*)?=\s*$|\b(\w+)\s*=\s*$",
+                            blank[max(0, m.start() - 80):m.start()])
+            name = (var.group(1) or var.group(2)) if var else None
+            if name and re.search(r"\b" + re.escape(name) + r"\s*\.\s*(?:filterTouchesWhenObscured\s*=\s*true|"
+                                  r"setFilterTouchesWhenObscured\s*\(\s*true)", blank):
+                continue
+            yield _hit(ctx, path, ctx.line_of(blank, m.start()), msg)
+    strings = None
+    for path in ctx.files(".xml"):
+        if "/res/layout" not in "/" + path or scope_of(path) == "test":
+            continue
+        text = ctx.text(path) or ""
+        if "Button" not in text:
+            continue
+        clean = _XML_COMMENT.sub(lambda c: re.sub(r"[^\n]", " ", c.group(0)), text)
+        if "filterTouchesWhenObscured=\"true\"" in clean and re.search(
+                r"<(?:[\w.]+\.)?\w*Layout\b[^>]*filterTouchesWhenObscured=\"true\"", clean):
+            continue          # a container filters touches for everything inside it
+        for m in _XML_BUTTON.finditer(clean):
+            tag = m.group(0)
+            if "filterTouchesWhenObscured=\"true\"" in tag:
+                continue
+            lm = re.search(r"android:text\s*=\s*\"([^\"]*)\"", tag)
+            if not lm:
+                continue
+            label = lm.group(1)
+            if label.startswith("@string/"):
+                if strings is None:
+                    strings = _string_res(ctx)
+                label = label[8:].replace("_", " ") + " " + strings.get(label[8:], "")
+            if _SENSITIVE_ACTION.search(label):
+                yield _hit(ctx, path, ctx.line_of(clean, m.start()), msg)
+
+
 @detector("android_no_overlay_protection")
 def no_overlay_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if not _is_app_project(ctx):
+        # no app manifest to anchor a whole-app finding, but code that protects some views can still be checked
+        if _evidence(ctx, "overlay", _OVERLAY_EVIDENCE, re.compile(_RASP), layouts=True, needles=_OVERLAY_NEEDLES) \
+                and not _window_overlay_filter(ctx):
+            yield from _unprotected_sensitive_buttons(ctx)
         return
     hide_perm = None
     for path, root in _manifests(ctx):
@@ -4215,6 +4852,8 @@ def no_overlay_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
                    "declare, so the call does nothing.")
         return
     if _evidence(ctx, "overlay", _OVERLAY_EVIDENCE, re.compile(_RASP), layouts=True, needles=_OVERLAY_NEEDLES):
+        if not (calls and hide_perm) and not _window_overlay_filter(ctx):
+            yield from _unprotected_sensitive_buttons(ctx)
         return
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,

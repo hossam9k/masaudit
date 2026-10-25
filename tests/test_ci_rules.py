@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 from helpers import FIXTURES, scan_dir
-from masaudit import engine, profile, safety
+from masaudit import cli, engine, profile, safety
 from masaudit.detectors import ci
 from masaudit.model import Project
 from masaudit.parsers import workflows as wf
@@ -317,3 +317,19 @@ class MissingLockfile(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindingCap(unittest.TestCase):
+    def test_one_rule_lists_at_most_50_findings_per_file(self):
+        # An audit's crafted 2 MiB workflow produced 34,950 findings; the report must stay usable.
+        tmp = tempfile.mkdtemp(prefix="masaudit-cap-")
+        self.addCleanup(shutil.rmtree, tmp)
+        os.makedirs(os.path.join(tmp, ".github", "workflows"))
+        steps = "".join(f"      - uses: someone/action{i}@v1\n" for i in range(300))
+        with open(os.path.join(tmp, ".github", "workflows", "ci.yml"), "w", encoding="utf-8") as fh:
+            fh.write("on: push\npermissions: {}\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n" + steps)
+        result = cli.scan(tmp, cli_type="banking", cfg={}, allow_prompt=False)
+        unpinned = [f for f in result.findings if f.rule.id == "CI-001"]
+        self.assertEqual(len(unpinned), engine.MAX_HITS_PER_FILE)
+        self.assertIn("CI-001 matched 300 times in .github/workflows/ci.yml; the report lists the first 50.",
+                      result.project.unknowns)

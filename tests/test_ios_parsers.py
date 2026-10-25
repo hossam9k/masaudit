@@ -336,9 +336,11 @@ class PbxprojTests(unittest.TestCase):
         self.assertEqual([self.proj.file_name(r) for r in refs], ["PrivacyInfo.xcprivacy"])
 
     def test_debug_config_names(self):
-        for name in ("Debug", "Debug-Staging", "Development", "dev"):
+        for name in ("Debug", "Debug-Staging", "Development", "dev", "StagingDebug", "DEBUG", "MyAppUITests",
+                     "Test-QA", "App Tests", "unit_tests"):
             self.assertTrue(pbxproj.is_debug_config(name), name)
-        for name in ("Release", "Staging", "AppStore"):
+        # Whole words and CamelCase tokens only: these contain "test" but are release names.
+        for name in ("Release", "Staging", "AppStore", "MASTestApp", "Contest", "Latest", "mastestapp", "Attestation"):
             self.assertFalse(pbxproj.is_debug_config(name), name)
 
     def test_malformed(self):

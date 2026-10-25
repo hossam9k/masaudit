@@ -805,6 +805,73 @@ Verify: Load a test page that fetches a `content://` URI of your app and confirm
 
 Book: [§16.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#163-file-access-the-setting-nobody-remembers-changing)
 
+## AND-073: SSLSocket doesn't check the server's host name
+
+After the handshake, check the session with `HttpsURLConnection.getDefaultHostnameVerifier().verify(host, socket.session)` and close the socket if it fails. Or set `endpointIdentificationAlgorithm = "HTTPS"` on the socket's `SSLParameters`. Better still, use HttpsURLConnection or OkHttp, which do this check for you.
+
+```kotlin
+val socket = factory.createSocket(host, 443) as SSLSocket
+socket.startHandshake()
+if (!HttpsURLConnection.getDefaultHostnameVerifier().verify(host, socket.session)) {
+    socket.close()
+    throw SSLPeerUnverifiedException("Certificate doesn't match $host")
+}
+```
+
+Verify: Connect the app to a server that presents a valid certificate for a different host name (for example wrong.host.badssl.com) and confirm the connection fails.
+
+Book: [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
+
+## AND-074: Keystore key stays unlocked long after authentication
+
+Use `setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)` so every use of the key needs a new authentication, and pass a `CryptoObject` to the prompt. If you need a window, keep it to a few seconds.
+
+```kotlin
+KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+    .setUserAuthenticationRequired(true)
+    .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+    .setInvalidatedByBiometricEnrollment(true)
+    .build()
+```
+
+Verify: Authenticate once, wait longer than the window you chose, then try the protected action and confirm the app asks for the biometric again.
+
+Book: [§11.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#113-the-enrollment-problem-nobody-thinks-about)
+
+## AND-075: WebView opens any URL with no allowlist
+
+In `shouldOverrideUrlLoading`, parse the URL and allow only https and the hosts you own. Open anything else in the browser, or block it. Run the same check before your own `loadUrl` calls.
+
+```kotlin
+private val allowedHosts = setOf("www.example.com")
+
+override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+    val url = request.url
+    if (url.scheme == "https" && url.host in allowedHosts) return false
+    view.context.startActivity(Intent(Intent.ACTION_VIEW, url))
+    return true
+}
+```
+
+Verify: Tap a link in the WebView that points to a host outside your allowlist and confirm it opens in the browser or is blocked.
+
+Book: [§16.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content)
+
+## AND-076: Sensitive field lets the keyboard learn what is typed
+
+Give secrets a password input type (`textPassword`, `numberPassword`). For other sensitive fields, add `textNoSuggestions` (`TYPE_TEXT_FLAG_NO_SUGGESTIONS`) and `imeOptions="flagNoPersonalizedLearning"`.
+
+```xml
+<EditText
+    android:id="@+id/otp"
+    android:inputType="number|textNoSuggestions"
+    android:imeOptions="flagNoPersonalizedLearning" />
+```
+
+Verify: Type a test value into the field, then start typing it again in another app and confirm the keyboard doesn't suggest it.
+
+Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
+
 ## XPL-004: AES in ECB mode, or with no mode named
 
 Use AES-GCM (`AES/GCM/NoPadding`) with a Keystore key, or Tink's AEAD, or CryptoKit's `AES.GCM` on iOS. Re-encrypt existing data under the new scheme.

@@ -63,6 +63,7 @@ runs:
         # SARIF paths are relative to the scanned folder; code scanning resolves them from the checkout.
         python3 - "$MASAUDIT_PATH" masaudit.sarif <<'PY'
         import json, os, sys
+        from urllib.parse import quote
         prefix = os.path.relpath(os.path.abspath(sys.argv[1]), os.getcwd()).replace(os.sep, "/")
         if prefix != "." and not prefix.startswith(".."):
             with open(sys.argv[2], encoding="utf-8") as fh:
@@ -75,7 +76,7 @@ runs:
                 for loc in locations:
                     art = loc.get("physicalLocation", {}).get("artifactLocation", {})
                     if "uri" in art:
-                        art["uri"] = prefix + "/" + art["uri"]
+                        art["uri"] = quote(prefix, safe="/") + "/" + art["uri"]
             with open(sys.argv[2], "w", encoding="utf-8") as fh:
                 json.dump(doc, fh, indent=2)
         PY
@@ -83,6 +84,17 @@ runs:
         # The first run already posted any annotations; this one only writes the Markdown report.
         GITHUB_ACTIONS=false python3 -m masaudit "${type_args[@]}" "${baseline_args[@]}" \
           --format md --output SECURITY-AUDIT.md -- "$MASAUDIT_PATH" > /dev/null 2>&1
+        # The job summary is the report's opening: app type, verdict, and top fixes.
+        python3 - SECURITY-AUDIT.md <<'PY'
+        import os, re, sys
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary and os.path.isfile(sys.argv[1]):
+            with open(sys.argv[1], encoding="utf-8") as fh:
+                parts = re.split(r"(?m)^(?=## )", fh.read())
+            head = parts[0] + (parts[1] if len(parts) > 1 and parts[1].startswith("## Top fixes") else "")
+            with open(summary, "a", encoding="utf-8") as fh:
+                fh.write(head.rstrip() + "\n\nThe full report is `SECURITY-AUDIT.md` in the job's working folder.\n")
+        PY
         exit 0
     - name: Upload to code scanning
       if: inputs.upload-sarif == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)

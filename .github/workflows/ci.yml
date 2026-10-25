@@ -94,6 +94,7 @@ jobs:
         run: |
           test -s masaudit.sarif && test -s SECURITY-AUDIT.md
           grep -q '"uri": "examples/acme-wallet/android/' masaudit.sarif
+          grep -q "^## Top fixes" "$GITHUB_STEP_SUMMARY"
       - name: A tool error fails the scan step
         id: broken
         continue-on-error: true

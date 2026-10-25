@@ -223,6 +223,9 @@ def applies_to_platforms(rule: Rule, platforms) -> bool:
     return not (rule.platform == "cross" and not platforms & CODE_PLATFORMS)
 
 
+MAX_HITS_PER_FILE = 50
+
+
 def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) -> List[Finding]:
     _import_detectors()
     ctx = Context(project, profile)
@@ -237,12 +240,18 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
             fn = _DETECTORS.get(rule.detector)
             if fn is None:
                 raise ValueError(f"{rule.id}: detector '{rule.detector}' is not registered")
-            hits = list(fn(ctx, rule))
+            hits = fn(ctx, rule)
         elif rule.pattern:
-            hits = list(run_pattern(ctx, rule))
+            hits = run_pattern(ctx, rule)
         else:
             continue
+        per_file: Dict[str, int] = {}
         for h in hits:
+            # A crafted or generated file can repeat one weakness thousands of times; list the first
+            # few so the report and the SARIF upload stay usable, and say how many there were.
+            per_file[h.path] = per_file.get(h.path, 0) + 1
+            if per_file[h.path] > MAX_HITS_PER_FILE:
+                continue
             findings.append(
                 Finding(
                     rule=rule,
@@ -253,6 +262,10 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                     severity=h.severity,
                 )
             )
+        for path, n in per_file.items():
+            if n > MAX_HITS_PER_FILE:
+                ctx.note_unknown(f"{rule.id} matched {n:,} times in {path}; the report lists the first "
+                                 f"{MAX_HITS_PER_FILE}.")
     return _dedupe(findings)
 
 

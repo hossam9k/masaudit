@@ -13,8 +13,8 @@ These numbers are for masaudit 0.4.0, measured in October 2026.
    iOS), Bitwarden (Android, iOS), Wikipedia (Android, iOS), Nextcloud (Android, iOS), Element X
    (Android, iOS), DuckDuckGo (Android), Thunderbird (Android), Tusky, NewPipe, AntennaPod, Mastodon
    (iOS), KotlinConf (Kotlin Multiplatform), Lichess (Flutter), and Immich (Flutter).
-2. **Every rule runs:** each app is scanned as `--app-type banking`, an app type that enables all 172
-   rules.
+2. **Every rule runs:** each app is scanned as `--app-type banking`, an app type that enables every
+   rule.
 3. **Independent review:** reviewers who didn't write the rules opened every open finding in shipping
    code in its real source file and judged it: a real weakness, real but rated too high, or false.
    "Not found anywhere" rules count only when a search confirms the protection is absent.

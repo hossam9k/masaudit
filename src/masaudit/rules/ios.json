@@ -274,7 +274,7 @@
         ],
         "prefilter": "rotection",
         "strings": "blank",
-        "regex": "\\bNSFileProtectionNone\\b|\\.noFileProtection\\b|\\bFileProtectionType\\.none\\b|\\bprotectionKey\\s*:\\s*\\.none\\b|\\bNSDataWritingFileProtectionNone\\b",
+        "regex": "(?<!isEqualToString:)(?<!isEqualToString: )(?<![=!]=)(?<![=!]= )(?<!case )(?:\\bNSFileProtectionNone\\b|\\.noFileProtection\\b|\\bFileProtectionType\\.none\\b|\\bprotectionKey\\s*:\\s*\\.none\\b|\\bNSDataWritingFileProtectionNone\\b)(?!\\s*[=!]=)",
         "message": "This file is written with no Data Protection class."
       }
     },
@@ -1101,6 +1101,135 @@
       "mastg": [],
       "confidence": "high",
       "detector": "ios_xml_external_entities"
+    },
+    {
+      "id": "IOS-043",
+      "title": "Sensitive text field lets the keyboard learn what is typed",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "The keyboard learns words typed into fields that aren't secure and keep autocorrection on. A PIN, card number or password typed there can be saved in the keyboard's word list and offered as a suggestion later, to anyone using the phone.",
+      "fix": "Use isSecureTextEntry = true (SecureField in SwiftUI) for passwords and PINs. For other sensitive fields, set autocorrectionType = .no and spellCheckingType = .no, or .autocorrectionDisabled() in SwiftUI.",
+      "verify": "Type a test value into the field, then start typing it in Notes. Confirm the keyboard doesn't suggest it.",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0036",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0313",
+        "MASTG-DEMO-0076"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "pinField.isSecureTextEntry = true          // passwords and PINs\ncardField.autocorrectionType = .no         // other sensitive fields\ncardField.spellCheckingType = .no\n// SwiftUI: SecureField(\"PIN\", text: $pin), or\n// TextField(\"Card number\", text: $card).autocorrectionDisabled()"
+      },
+      "confidence": "medium",
+      "detector": "ios_keyboard_cache"
+    },
+    {
+      "id": "IOS-044",
+      "title": "Socket connection sends data without TLS",
+      "platform": "ios",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "App Transport Security covers URLSession only. A Network.framework connection that uses plain TCP, or a BSD socket or stream to port 80, sends its data in cleartext. Anyone on the same network can read and change it.",
+      "fix": "Use TLS for the connection: NWParameters(tls:) or .tls for Network.framework, or URLSession for HTTP. Keep plain TCP only for devices on the local network.",
+      "verify": "Capture the app's traffic with a proxy or packet capture and confirm this connection is TLS, not readable text.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0026",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0323"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "let connection = NWConnection(host: \"api.example.com\", port: .https,\n                              using: NWParameters(tls: NWProtocolTLS.Options()))"
+      },
+      "confidence": "medium",
+      "detector": "ios_cleartext_socket"
+    },
+    {
+      "id": "IOS-045",
+      "title": "Password field rendered inside a web view",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "A password typed into an HTML input lives in the page's DOM. Any script that runs in the web view, including an injected one, can read it there.",
+      "fix": "Collect passwords and other secrets with native views (a UITextField with isSecureTextEntry, or a SwiftUI SecureField) placed over the web view, and pass them to your code, not to the page.",
+      "verify": "Search the HTML the app loads for type=\"password\" and confirm none is left.",
+      "effort": "hours",
+      "book": "§16.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#165-sensitive-ui-inside-a-webview",
+      "mastg": [
+        "MASTG-TEST-0378",
+        "MASTG-BEST-0060"
+      ],
+      "confidence": "medium",
+      "detector": "ios_webview_password_input"
+    },
+    {
+      "id": "IOS-046",
+      "title": "Secret file is written where backups copy it",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Files in Documents and Library go into iCloud and computer backups unless they are excluded. A token, key or password file then leaves the device, and it can come back on a different phone.",
+      "fix": "Keep secrets in the Keychain with a ThisDeviceOnly class. If a file must hold one, set isExcludedFromBackup = true on the file's URLResourceValues after you write it.",
+      "verify": "Make an unencrypted computer backup of a test device and confirm the file isn't in it.",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0006",
+      "masvs": "MASVS-STORAGE-2",
+      "mastg": [
+        "MASTG-TEST-0215"
+      ],
+      "fix_code": {
+        "lang": "swift",
+        "code": "try data.write(to: url, options: [.atomic, .completeFileProtection])\nvar values = URLResourceValues()\nvalues.isExcludedFromBackup = true\nvar fileURL = url\ntry fileURL.setResourceValues(values)"
+      },
+      "confidence": "medium",
+      "detector": "ios_backup_secret_file"
+    },
+    {
+      "id": "IOS-047",
+      "title": "A host the app calls isn't in NSPinnedDomains",
+      "platform": "ios",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "NSPinnedDomains pins only the hosts it lists, and NSIncludesSubdomains covers one subdomain level. Requests to any other host accept every publicly trusted certificate, so an attacker with a wrongly issued certificate for that host can read them.",
+      "fix": "Add every host that carries user data or tokens to NSPinnedDomains, with a backup pin. List deeper subdomains on their own. If a host is deliberately unpinned, write down why.",
+      "verify": "Run the app through a proxy whose CA the test device trusts, and confirm requests to this host fail.",
+      "effort": "hours",
+      "book": "§8.10",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#810-how-to-implement-it",
+      "maswe": "MASWE-0028",
+      "masvs": "MASVS-NETWORK-2",
+      "mastg": [
+        "MASTG-TEST-0385"
+      ],
+      "app_types": [
+        "banking",
+        "identity",
+        "health",
+        "ecommerce-cards"
+      ],
+      "not_needed_reason": "Book §8.8: outside banking, health, identity, and apps that handle card numbers, strict TLS plus Certificate Transparency monitoring is a reasonable position, and pinning adds operational risk.",
+      "confidence": "manual",
+      "detector": "ios_unpinned_host"
     }
   ]
 }

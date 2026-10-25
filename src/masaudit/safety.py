@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import re
 import stat
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 MAX_FILE_BYTES = 2 * 1024 * 1024        # 2 MiB: source and config files are far smaller
 # Large apps have big Xcode project files (Signal's is 2.5 MB); every project-level iOS check needs it.
@@ -34,8 +34,10 @@ SCANNED_SUFFIXES = {
     ".xcconfig", ".entitlements", ".gradle", ".toml", ".properties", ".yml", ".yaml",
     ".json", ".pro", ".cfg", ".txt", ".strings", ".dart", ".js", ".ts", ".tsx", ".xcprivacy",
     ".c", ".cc", ".cpp", ".mk", ".podspec", ".storyboard", ".xib", ".sh",
+    ".html", ".htm",  # pages bundled with the app and shown in a WebView
 }
-SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS", "Fastfile"}
+SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS", "Fastfile",
+                 "contents"}  # "contents": a Core Data model (Model.xcdatamodel/contents)
 
 
 def is_within(root: str, path: str) -> bool:
@@ -44,10 +46,20 @@ def is_within(root: str, path: str) -> bool:
     return path_real == root_real or path_real.startswith(root_real + os.sep)
 
 
-def walk(root: str) -> List[str]:
-    """Return repo-relative paths (forward slashes) of files worth scanning."""
+def walk(root: str, skipped: Optional[List[Tuple[str, str]]] = None) -> List[str]:
+    """Return repo-relative paths (forward slashes) of files worth scanning.
+
+    Files of a scanned type that are left out for safety go to `skipped` as (path, reason), so the
+    report can say what wasn't checked instead of looking clean.
+    """
     out: List[str] = []
     root = os.path.abspath(root)
+
+    def skip(full: str, reason: str) -> None:
+        if skipped is not None:
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            skipped.append((re.sub(r"[\x00-\x1f\x7f]", "?", rel), reason))
+
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         # Prune in place: skipped dirs are never entered.
         dirnames[:] = sorted(
@@ -55,25 +67,32 @@ def walk(root: str) -> List[str]:
             if d not in SKIP_DIRS and not os.path.islink(os.path.join(dirpath, d))
         )
         for name in sorted(filenames):
-            full = os.path.join(dirpath, name)
-            if _CONTROL.search(name) or "\n" in name or "\r" in name:
-                continue        # names with control characters could forge lines in reports
-            if os.path.islink(full) and not is_within(root, full):
-                continue
-            if _is_hard_link(full):
-                continue        # a hard link can point at any file on the same disk
-            if not _is_regular(full):
-                continue        # a FIFO or device would hang the scan
             suffix = os.path.splitext(name)[1]
             if suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES:
                 continue
+            full = os.path.join(dirpath, name)
+            if _CONTROL.search(name) or "\n" in name or "\r" in name:
+                skip(full, "control characters in the name")    # they could forge lines in reports
+                continue
+            if os.path.islink(full) and not is_within(root, full):
+                skip(full, "symbolic link to a file outside the folder")
+                continue
+            if _is_hard_link(full):
+                skip(full, "hard link")       # a hard link can point at any file on the same disk
+                continue
+            if not _is_regular(full):
+                skip(full, "not a regular file")    # a FIFO or device would hang the scan
+                continue
             try:
                 if os.path.getsize(full) > max_bytes(full):
+                    skip(full, f"larger than {max_bytes(full) // (1024 * 1024)} MiB")
                     continue
             except OSError:
+                skip(full, "unreadable")
                 continue
             out.append(os.path.relpath(full, root).replace(os.sep, "/"))
             if len(out) >= MAX_FILES:
+                skip(dirpath, f"the scan stops after {MAX_FILES:,} files")
                 return out
     return out
 

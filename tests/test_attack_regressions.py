@@ -154,7 +154,7 @@ class AttackRegressions(unittest.TestCase):
                 with open(os.path.join(root, where, name), "w") as fh:
                     fh.write(unit * (200_000 // len(unit)))
                 files = safety.walk(root)
-                project = Project(root=root, platforms=detect.platforms(files), files=files)
+                project = Project(root=root, platforms=detect.platforms(files, root), files=files)
                 start = time.monotonic()
                 findings = engine.run(project, [all_rules[rule_id]], profile.make("banking", "flag"))
                 self.assertLess(time.monotonic() - start, 3.0)
