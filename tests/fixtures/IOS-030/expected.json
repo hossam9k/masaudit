@@ -1,1 +1,1 @@
-{"vulnerable": 1, "clean": 0, "clean_notification": 0, "clean_flutter": 0, "clean_rn_privacy_snapshot": 0, "clean_rn_appstate": 0, "vulnerable_rn_appstate_other": 1}
+{"vulnerable": 1, "clean": 0, "clean_notification": 0, "clean_flutter": 0, "clean_rn_privacy_snapshot": 0, "clean_rn_appstate": 0, "vulnerable_rn_appstate_other": 1, "vulnerable_expo_managed": 1, "clean_expo_screen_capture": 0}

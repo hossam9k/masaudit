@@ -13,6 +13,11 @@ SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITIES)}
 SCOPES = ["main", "debug", "test", "build-script", "ci", "unknown"]
 
 
+def a_type(app_type: str) -> str:
+    """"a banking", "an ecommerce": the app type with its article."""
+    return ("an " if app_type[:1].lower() in "aeiou" else "a ") + app_type
+
+
 @dataclass
 class Rule:
     """One check, loaded from rules/*.json. Text fields are plain language for newcomers."""
@@ -46,6 +51,7 @@ class Location:
     path: str                          # repo-relative, forward slashes
     line: int = 0                      # 1-based; 0 = whole file / unknown
     snippet: str = ""                  # masked, single line, max 160 chars
+    fingerprint_text: str = ""         # the snippet as safety.mask gives it, for a stable fingerprint; never shown
 
 
 @dataclass
@@ -61,11 +67,18 @@ class Finding:
     bucket_reason: str = ""
     acknowledged: str = ""             # the team marked it intentional in the source (e.g. Lint tools:ignore)
     severity: str = ""                 # this hit's own severity when it differs from the rule's; "" = rule's
+    occurrence: int = 1                # 2, 3, ... for later findings of the same rule on an identical line
 
-    def fingerprint(self) -> str:
+    def fingerprint(self, legacy: bool = False) -> str:
+        """Stable across line moves: rule, path, and the line's text. A second identical line gets its own
+        fingerprint (the first keeps the one earlier versions wrote), so a baseline never covers a copy.
+        `legacy`: the fingerprint before 0.6.1, the same for every identical line."""
         import hashlib
 
-        basis = f"{self.rule.id}|{self.location.path}|{self.location.snippet.strip()}"
+        text = self.location.fingerprint_text or self.location.snippet
+        basis = f"{self.rule.id}|{self.location.path}|{text.strip()}"
+        if self.occurrence > 1 and not legacy:
+            basis += f"|#{self.occurrence}"
         return hashlib.sha256(basis.encode("utf-8")).hexdigest()[:32]
 
 

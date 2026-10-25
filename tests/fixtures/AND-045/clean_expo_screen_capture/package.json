@@ -1,0 +1,8 @@
+{
+  "name": "shop",
+  "dependencies": {
+    "expo": "~52.0.0",
+    "react-native": "0.76.1",
+    "expo-screen-capture": "7.0.0"
+  }
+}

@@ -12,7 +12,8 @@ Thanks for helping. The most useful contributions, in order:
 Read [docs/writing-rules.md](docs/writing-rules.md), then:
 
 1. Add an entry to `src/masaudit/rules/<platform>.json` with the next free ID for that platform.
-2. Add a `pattern`, or a detector in `src/masaudit/detectors/<platform>.py`.
+2. Add a `pattern`, or a detector in `src/masaudit/detectors/<platform>.py` (React Native: `reactnative.py`
+   and `rn_*.py`).
 3. Add `tests/fixtures/<RULE-ID>/vulnerable/`, `clean/` (near-misses that must not fire), and `expected.json`.
 4. Run the tests and regenerate the derived files:
 

@@ -6,7 +6,7 @@ metadata:
   author: Hossam Atef
   homepage: https://github.com/hossam9k/masaudit
   book: https://github.com/hossam9k/mobile-app-security
-  version: "0.6.0"
+  version: "0.6.1"
 ---
 
 # masaudit: risk-calibrated mobile security audits
@@ -77,6 +77,7 @@ type needs and why.
 - [references/profiles.md](references/profiles.md): app types, MAS profiles, and what each needs.
 - [references/rules.md](references/rules.md): every rule with its why, fix, and book link.
 - [references/fixes-android.md](references/fixes-android.md), [references/fixes-ios.md](references/fixes-ios.md),
+  [references/fixes-react-native.md](references/fixes-react-native.md),
   [references/fixes-kmp.md](references/fixes-kmp.md), [references/fixes-ci.md](references/fixes-ci.md):
   verified, paste-ready fixes (MIT-0).
 - [references/beyond-the-scanner.md](references/beyond-the-scanner.md): what to look for by hand

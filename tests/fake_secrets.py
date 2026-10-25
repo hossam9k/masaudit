@@ -15,6 +15,8 @@ FAKES = {
     "FAKE_RN002_SECRET": "q9" + "Vr2Lx7Tn4Kd8Wm3Hz6Pb",
     "FAKE_RN002_SENTRY": "sntrys_" + "eyJpYXQiOjE3MDAwMDAwMDB9" + "_Qm9n5Tz2Lr8Vx4Kc7Wd1Ys",
     "FAKE_RN019_NPM": "npm_" + "Zq8Lr2Vt6Yx1Nc4Bm7Ka9Wd3Fs5Gh0Jp4Tx2",
+    "FAKE_GITHUB_TOKEN": "ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8",
+    "FAKE_SLACK_BOT": "xoxb-" + "1234567890-abcdefghij",
 }
 
 

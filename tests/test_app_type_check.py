@@ -11,7 +11,7 @@ import unittest
 from unittest import mock
 
 import helpers  # noqa: F401  (sets sys.path)
-from masaudit import cli, engine, profile, safety
+from masaudit import cli, config, engine, profile, safety
 from masaudit.report import jsonout, markdown, sarif
 
 RULES = engine.load_rules()
@@ -213,6 +213,30 @@ class Outputs(unittest.TestCase):
                 mock.patch.object(cli, "_ask", side_effect=lambda prompt: next(answers)), \
                 contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(cli.scan(self.root).profile.app_type, "banking")
+
+    def test_keeping_the_type_records_it_as_reviewed(self):
+        # Enter keeps "news"; saying yes to saving writes app_type and the declined type as reviewed.
+        answers = iter(["news", "", "y"])
+        with mock.patch.object(cli, "_is_interactive", return_value=True), \
+                mock.patch.object(cli, "_ask", side_effect=lambda prompt: next(answers)), \
+                contextlib.redirect_stderr(io.StringIO()):
+            result = cli.scan(self.root)
+        self.assertEqual(result.profile.app_type, "content")
+        self.assertEqual(result.profile.warnings, [])             # not repeated right after the question
+        cfg = config.load(self.root)
+        self.assertEqual(cfg["app_type"], "content")
+        self.assertEqual(cfg["app_type_reviewed"], ["ecommerce-cards"])
+        self.assertEqual(cli.scan(self.root, allow_prompt=False).profile.warnings, [])
+
+    def test_saving_replaces_an_empty_key_and_reads_a_bom(self):
+        path = os.path.join(self.root, ".masaudit.ini")
+        with open(path, "w", encoding="utf-8-sig", newline="\r\n") as fh:   # Windows Notepad
+            fh.write("[masaudit]\napp_type =\nfail_on = high\n")
+        config.save_app_type(self.root, "banking")
+        cfg = config.load(self.root)
+        self.assertEqual((cfg["app_type"], cfg["fail_on"]), ("banking", "high"))
+        with open(path, encoding="utf-8-sig") as fh:
+            self.assertEqual(fh.read().count("app_type"), 1)
 
     def test_a_reviewed_type_in_the_config_file_is_quiet_and_noted(self):
         with open(os.path.join(self.root, ".masaudit.ini"), "w") as fh:

@@ -565,7 +565,7 @@ Book: [§18.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/07
 
 ## IOS-028: App Attest isn't integrated
 
-Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.
+Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server. In React Native, use @react-native-firebase/app-check with the App Attest provider, or react-native-device-attest.
 
 ```swift
 import DeviceCheck
@@ -585,7 +585,7 @@ Book: [§10.7](https://github.com/hossam9k/mobile-app-security/blob/main/book/04
 
 ## IOS-030: App never hides its screen in the app switcher or recordings
 
-Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.
+Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded. In React Native, use expo-screen-capture or react-native-capture-protection, or cover the screen when AppState turns inactive.
 
 ```swift
 func sceneWillResignActive(_ scene: UIScene) {
@@ -688,7 +688,7 @@ Book: [§17.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07
 
 ## IOS-036: App doesn't refuse third-party keyboards
 
-Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.
+Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard. In React Native, add it to AppDelegate (bare app) or through a config plugin (Expo).
 
 ```swift
 func application(_ application: UIApplication,

@@ -297,9 +297,15 @@ def _identifier_words(code: str) -> Set[str]:
 
 
 def _line_span(code: str, idx: int) -> Tuple[int, int]:
-    start = code.rfind("\n", 0, idx) + 1
-    end = code.find("\n", idx)
-    return start, (len(code) if end < 0 else end)
+    if len(code) < 8192:
+        start = code.rfind("\n", 0, idx) + 1
+        end = code.find("\n", idx)
+        return start, (len(code) if end < 0 else end)
+    # A long text: its newline offsets once, then a binary search per call (rfind from each call on a long
+    # line walked back to the line's start every time).
+    newlines = text_memo(code, ("newlines",), lambda: [m.start() for m in re.finditer("\n", code)])
+    k = bisect.bisect_left(newlines, idx)
+    return (newlines[k - 1] + 1 if k else 0), (newlines[k] if k < len(newlines) else len(code))
 
 
 # Patterns whose every match starts with one of the listed literals (checked alternative by alternative),
@@ -886,11 +892,15 @@ def _rng_security_words(blank: str, idx: int, path: str) -> List[str]:
     if call in _RNG_ID_SINKS:
         return []
     _start, _end, head = _enclosing_function(blank, idx, path)
-    text = blank[s:e] + " " + _declaration(head) + " " + call
-    words = _identifier_words(text)
+    # The line's own words are the same for every call on it: worked out once per line, so a one-line file
+    # with thousands of calls isn't rescanned per call.
+    line_words, line_idents = text_memo(blank, ("rng_line", s), lambda: (
+        _identifier_words(blank[s:e]), {i.lower() for i in re.findall(r"[A-Za-z_]\w*", blank[s:e])}))
+    rest = _declaration(head) + " " + call
+    words = set(line_words) | _identifier_words(rest)
     if _RNG_NON_SECURITY_PATH.search("/" + path):
         words.add("analytics")
-    idents = {i.lower() for i in re.findall(r"[A-Za-z_]\w*", text)}
+    idents = set(line_idents) | {i.lower() for i in re.findall(r"[A-Za-z_]\w*", rest)}
     for ident in idents:
         for compound in ("sessionid", "sessiontoken", "sessionkey", "oauthstate", "apikey"):
             if compound in ident:
@@ -2104,7 +2114,8 @@ def _shipped_key_files(ctx: Context) -> List[str]:
         for name in filenames:
             if name.lower().endswith((".pem", ".key")):
                 rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/")
-                if _SHIPPED_DIR.search("/" + rel) and not os.path.islink(os.path.join(dirpath, name)):
+                if _SHIPPED_DIR.search("/" + rel) and not os.path.islink(os.path.join(dirpath, name)) \
+                        and not safety.has_control(rel):
                     out.append(rel)
         if len(out) > 200:
             break
@@ -2360,6 +2371,15 @@ def _app_anchors(ctx: Context) -> List[Tuple[str, str, int]]:
                                       text):
                 out.append(("ios", path, ctx.line_of(text, text.index("CFBundlePackageType"))))
                 break
+    # A managed Expo app commits no native project: `expo prebuild` generates it from app.json, so the
+    # app is anchored there, for each platform it targets.
+    from masaudit.detectors import rn_expo
+    for platform, managed in (("android", rn_expo.managed_android), ("ios", rn_expo.managed_ios)):
+        if any(p == platform for p, _, _ in out) or platform not in ctx.project.platforms:
+            continue
+        app = managed(ctx)
+        if app is not None:
+            out.append((platform, app.path, app.line(platform) if app.get(platform) is not None else app.line("expo")))
     return out
 
 
@@ -2367,11 +2387,14 @@ def _absence(ctx: Context, rule: Rule, android: Pattern[str], ios: Pattern[str],
              what: str, accept: Optional[Callable[[str, str, "re.Match[str]"], bool]] = None) -> Iterable[Hit]:
     if _found(ctx, shared):
         return
+    missing: Dict[Tuple[str, int], List[str]] = {}
     for platform, path, line in _app_anchors(ctx):
-        if _found(ctx, android if platform == "android" else ios, platform, accept):
-            continue
-        name = "Android" if platform == "android" else "iOS"
-        yield Hit(path, line, ctx.snippet(path, line), f"No {what} found in the {name} app.")
+        if not _found(ctx, android if platform == "android" else ios, platform, accept):
+            missing.setdefault((path, line), []).append("Android" if platform == "android" else "iOS")
+    for (path, line), names in missing.items():
+        # One Expo config holds both apps: one finding that names both.
+        apps = " and ".join(names) + (" apps" if len(names) > 1 else " app")
+        yield Hit(path, line, ctx.snippet(path, line), f"No {what} found in the {apps}.")
 
 
 # ---------------------------------------------------------------------------- XPL-021
@@ -3853,7 +3876,8 @@ def _rn_evidence(ctx: Context, key: str, deps: Optional[Pattern[str]], js: Patte
 
 _RN_RASP_DEPS = r"freerasp|talsec|approov|appdome|promon|zimperium|guardsquare|ixguard|dexguard"
 RN_ROOT_DEPS = re.compile(_RN_RASP_DEPS + r"|jail-?monkey|root-?detect|jailbreak|rootbeer|is-?device-?rooted|"
-                          r"^@react-native-firebase/app-check$|^react-native-attestation|play-?integrity")
+                          r"^@react-native-firebase/app-check$|^react-native-attestation|^react-native-device-attest$|"
+                          r"play-?integrity")
 RN_ROOT_JS = re.compile(r"\bisJailBroken\s*\(|\bisJailbroken\s*\(|\bisRooted\s*\(|\bisDeviceRooted\s*\(|"
                         r"\bJailMonkey\s*\.")
 RN_DEBUGGER_DEPS = re.compile(_RN_RASP_DEPS)

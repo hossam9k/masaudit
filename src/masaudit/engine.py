@@ -20,7 +20,7 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 from masaudit import lexer, safety
 from masaudit.detect import scope_of
-from masaudit.model import SEVERITIES, SEVERITY_RANK, Finding, Location, Profile, Project, Rule
+from masaudit.model import SEVERITIES, SEVERITY_RANK, Finding, Location, Profile, Project, Rule, a_type
 
 
 @dataclass
@@ -153,7 +153,7 @@ class Context:
     def snippet(self, path: str, line: int) -> str:
         lines = self._lines.get(path)
         if lines is None:
-            lines = self._lines[path] = (self.text(path) or "").splitlines()   # once per file, not per hit
+            lines = self._lines[path] = safety.lines(self.text(path) or "")   # once per file, not per hit
         if 1 <= line <= len(lines):
             return safety.mask(lines[line - 1])
         return ""
@@ -256,7 +256,8 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
             findings.append(
                 Finding(
                     rule=rule,
-                    location=Location(path=h.path, line=h.line, snippet=h.snippet),
+                    location=Location(path=h.path, line=h.line, snippet=safety.mask_names(h.snippet),
+                                      fingerprint_text=h.snippet),
                     message=h.message,
                     scope=h.scope or (scope_of(h.path) if h.path else "main"),
                     acknowledged=h.acknowledged,
@@ -338,14 +339,14 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
         if rule.app_types is not None and profile.app_type not in rule.app_types:
             f.effective_severity = "info"
             f.bucket = "not-needed"
-            f.bucket_reason = rule.not_needed_reason or f"Not expected for a {profile.app_type} app."
+            f.bucket_reason = rule.not_needed_reason or f"Not expected for {a_type(profile.app_type)} app."
             continue
         if not set(rule.profiles) & set(profile.mas_profiles):
             f.effective_severity = "info"
             f.bucket = "not-needed"
             wanted = "/".join(f"MAS-{p}" for p in rule.profiles)
             f.bucket_reason = rule.not_needed_reason or (
-                f"This belongs to {wanted}, which a {profile.app_type} app doesn't need."
+                f"This belongs to {wanted}, which {a_type(profile.app_type)} app doesn't need."
             )
             continue
         base = f.severity if f.severity in SEVERITY_RANK else rule.severity

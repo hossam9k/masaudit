@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Shop",
+    "slug": "shop",
+    "android": {
+      "package": "com.shop"
+    },
+    "ios": {
+      "bundleIdentifier": "com.shop"
+    }
+  }
+}

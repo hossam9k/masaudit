@@ -12,7 +12,7 @@
       "source": "./plugin",
       "description": "Audit, fix, and review mobile app security with advice scaled to your app's risk.",
       "category": "security",
-      "tags": ["security", "android", "ios", "flutter", "mobile", "owasp"]
+      "tags": ["security", "android", "ios", "react-native", "flutter", "mobile", "owasp"]
     }
   ]
 }

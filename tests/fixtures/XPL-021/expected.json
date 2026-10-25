@@ -1,1 +1,1 @@
-{"vulnerable": 2, "clean": 0, "library": 0, "plistonly": 1, "watch_anchor": 1, "rn_vulnerable": 1, "rn_clean_dep": 0, "rn_clean_rasp": 0}
+{"vulnerable": 2, "clean": 0, "library": 0, "plistonly": 1, "watch_anchor": 1, "rn_vulnerable": 1, "rn_clean_dep": 0, "rn_clean_rasp": 0, "vulnerable_expo_managed": 2, "clean_expo_jail_monkey": 0}

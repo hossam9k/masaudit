@@ -1,1 +1,1 @@
-{"vulnerable": 1, "vulnerable_devicecheck": 1, "clean": 0, "clean_flutter": 0, "clean_rn_app_attest": 0, "vulnerable_rn_device_check_default": 1}
+{"vulnerable": 1, "vulnerable_devicecheck": 1, "clean": 0, "clean_flutter": 0, "clean_rn_app_attest": 0, "vulnerable_rn_device_check_default": 1, "vulnerable_expo_managed": 1}

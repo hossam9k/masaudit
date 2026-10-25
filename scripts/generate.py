@@ -143,6 +143,15 @@ def main() -> None:
     for name, text in fixes(rules).items():
         write(os.path.join(SKILL, "references", name), text)
 
+    # The plugin installs on its own (only plugin/), so it carries the licenses too.
+    for name in ("LICENSE", "LICENSING.md"):
+        with open(os.path.join(ROOT, name), encoding="utf-8") as fh:
+            write(os.path.join(ROOT, "plugin", name), fh.read())
+    for name in sorted(os.listdir(os.path.join(ROOT, "LICENSES"))):
+        if name.endswith(".txt"):
+            with open(os.path.join(ROOT, "LICENSES", name), encoding="utf-8") as fh:
+                write(os.path.join(ROOT, "plugin", "LICENSES", name), fh.read())
+
     subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "build_zipapp.py"),
                     "--output", os.path.join(SKILL, "scripts", "masaudit.pyz")], check=True,
                    env={**os.environ, "SOURCE_DATE_EPOCH": EPOCH})

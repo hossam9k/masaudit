@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple
 from masaudit import BOOK_URL, REPO_URL, __version__
 from masaudit import profile as profile_mod
 from masaudit.engine import CODE_PLATFORMS, PLATFORM_OF_RULE
-from masaudit.model import Finding, Rule
+from masaudit.model import Finding, Rule, a_type
 from masaudit.report.jsonout import (
     ACTIONABLE, BUCKET_TITLES, counts, open_findings, project_name, report_date, sort_key, top_fixes,
 )
@@ -104,14 +104,14 @@ def _verdict(result) -> str:
     if fbr:
         tail = f", plus {soon} to fix soon" if soon else ""
         return (f"**Verdict: not ready to release.** {fbr} issue{'s' if fbr != 1 else ''} to fix "
-                f"before release for a {app} app{tail}.")
+                f"before release for {a_type(app)} app{tail}.")
     if soon:
         return (f"**Verdict: no release blockers found**, but {soon} issue{'s' if soon != 1 else ''} "
-                f"should be fixed soon for a {app} app.")
+                f"should be fixed soon for {a_type(app)} app.")
     if result.profile.warnings:
-        return (f"**Verdict: no issues found for a {app} app, but check your app type first** (see above): "
+        return (f"**Verdict: no issues found for {a_type(app)} app, but check your app type first** (see above): "
                 "a riskier type would run more checks.")
-    return (f"**Verdict: no issues found by the automated checks** for a {app} app. "
+    return (f"**Verdict: no issues found by the automated checks** for {a_type(app)} app. "
             "Read \"Residual risk\" for what a scanner can't see.")
 
 
@@ -182,7 +182,7 @@ def _not_needed_section(result) -> List[str]:
     if not items:
         out += ["Nothing here.", ""]
         return out
-    out += [f"These were found, but a {result.profile.app_type} app doesn't need them. "
+    out += [f"These were found, but {a_type(result.profile.app_type)} app doesn't need them. "
             "If your app type is wrong, rerun with `--app-type`.", ""]
     for rule, _sev, group in _group(items):
         places = ", ".join(where(f) for f in group[:5]) + (f" and {len(group) - 5} more" if len(group) > 5 else "")
@@ -208,10 +208,26 @@ def _accepted_section(result) -> List[str]:
     return out
 
 
+def _generated_platforms(project) -> List[str]:
+    """Platforms of a managed Expo app, whose native project `expo prebuild` generates: no native file is
+    in the repository, so the native checks saw only what the app config sets."""
+    if "react-native" not in project.platforms:
+        return []
+    files = project.files
+    out = []
+    if "android" in project.platforms and not any(
+            f.endswith(("AndroidManifest.xml", "build.gradle", "build.gradle.kts")) for f in files):
+        out.append("android")
+    if "ios" in project.platforms and not any(
+            ".xcodeproj/" in f or f.endswith(("Info.plist", ".swift", ".m", "Podfile")) for f in files):
+        out.append("ios")
+    return out
+
+
 def _held_section(result) -> List[str]:
     platforms = list(result.project.platforms)
-    with_findings = {f.rule.id for f in result.findings
-                     if f.status == "open" or f.bucket == "not-needed"}
+    # Any finding, accepted ones included, means the check didn't come back clean.
+    with_findings = {f.rule.id for f in result.findings}
     held: Dict[str, List[Rule]] = OrderedDict()
     for rule in sorted(result.rules, key=lambda r: r.id):
         if not applicable(rule, platforms) or rule.id in with_findings or rule.id in result.project.undecided:
@@ -223,11 +239,18 @@ def _held_section(result) -> List[str]:
                 else "No supported platform was found, so no platform checks ran.", ""]
         return out
     out += ["These checks ran and found nothing to fix.", ""]
+    generated = _generated_platforms(result.project)
     for plat in list(PLATFORM_LABELS) + sorted(set(held) - set(PLATFORM_LABELS)):
         if plat not in held:
             continue
         out.append(f"**{PLATFORM_LABELS.get(plat, plat)}**")
         out.append("")
+        if plat in generated:
+            folder = "android/" if plat == "android" else "ios/"
+            out.append(f"There is no `{folder}` folder: `npx expo prebuild` generates it from the app config, so "
+                       "these checks saw only what the config sets. Run prebuild and scan again to check the "
+                       "native project.")
+            out.append("")
         for rule in held[plat]:
             out.append(f"- {text(rule.title)} ({code_span(rule.id)})")
         out.append("")

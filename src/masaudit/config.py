@@ -15,9 +15,10 @@ from __future__ import annotations
 import configparser
 import fnmatch
 import os
-from typing import Dict, List, Optional
+import re
+from typing import Dict, List, Optional, Sequence
 
-from masaudit import profile
+from masaudit import profile, safety
 
 FILE_NAME = ".masaudit.ini"
 SECTION = "masaudit"
@@ -37,11 +38,16 @@ def load(root: str) -> Dict[str, object]:
     """Return {"app_type": str|None, "app_type_reviewed": [types], "fail_on": str|None, "exclude": [globs]}."""
     out: Dict[str, object] = {"app_type": None, "app_type_reviewed": [], "fail_on": None, "exclude": []}
     path = path_for(root)
-    if not os.path.isfile(path):
+    if not os.path.lexists(path):
         return out
+    # The file belongs to the scanned repository: a link could point at any file on the machine, and an
+    # error message would then print a line of it.
+    st = os.lstat(path)
+    if os.path.islink(path) or not os.path.isfile(path) or st.st_nlink > 1:
+        raise ConfigError(f"{FILE_NAME}: not read, because it is a link or not a regular file")
     parser = configparser.ConfigParser(interpolation=None)
     try:
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8-sig") as fh:     # Windows Notepad saves a BOM
             parser.read_file(fh, source=path)
     except (configparser.Error, OSError, UnicodeDecodeError) as exc:
         raise ConfigError(f"{FILE_NAME}: can't read it ({exc.__class__.__name__}: {exc})") from exc
@@ -97,26 +103,41 @@ def is_excluded(path: str, globs: List[str]) -> bool:
     return False
 
 
-def save_app_type(root: str, app_type: str) -> str:
-    """Write (or add) app_type to .masaudit.ini, keeping any existing lines. Returns the path."""
+def save_app_type(root: str, app_type: str, reviewed: Sequence[str] = ()) -> str:
+    """Write app_type (and, with `reviewed`, add those types to app_type_reviewed) to .masaudit.ini, keeping
+    every other line. A key already in the file is replaced, never added twice. Returns the path."""
     path = path_for(root)
-    line = f"app_type = {app_type}\n"
-    if not os.path.isfile(path):
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(f"[{SECTION}]\n{line}")
+    values = {"app_type": app_type}
+    if reviewed:
+        try:
+            before = list(load(root)["app_type_reviewed"])  # type: ignore[arg-type]
+        except ConfigError:
+            before = []
+        values["app_type_reviewed"] = ", ".join(dict.fromkeys(before + list(reviewed)))
+    if not os.path.isfile(path) or os.path.islink(path):
+        # No config yet (or a symlink, which is replaced, not followed).
+        safety.write_text(path, f"[{SECTION}]\n" + "".join(f"{k} = {v}\n" for k, v in values.items()), root, None)
         return path
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         lines = fh.readlines()
-    for i, existing in enumerate(lines):
-        if existing.strip() == f"[{SECTION}]":
-            lines.insert(i + 1, line)
-            break
-    else:
+    header = next((i for i, x in enumerate(lines) if x.strip() == f"[{SECTION}]"), None)
+    if header is None:
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
-        lines += [f"[{SECTION}]\n", line]
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.writelines(lines)
+        lines.append(f"[{SECTION}]\n")
+        header = len(lines) - 1
+    end = next((i for i in range(header + 1, len(lines)) if lines[i].lstrip().startswith("[")), len(lines))
+    for key, value in values.items():
+        at = [i for i in range(header + 1, end) if re.match(r"\s*" + key + r"\s*[=:]", lines[i])]
+        if at:
+            lines[at[0]] = f"{key} = {value}\n"
+            for i in reversed(at[1:]):
+                del lines[i]
+                end -= 1
+        else:
+            lines.insert(header + 1, f"{key} = {value}\n")
+            end += 1
+    safety.write_text(path, "".join(lines), root, None)
     return path
 
 

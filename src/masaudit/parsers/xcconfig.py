@@ -41,7 +41,7 @@ class XCConfig:
 
 def parse(text: str) -> XCConfig:
     cfg = XCConfig()
-    for lineno, raw in enumerate(text.splitlines(), start=1):
+    for lineno, raw in enumerate(safety.lines(text), start=1):
         m = _INCLUDE.match(raw)
         if m:
             cfg.includes.append((m.group(2), bool(m.group(1)), lineno))

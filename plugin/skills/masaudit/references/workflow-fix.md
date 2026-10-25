@@ -13,8 +13,9 @@ Goal: each confirmed finding fixed, verified, and explained, without breaking th
 
 For each confirmed finding:
 
-1. **Read the fix.** Start from the rule's `fix` and `fix_code` (in the report, `rules.md`, or the
-   `fixes-*.md` files). These snippets are verified against the book and licensed MIT-0, so they can
+1. **Read the fix.** Start from the rule's fix text and code snippet: the report's *Fix* section, the
+   rule in `rules.md`, or the `fixes-*.md` file for the platform (`fixes-react-native.md` for RN rules).
+   The JSON report's `fix` field has the text only. These snippets are verified against the book and licensed MIT-0, so they can
    go into any app.
 2. **Classify the change.**
    - *Mechanical, no behavior change* (removing `android:debuggable="true"` from a production
@@ -38,7 +39,8 @@ Pinning done badly locks every user out until a store update. Only add pins when
 them (banking, identity, health, apps that handle cards) and the team agrees to operate them:
 pin the SPKI of an intermediate, ship a backup pin at a second CA, set an expiration on Android,
 and document the rotation runbook (new pin ships long before the new key serves traffic).
-See [fixes-android.md](fixes-android.md) and [fixes-ios.md](fixes-ios.md).
+See [fixes-android.md](fixes-android.md), [fixes-ios.md](fixes-ios.md), and, for React Native,
+[fixes-react-native.md](fixes-react-native.md).
 
 ## When you're done
 

@@ -39,9 +39,11 @@ jobs:
           fi
           tail -n 3 "$RUNNER_TEMP/unittest.txt"
       - name: Zipapp builds and runs offline
+        shell: bash
         run: |
           python scripts/build_zipapp.py
           python dist/masaudit.pyz tests/fixtures/AND-001/vulnerable --app-type banking --format json --output "$RUNNER_TEMP/report.json"
+          grep -q '"rule_id": "AND-001"' "$RUNNER_TEMP/report.json"
 
   lint:
     runs-on: ubuntu-24.04
@@ -94,6 +96,30 @@ jobs:
         run: |
           test -s masaudit.sarif && test -s SECURITY-AUDIT.md
           grep -q '"uri": "examples/acme-wallet/android/' masaudit.sarif
+      - name: Plant a json.py and a masaudit package in the workspace, as a pull request could
+        run: |
+          mkdir masaudit
+          printf 'open("PLANTED-CODE-RAN", "w").close()\nraise SystemExit(0)\n' > masaudit/__main__.py
+          cp masaudit/__main__.py masaudit/__init__.py
+          cp masaudit/__main__.py json.py
+          rm -f masaudit.sarif SECURITY-AUDIT.md
+      - name: Scan with the planted files present
+        id: planted
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/acme-wallet
+          app-type: banking
+          fail-on: high
+          upload-sarif: "false"
+      - name: The Action ran its own scanner, not the workspace's code
+        env:
+          OUTCOME: ${{ steps.planted.outcome }}
+        run: |
+          test ! -e PLANTED-CODE-RAN
+          test "$OUTCOME" = failure            # banking findings at high fail the job
+          grep -q '"uri": "examples/acme-wallet/android/' masaudit.sarif
+          rm -rf masaudit json.py
       - name: A tool error fails the scan step
         id: broken
         continue-on-error: true

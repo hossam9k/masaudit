@@ -129,7 +129,7 @@ For L1-only types, phases 2–4 shrink to what the table above lists.
 ## How to tell the type from code
 
 masaudit looks for these clues in code that ships (never tests, demos, or comments) and reports them.
-They only *suggest* a type. Each is matched by package, import, pod, or Flutter package name, never by
+They only *suggest* a type. Each is matched by package, import, pod, npm, or Flutter package name, never by
 a bare word.
 
 | Clue in code | Suggests |

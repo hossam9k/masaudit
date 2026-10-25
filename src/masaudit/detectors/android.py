@@ -144,9 +144,16 @@ def _match(text: str, i: int, opener: str, closer: str) -> int:
     return bracket_match(text, i, opener, closer)
 
 
+_MAX_ARGS_SPAN = 4000         # as cross._args_of: a longer argument list is crafted, so only this much is read
+
+
 def _args(blank: str, open_paren: int) -> List[Tuple[int, int]]:
-    """Top-level argument spans of the call whose "(" is at open_paren."""
+    """Top-level argument spans of the call whose "(" is at open_paren ([] when it never closes: valid code
+    always closes its calls, and walking to the end of the file for each unclosed one was quadratic)."""
     close = _match(blank, open_paren, "(", ")")
+    if close >= len(blank):
+        return []
+    close = min(close, open_paren + _MAX_ARGS_SPAN)
     spans, depth, start = [], 0, open_paren + 1
     for j in range(open_paren + 1, close):
         c = blank[j]
@@ -503,6 +510,25 @@ def _app_id_prefixes(ctx: Context) -> List[str]:
     return _memo(ctx, "app_ids", compute)
 
 
+_EXT_REF = re.compile(r"(?:rootProject\.)?(?:project\.)?ext\.(\w+)|rootProject\.(\w+)")
+
+
+def _ext_value(build_files, val: str) -> Optional[Tuple[str, int, int, str]]:
+    """A Gradle extra property (`rootProject.ext.minSdkVersion`, as the React Native template writes it) set to a
+    number in a build file's `ext` block or by `ext.name = 24`: (path, line, value, where)."""
+    m = _EXT_REF.fullmatch(val)
+    if m is None:
+        return None
+    name = m.group(1) or m.group(2)
+    define = re.compile(r"(?:\bext\.|(?<![\w.]))" + re.escape(name) + r"\s*=\s*(\d{1,4})\b")
+    for path, code, _blank in build_files:
+        for d in define.finditer(code):
+            n = small_int(d.group(1))
+            if n is not None:
+                return path, code.count("\n", 0, d.start()) + 1, n, f"in {path.rsplit('/', 1)[-1]}"
+    return None
+
+
 def _sdk_entries(ctx: Context, rule_key: str) -> List[Tuple[str, int, Optional[int], str, str]]:
     """Every place targetSdk or minSdk is set: (path, line, value or None, where, raw text)."""
     def compute():
@@ -548,8 +574,11 @@ def _sdk_entries(ctx: Context, rule_key: str) -> List[Tuple[str, int, Optional[i
                     for key, (v, line, src) in versions.items():
                         if re.sub(r"[-_]", ".", key).lower() == accessor.lower():
                             entry = (v, line, src)
+                ext = _ext_value(build_like, val) if entry is None else None
                 if entry is not None and small_int(entry[0]) is not None:
                     out.append((entry[2], entry[1], small_int(entry[0]), "in the version catalog", val))
+                elif ext is not None:
+                    out.append(ext + (val,))
                 else:
                     out.append((path, ctx.line_of(code, m.start()), None, f"in {path}", f"{m.group(1)}={val}"))
         if found_in_gradle or any(catalog_key_re.search(k) for k in versions):
@@ -741,6 +770,14 @@ def _managed_expo(ctx: Context) -> Optional["rn_expo.ExpoApp"]:
     if not rn_expo.is_rn_app(ctx) or _main_application(ctx) is not None:
         return None
     return rn_expo.managed_android(ctx)
+
+
+def _expo_anchor(ctx: Context) -> Optional[Tuple[str, int]]:
+    """(path, line) of a managed Expo app's Android config, where whole-app findings anchor; None otherwise."""
+    expo = _managed_expo(ctx) if "android" in ctx.project.platforms else None
+    if expo is None:
+        return None
+    return expo.path, expo.line("android") if expo.get("android") is not None else expo.line("expo")
 
 
 def _expo_dynamic_path(ctx: Context, expo: "rn_expo.ExpoApp") -> str:
@@ -3819,7 +3856,10 @@ def _is_prefs_editor(blank: str, idx: int) -> bool:
         return True
     if name and _BUNDLE_RECEIVER.match(name):
         return False
-    close = _match(blank, blank.index("(", idx), "(", ")")
+    paren = blank.find("(", idx)
+    if paren < 0:
+        return False
+    close = _match(blank, paren, "(", ")")
     if re.match(r"\s*\.\s*(?:apply|commit)\s*\(\s*\)", blank[close + 1:close + 80]):
         return True
     if name:
@@ -3892,6 +3932,8 @@ def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if encrypts and store == "DataStore":
                 continue
             for m in regex.finditer(code):
+                if blank[m.start()] != code[m.start()]:
+                    continue                           # inside a string: sample code, not a call
                 key = _key_name(code, m.group(1))
                 if not _SENSITIVE_KEY.search(key) or _NOT_SENSITIVE.search(key):
                     continue
@@ -4551,6 +4593,16 @@ def _script_flag(ctx: Context, path: str, code: str, name: str) -> Optional[Tupl
 
 @detector("android_r8_off")
 def r8_off(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    expo = _managed_expo(ctx) if "android" in ctx.project.platforms else None
+    if expo is not None:
+        # Prebuild writes `enableProguardInReleaseBuilds` from expo-build-properties; it is off by default.
+        props = expo.plugin("expo-build-properties") or {}
+        android = props.get("android") if isinstance(props.get("android"), dict) else {}
+        keys = ("enableMinifyInReleaseBuilds", "enableProguardInReleaseBuilds")
+        if not any(android.get(k) is True for k in keys) and not any(expo.mentions(k) for k in keys):
+            path, line = _expo_anchor(ctx) or (expo.path, 1)
+            yield _hit(ctx, path, line, "R8 is off for this Expo app's release build: expo-build-properties doesn't "
+                       "set android.enableMinifyInReleaseBuilds (older SDKs: enableProguardInReleaseBuilds) to true.")
     for path, code, blank in _build_files(ctx):
         # Each release block, `optimization` block, and setting once (see _Unreported).
         minify = _Unreported(len(gradle.settings_list(code, _MINIFY)))
@@ -4575,6 +4627,34 @@ def r8_off(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     if val == "false":
                         yield _hit(ctx, path, ctx.line_of(code, idx),
                                    "App optimization (R8) is off in the release build type.")
+    yield from _r8_left_at_default(ctx)
+
+
+# Any build file or convention plugin that turns minification or optimization on or off.
+_R8_SETTING = re.compile(r"\b(?:isMinifyEnabled|minifyEnabled|setMinifyEnabled)\b|\boptimization\s*\{")
+
+
+def _r8_left_at_default(ctx: Context) -> Iterator[Hit]:
+    """An app module whose release build never sets minification: the Android Gradle plugin leaves R8 off.
+    Flutter's plugin turns it on by itself, and a convention plugin (build-logic, buildSrc) may set it."""
+    if flutter.is_flutter(ctx):
+        return
+    apps = [p for p in ctx.files(*BUILD_FILES) if p.rsplit("/", 1)[-1] in BUILD_FILES
+            and scope_of(p) not in ("test", "debug") and _module_kinds(ctx).get(posixpath.dirname(p)) == "app"]
+    if not apps:
+        return
+    for path in ctx.files(".gradle", ".kts", ".kt", ".toml", ".properties"):
+        if path.endswith((".kt", ".kts")) and path.rsplit("/", 1)[-1] not in BUILD_FILES \
+                and "/build-logic/" not in "/" + path and "/buildSrc/" not in "/" + path:
+            continue
+        if _R8_SETTING.search(ctx.code(path, True) or ctx.text(path) or ""):
+            return
+    path = sorted(apps, key=lambda p: (p.count("/"), p))[0]
+    code = ctx.code(path, True) or ""
+    m = _APP_PLUGIN.search(code)
+    yield _hit(ctx, path, ctx.line_of(code, m.start()) if m else 1,
+               "R8 is off in the release build: no build file sets isMinifyEnabled, and the Android Gradle plugin "
+               "leaves it off by default.")
 
 
 def _sdk_levels(ctx: Context, rule_key: str, threshold: int, label: str) -> Iterator[Hit]:
@@ -4985,9 +5065,15 @@ _SCREEN_DEPS = re.compile(r"screen_protector|no_screenshot|secure_application|fl
 
 @detector("android_no_screenshot_protection")
 def no_screenshot_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    if not _is_app_project(ctx):
+    expo = None if _is_app_project(ctx) else _expo_anchor(ctx)
+    if not _is_app_project(ctx) and expo is None:
         return
     if _evidence(ctx, "screenshot", _SCREEN_EVIDENCE, _SCREEN_DEPS, needles=_SCREEN_NEEDLES):
+        return
+    if expo is not None:
+        yield _hit(ctx, *expo, "No screen-capture protection found for this Expo app (expo-screen-capture, or a "
+                   "library that sets FLAG_SECURE), so screenshots, screen recording and the recents thumbnail can "
+                   "capture balances, card numbers or one-time codes.")
         return
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,
@@ -5099,6 +5185,13 @@ def _unprotected_sensitive_buttons(ctx: Context) -> Iterator[Hit]:
 
 @detector("android_no_overlay_protection")
 def no_overlay_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    expo = None if _is_app_project(ctx) else _expo_anchor(ctx)
+    if expo is not None:
+        if not _evidence(ctx, "overlay", _OVERLAY_EVIDENCE, re.compile(_RASP), layouts=True, needles=_OVERLAY_NEEDLES):
+            yield _hit(ctx, *expo, "No overlay (tapjacking) protection found for this Expo app: nothing sets "
+                       "filterTouchesWhenObscured or hides overlay windows, so a partial overlay can trick users into "
+                       "confirming actions. Add it to MainActivity with a config plugin.")
+        return
     if not _is_app_project(ctx):
         # no app manifest to anchor a whole-app finding, but code that protects some views can still be checked
         if _evidence(ctx, "overlay", _OVERLAY_EVIDENCE, re.compile(_RASP), layouts=True, needles=_OVERLAY_NEEDLES) \
@@ -5146,17 +5239,23 @@ _INTEGRITY_NEEDLES = ("IntegrityManagerFactory", "StandardIntegrityManager", "pr
                       "app_integrity_checker")
 # React Native: @react-native-firebase/app-check, react-native-google-play-integrity, @expo/app-integrity.
 _INTEGRITY_DEPS = re.compile(r"com\.google\.android\.play:integrity|play[-.]integrity|firebase[-_/]app[-_]?check|"
-                             r"app_integrity_checker|appcheck-playintegrity|@expo/app-integrity|" + _RASP, re.IGNORECASE)
+                             r"app_integrity_checker|appcheck-playintegrity|@expo/app-integrity|react-native-device-attest|"
+                             + _RASP, re.IGNORECASE)
 
 
 @detector("android_no_play_integrity")
 def no_play_integrity(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    if not _is_app_project(ctx):
+    expo = None if _is_app_project(ctx) else _expo_anchor(ctx)
+    if not _is_app_project(ctx) and expo is None:
         return
     if _evidence(ctx, "integrity", _INTEGRITY_EVIDENCE, _INTEGRITY_DEPS, needles=_INTEGRITY_NEEDLES):
         return
     if _evidence(ctx, "safetynet", _SAFETYNET_ATTEST, re.compile(r"play-services-safetynet"), needles=("SafetyNet",)):
         return                       # AND-044 reports the SafetyNet call instead
+    if expo is not None:
+        yield _hit(ctx, *expo, "No Play Integrity integration found for this Expo app (no App Check or Play "
+                   "Integrity library), so the backend can't tell this app from a modified copy or a script.")
+        return
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,
                "No Play Integrity integration found (no integrity dependency, IntegrityManager call, or App Check "

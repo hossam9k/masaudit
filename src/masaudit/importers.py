@@ -69,8 +69,15 @@ def _one_line(text: object, limit: int = 240) -> str:
     return safety.mask(s)[:limit]
 
 
+def _driver(run: dict) -> dict:
+    """run.tool.driver, or {} when the imported file has something else there."""
+    tool = run.get("tool")
+    driver = tool.get("driver") if isinstance(tool, dict) else None
+    return driver if isinstance(driver, dict) else {}
+
+
 def _tool_of(run: dict) -> Tuple[str, str, str]:
-    driver = ((run.get("tool") or {}).get("driver") or {}) if isinstance(run.get("tool"), dict) else {}
+    driver = _driver(run)
     name = str(driver.get("name") or "unknown")
     low = name.lower()
     for needle, key, platform in TOOL_KEYS:
@@ -188,7 +195,7 @@ def import_sarif(path: str, root: str, rules: List[Rule]) -> Tuple[List[Finding]
             skipped += 1
             continue
         tool_name, tool_key, tool_platform = _tool_of(run)
-        driver = (run.get("tool") or {}).get("driver") or {}
+        driver = _driver(run)
         meta_list = driver.get("rules") if isinstance(driver.get("rules"), list) else []
         meta_by_id = {str(m.get("id")): m for m in meta_list if isinstance(m, dict) and m.get("id")}
         bases = {}
@@ -259,7 +266,7 @@ def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list,
     if rel and line:
         text = safety.read_text(root, rel) if not os.path.isabs(rel) else None
         if text is not None:
-            lines = text.splitlines()
+            lines = safety.lines(text)
             if 1 <= line <= len(lines):
                 snippet = safety.mask(lines[line - 1])
     if not snippet and region_snippet:
@@ -294,7 +301,8 @@ def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list,
                 confidence="medium",
             )
             synthetic[key] = rule
-    return Finding(rule=rule, location=Location(path=rel, line=line, snippet=snippet),
+    return Finding(rule=rule, location=Location(path=rel, line=line, snippet=safety.mask_names(snippet),
+                                                fingerprint_text=snippet),
                    message=detail, scope=scope_of(rel) if rel else "main")
 
 

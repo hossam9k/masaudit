@@ -1,1 +1,1 @@
-{"vulnerable": 3, "clean": 0, "vulnerable_rn_template": 1, "clean_rn_template": 0, "vulnerable_expo_property": 1, "clean_expo_property": 0}
+{"vulnerable": 3, "clean": 0, "vulnerable_rn_template": 1, "clean_rn_template": 0, "vulnerable_expo_property": 1, "clean_expo_property": 0, "vulnerable_expo_managed": 1, "clean_expo_minify": 0, "vulnerable_default": 1, "clean_convention_plugin": 0, "clean_flutter": 0}

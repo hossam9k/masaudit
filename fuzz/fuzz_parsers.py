@@ -18,7 +18,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
 from masaudit import lexer, safety, suppress  # noqa: E402
-from masaudit.detectors import ios  # noqa: E402
+from masaudit.detectors import ios, reactnative, rn_platform, rn_storage  # noqa: E402
 from masaudit.parsers import (  # noqa: E402
     gradle, manifest, pbxproj, plist, proguard, workflows, xcconfig, xcscheme, xmlsafe,
 )
@@ -59,6 +59,20 @@ def check(data: bytes) -> None:
     gradle.build_types(kt_code, kt_blank)
     gradle.product_flavors(kt_code, kt_blank)
     gradle.dependencies(kt_code)
+    # React Native: imports, JSX tags and their props, call arguments, function heads, __DEV__ guards, JSON.
+    js_code, js_blank = lexer.strip(text, "js"), lexer.strip(text, "js", keep_strings=False)
+    reactnative._parse_imports(js_code)
+    for k, el in enumerate(reactnative.jsx_elements(js_code, js_blank, ["WebView", "View", "Web.View"])):
+        for p in el.props.values():
+            reactnative.literal(p.text(js_code))
+        if k >= 50:
+            break
+    opens = [i for i, ch in enumerate(js_blank[:20_000]) if ch == "("][:50]
+    for i in opens:
+        reactnative.call_args(js_blank, i)
+        rn_platform._parse_fn(js_blank, i, i + 2000)
+    reactnative.DevGuard(js_code, js_blank)
+    rn_storage._load_json(text)
     safety.mask(text)
     safety.reject_xml_entities(text)
     for line in text.splitlines()[:50]:

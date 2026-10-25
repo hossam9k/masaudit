@@ -264,6 +264,21 @@ class ImportSarif(unittest.TestCase):
         self.assertEqual(run_cli(VULN, "--format", "json", "--import-sarif", bad)[0], 2)
         self.assertEqual(run_cli(VULN, "--format", "json", "--import-sarif", bad + ".missing")[0], 2)
 
+    def test_odd_tool_values_are_skipped_not_internal_errors(self):
+        odd = os.path.join(self.dir, "odd.sarif")
+        with open(odd, "w") as fh:
+            fh.write('{"version": "2.1.0", "runs": [{"tool": 5, "results": []}, {"tool": {"driver": 5}}]}')
+        code, _o, err = run_cli(VULN, "--app-type", "banking", "--format", "json", "--import-sarif", odd)
+        self.assertNotIn("internal error", err)
+        self.assertIn(code, (0, 1))
+
+    def test_baseline_that_cant_be_written_is_a_clean_error(self):
+        code, _o, err = run_cli(VULN, "--app-type", "banking", "--format", "json", "--update-baseline",
+                                "--baseline", self.dir)                 # a folder, not a file
+        self.assertEqual(code, 2)
+        self.assertIn("Couldn't write the baseline", err)
+        self.assertNotIn("internal error", err)
+
 
 class Subprocess(unittest.TestCase):
     def _env(self):
