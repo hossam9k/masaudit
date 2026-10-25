@@ -114,7 +114,7 @@ Book: [§8.10](https://github.com/hossam9k/mobile-app-security/blob/main/book/03
 
 ## IOS-006: Pinned domain has no backup pin
 
-Add a second SPKI-SHA256-BASE64 entry: a backup key at a second CA, or a key you hold offline. If you list both CA and leaf identities, each list needs its own backup.
+Add a second SPKI-SHA256-BASE64 entry: a backup key at a second CA, or a key you hold offline. If you list both CA and leaf identities, each list needs its own backup. With react-native-ssl-public-key-pinning, list two or more `publicKeyHashes` for each host.
 
 ```xml
 <key>NSAppTransportSecurity</key>
@@ -149,7 +149,7 @@ Book: [§8.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-
 
 ## IOS-007: No certificate pinning (needed for high-risk apps)
 
-Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
+Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request.
 
 ```xml
 <key>NSAppTransportSecurity</key>
@@ -184,7 +184,7 @@ Book: [§8.8](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-
 
 ## IOS-008: Keychain item is readable before the first unlock
 
-Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.
+Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly. In React Native, use ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY (react-native-keychain) or SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY (expo-secure-store).
 
 ```swift
 let attributes: [String: Any] = [
@@ -203,7 +203,7 @@ Book: [§4.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-
 
 ## IOS-009: Keychain item can migrate to another device
 
-Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. With KeychainAccess, call .accessibility(.whenUnlockedThisDeviceOnly). Skip this for items you sync on purpose with kSecAttrSynchronizable.
+Append ThisDeviceOnly: kSecAttrAccessibleWhenUnlockedThisDeviceOnly, or AfterFirstUnlockThisDeviceOnly for items that background work needs. With KeychainAccess, call .accessibility(.whenUnlockedThisDeviceOnly). Skip this for items you sync on purpose with kSecAttrSynchronizable. In React Native, pass `accessible: ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY` to react-native-keychain (its default is AFTER_FIRST_UNLOCK) and `keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY` to expo-secure-store (its default is WHEN_UNLOCKED).
 
 ```swift
 let attributes: [String: Any] = [
@@ -222,7 +222,7 @@ Book: [§4.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-
 
 ## IOS-010: File written with no Data Protection
 
-Write sensitive files with .completeFileProtection, and exclude them from backup. Use completeUntilFirstUserAuthentication only for files background work must read while locked.
+Write sensitive files with .completeFileProtection, and exclude them from backup. Use completeUntilFirstUserAuthentication only for files background work must read while locked. Never set the com.apple.developer.default-data-protection entitlement to NSFileProtectionNone.
 
 ```swift
 func writeSensitive(_ data: Data, to url: URL) throws {
@@ -323,7 +323,7 @@ Book: [§11.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/04
 
 ## IOS-014: Web view inspection is on in release builds
 
-Wrap the line in #if DEBUG so it never compiles into release builds.
+Wrap the line in #if DEBUG so it never compiles into release builds. In React Native, pass `webviewDebuggingEnabled={__DEV__}`.
 
 ```swift
 let webView = WKWebView(frame: .zero, configuration: config)

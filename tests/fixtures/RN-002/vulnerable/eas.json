@@ -1,0 +1,11 @@
+{
+  "build": {
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_PAYMENT_SECRET": "{{FAKE_RN002_SECRET}}",
+        "SIGNING_PASSWORD": "{{FAKE_RN002_PASSWORD}}"
+      }
+    }
+  }
+}

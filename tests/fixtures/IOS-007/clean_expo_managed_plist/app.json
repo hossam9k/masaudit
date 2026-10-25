@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "ios": {
+      "bundleIdentifier": "com.bank.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSPinnedDomains": {
+            "api.bank.example": {
+              "NSIncludesSubdomains": true,
+              "NSPinnedLeafIdentities": [
+                {"SPKI-SHA256-BASE64": "CLOmM1/OXvSPjw5UOYbAf9GKOxImEp9hhku9W90fHMk="},
+                {"SPKI-SHA256-BASE64": "hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc="}
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

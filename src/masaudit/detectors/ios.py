@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set,
 
 from masaudit import safety
 from masaudit.detect import scope_of as _scope_of
-from masaudit.detectors import flutter
+from masaudit.detectors import flutter, rn_expo
 from masaudit.textscan import bracket_match, holds_any, text_memo
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
@@ -985,6 +985,50 @@ def ats_arbitrary_loads(ctx: Context, rule: Rule) -> Iterable[Hit]:
         return f"Build setting {key} = YES adds an ATS exception to the generated Info.plist."
 
     yield from _setting_hits(ctx, check, lambda k: bool(_ATS_KEY.match(k)))
+    expo = _managed_expo(ctx)
+    if expo is None:
+        return
+    # A managed Expo app: prebuild merges ios.infoPlist into the generated Info.plist.
+    ats = expo.get("ios", "infoPlist", "NSAppTransportSecurity")
+    if isinstance(ats, dict):
+        overridden = any(k in ats for k in ("NSAllowsArbitraryLoadsInWebContent", "NSAllowsArbitraryLoadsForMedia",
+                                            "NSAllowsLocalNetworking"))
+        if ats.get("NSAllowsArbitraryLoads") is True and not overridden:
+            line = expo.line("ios", "infoPlist", "NSAppTransportSecurity", "NSAllowsArbitraryLoads")
+            yield Hit(expo.path, line, ctx.snippet(expo.path, line),
+                      "ios.infoPlist sets NSAllowsArbitraryLoads, which turns off App Transport Security for every "
+                      "host.")
+        if ats.get("NSAllowsArbitraryLoadsInWebContent") is True:
+            line = expo.line("ios", "infoPlist", "NSAppTransportSecurity", "NSAllowsArbitraryLoadsInWebContent")
+            yield Hit(expo.path, line, ctx.snippet(expo.path, line),
+                      "ios.infoPlist sets NSAllowsArbitraryLoadsInWebContent, which lets every web view load plain "
+                      "HTTP.")
+    elif expo.dynamic and not isinstance(expo.get("ios", "infoPlist"), dict):
+        flag = expo.js_flag("NSAllowsArbitraryLoads")
+        if flag is not None and flag[0] and not re.search(
+                r"NSAllowsArbitraryLoadsInWebContent|NSAllowsArbitraryLoadsForMedia|NSAllowsLocalNetworking", expo.dynamic):
+            path = _expo_dynamic_path(ctx, expo)
+            yield Hit(path, flag[1], ctx.snippet(path, flag[1]),
+                      "The app config sets NSAllowsArbitraryLoads, which turns off App Transport Security for every "
+                      "host.")
+
+
+def _managed_expo(ctx: Context) -> Optional["rn_expo.ExpoApp"]:
+    """The Expo app config of a managed app (no ios/ folder): prebuild generates Info.plist and the
+    entitlements from it, so the plist rules read it instead."""
+    if not rn_expo.is_rn_app(ctx):
+        return None
+    return rn_expo.managed_ios(ctx)
+
+
+def _expo_dynamic_path(ctx: Context, expo: "rn_expo.ExpoApp") -> str:
+    if not expo.path.endswith(".json"):
+        return expo.path
+    for name in ("app.config.js", "app.config.ts", "app.config.mjs", "app.config.cjs"):
+        path = posixpath.join(expo.folder, name)
+        if path in ctx.files(name=name):
+            return path
+    return expo.path
 
 
 def _anchor_pinned_code(ctx: Context) -> bool:
@@ -1276,6 +1320,23 @@ def pins_no_backup(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 if isinstance(ids, list) and len(ids) < 2:
                     yield _plist_hit(ctx, doc, ("NSAppTransportSecurity", "NSPinnedDomains", domain, key),
                                      f"{domain} has {len(ids)} pin under {key}: no backup pin.")
+    if rn_expo.is_rn_app(ctx):
+        # react-native-ssl-public-key-pinning pins through TrustKit on iOS: initializeSslPinning({ host: {...} })
+        for js in rn_expo.js_pin_sets(ctx):
+            if 0 <= js.pins < 2:
+                yield Hit(js.path, js.line, ctx.snippet(js.path, js.line),
+                          f"{js.host} has {js.pins} public key hash{'es' if js.pins != 1 else ''} in initializeSslPinning: "
+                          "no backup pin, and TrustKit refuses a domain with fewer than two.")
+        expo = rn_expo.managed_ios(ctx)
+        pinned = expo.get("ios", "infoPlist", "NSAppTransportSecurity", "NSPinnedDomains") if expo else None
+        if isinstance(pinned, dict):
+            for domain, conf in pinned.items():
+                for key in ("NSPinnedCAIdentities", "NSPinnedLeafIdentities"):
+                    ids = conf.get(key) if isinstance(conf, dict) else None
+                    if isinstance(ids, list) and len(ids) < 2:
+                        line = expo.line("ios", "infoPlist", "NSPinnedDomains", domain, key)
+                        yield Hit(expo.path, line, ctx.snippet(expo.path, line),
+                                  f"{domain} has {len(ids)} pin under {key} in ios.infoPlist: no backup pin.")
 
 
 _PIN_EVIDENCE_CODE = re.compile(
@@ -1322,10 +1383,23 @@ def _native_pinning_evidence(ctx: Context, code_files: List[str]) -> bool:
 @detector("ios_pinning_missing")
 def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
     is_flutter = flutter.is_flutter(ctx)
-    if not is_flutter and ctx.files(name="package.json"):
+    is_rn = not is_flutter and rn_expo.is_rn_app(ctx)
+    if not is_flutter and not is_rn and ctx.files(name="package.json"):
         ctx.note_unknown("React Native project: iOS pinning may live in JavaScript; IOS pinning check skipped.")
         return
+    if is_rn and rn_expo.pinning_call(ctx):
+        return                     # react-native-ssl-public-key-pinning or react-native-ssl-pinning is called
     code_files = ctx.files(*CODE_SUFFIXES)
+    expo = rn_expo.managed_ios(ctx) if is_rn else None
+    if expo is not None:
+        # A managed Expo app: prebuild writes the Xcode project from the app config. Swift in Expo modules or
+        # app extensions can still pin.
+        if not rn_expo.config_pins(expo) and not (code_files and _native_pinning_evidence(ctx, code_files)):
+            line = expo.line("ios") if expo.get("ios") is not None else expo.line("expo")
+            yield Hit(expo.path, line, ctx.snippet(expo.path, line),
+                      "No certificate pinning found for this Expo app: no pinning library is called "
+                      "(initializeSslPinning or an sslPinning option) and no config plugin adds NSPinnedDomains.")
+        return
     if not code_files:
         return
     if is_flutter and flutter.dart_pinning_evidence(ctx):
@@ -1336,6 +1410,9 @@ def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
                              "TLS stack and ignores it; confirm the Dart side pins too.")
         return
     missing = "no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate"
+    if is_rn:
+        missing = ("no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate, and no JavaScript pinning "
+                   "(initializeSslPinning or an sslPinning option)")
     if is_flutter:
         missing = "no NSPinnedDomains, TrustKit, pin-checking URLSession delegate, or Dart-side pinning"
     yield from _anchor_hits(ctx, lambda name: f"No certificate pinning found for app {name}: {missing}.")
@@ -1408,6 +1485,17 @@ _INSPECTABLE = re.compile(r"\bisInspectable\s*=\s*true\b|\binspectable\s*=\s*YES
 def webview_inspectable(ctx: Context, rule: Rule) -> Iterable[Hit]:
     yield from _code_hits(ctx, _INSPECTABLE, "nspectable",
                           "Web inspection is switched on in code that also compiles into release builds.")
+    if not rn_expo.is_rn_app(ctx):
+        return
+    # react-native-webview's `webviewDebuggingEnabled` prop sets isInspectable on iOS 16.4 and later.
+    for use in rn_expo.webview_prop(ctx, "webviewDebuggingEnabled"):
+        if use.value is True:
+            yield Hit(use.path, use.line, ctx.snippet(use.path, use.line),
+                      "webviewDebuggingEnabled makes this WebView inspectable from Safari in every build, including "
+                      "release.", scope="debug" if use.debug else "")
+        elif use.value is rn_expo.UNKNOWN and not (use.debug or use.passthrough):
+            ctx.note_unknown(f"{use.path}:{use.line}: webviewDebuggingEnabled is set from `{use.text[:60]}`; "
+                             "confirm it is false in release builds.")
 
 
 _MESSAGE_HANDLER = re.compile(
@@ -1879,6 +1967,75 @@ _KA_INIT = re.compile(r"\bKeychain\s*\(\s*(?:service|server|accessGroup)\s*:")
 _KA_WRITE = re.compile(r"\b\w*[kK]eychain\w*\s*\[[^\]\n]{1,120}\]\s*=(?!=)|\b\w*[kK]eychain\w*\s*\.\s*set\s*\(")
 
 
+_KC_ALWAYS = re.compile(r"\bkSecAttrAccessibleAlways(?:ThisDeviceOnly)?\b|\.accessibility\(\s*\.always(?:ThisDeviceOnly)?\b")
+
+
+def _js_keychain_hits(ctx: Context, always: bool) -> Iterator[Hit]:
+    """React Native: classes passed to react-native-keychain or expo-secure-store (IOS-008 for the Always
+    classes, IOS-009 for the others without ThisDeviceOnly, and writes that keep a migratable default)."""
+    if not rn_expo.is_rn_app(ctx):
+        return
+    for use in rn_expo.keychain_uses(ctx):
+        scope = "debug" if use.debug else ""
+        if use.default:
+            if not always:
+                yield Hit(use.path, use.line, ctx.snippet(use.path, use.line),
+                          f"This {use.library} write sets no accessibility class, so the item gets the library "
+                          f"default {use.default}, which has no THIS_DEVICE_ONLY suffix.", scope=scope)
+        elif ("Always" in use.value) == always and not (not always and use.value.endswith("ThisDeviceOnly")):
+            msg = (f"This {use.library} item uses an 'Always' accessibility class ({use.value})." if always else
+                   f"This {use.library} accessibility class ({use.value}) has no THIS_DEVICE_ONLY suffix.")
+            yield Hit(use.path, use.line, ctx.snippet(use.path, use.line), msg, scope=scope)
+
+
+# A write or attribute with no protection class; not a comparison that reads one (`== .none`, `case`).
+_NO_PROTECTION = re.compile(
+    r"(?<!isEqualToString:)(?<!isEqualToString: )(?<![=!]=)(?<![=!]= )(?<!case )(?:\bNSFileProtectionNone\b"
+    r"|\.noFileProtection\b|\bFileProtectionType\.none\b|\bprotectionKey\s*:\s*\.none\b"
+    r"|\bNSDataWritingFileProtectionNone\b)(?!\s*[=!]=)")
+_DATA_PROTECTION_KEY = "com.apple.developer.default-data-protection"
+
+
+@detector("ios_no_file_protection")
+def no_file_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        raw = ctx.text(path)
+        if raw is None or "rotection" not in raw:
+            continue
+        code = ctx.code(path, keep_strings=False)
+        if code is None:
+            continue
+        for m in _NO_PROTECTION.finditer(code):
+            line = ctx.line_of(code, m.start())
+            yield Hit(path, line, ctx.snippet(path, line), "This file is written with no Data Protection class.")
+    # The app-wide default class: an entitlement that sets it to NSFileProtectionNone covers every file the app
+    # writes without its own class, including what React Native libraries write.
+    msg = (f"The {_DATA_PROTECTION_KEY} entitlement is NSFileProtectionNone, so every file the app writes "
+           "without its own class has no Data Protection.")
+    for doc, shipping in _entitlements(ctx):
+        if shipping and plist.get(doc.data, _DATA_PROTECTION_KEY) == "NSFileProtectionNone":
+            yield _plist_hit(ctx, doc, (_DATA_PROTECTION_KEY,), msg)
+    expo = rn_expo.managed_ios(ctx) if rn_expo.is_rn_app(ctx) else None
+    if expo is not None and expo.get("ios", "entitlements", _DATA_PROTECTION_KEY) == "NSFileProtectionNone":
+        line = expo.line("ios", "entitlements", _DATA_PROTECTION_KEY)
+        yield Hit(expo.path, line, ctx.snippet(expo.path, line), msg)
+
+
+@detector("ios_keychain_always")
+def keychain_always(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        raw = ctx.text(path)
+        if raw is None or "lways" not in raw:
+            continue
+        code = ctx.code(path, keep_strings=False)
+        if code is None:
+            continue
+        for m in _KC_ALWAYS.finditer(code):
+            line = ctx.line_of(code, m.start())
+            yield Hit(path, line, ctx.snippet(path, line), "This Keychain item uses an 'Always' accessibility class.")
+    yield from _js_keychain_hits(ctx, always=True)
+
+
 @detector("ios_keychain_migratable")
 def keychain_migratable(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE_SUFFIXES):
@@ -1907,6 +2064,7 @@ def keychain_migratable(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield Hit(path, line, ctx.snippet(path, line),
                           "This KeychainAccess keychain never sets .accessibility(...), so its items use the "
                           "library default .afterFirstUnlock, which isn't ThisDeviceOnly.")
+    yield from _js_keychain_hits(ctx, always=False)
 
 
 _UD_KEY = r"(?![^\"]*(?:fcm|apns|push|device))[^\"]*(?:token|password|passwd|secret|jwt|credential|api_?key|session_?key)[^\"]*"
@@ -2020,8 +2178,17 @@ def documents_exposed(ctx: Context, rule: Rule) -> Iterable[Hit]:
             break
     if exposed is None and "UIFileSharingEnabled" in _infoplist_keys(ctx):
         exposed = ("build setting INFOPLIST_KEY_UIFileSharingEnabled", 0)
+    expo = _managed_expo(ctx) if exposed is None else None
+    if expo is not None and expo.get("ios", "infoPlist", "UIFileSharingEnabled") is True:
+        exposed = (expo.path, expo.line("ios", "infoPlist", "UIFileSharingEnabled"))
     if exposed is None:
         return
+    if rn_expo.is_rn_app(ctx):
+        where = f"{exposed[0]}:{exposed[1]}" if exposed[1] else exposed[0]
+        for use in rn_expo.documents_writes(ctx, _SENSITIVE_FILE):
+            yield Hit(use[0], use[1], ctx.snippet(use[0], use[1]),
+                      f"\"{use[2]}\" is stored in Documents, which UIFileSharingEnabled ({where}) shows in the Files "
+                      "app and Finder, and which ends up in unencrypted computer backups.")
     where = f"{exposed[0]}:{exposed[1]}" if exposed[1] else exposed[0]
     for path in ctx.files(*CODE_SUFFIXES):
         if _is_test_path(path):
@@ -2478,10 +2645,31 @@ _SCENE_PHASE_COVER = re.compile(r"scenePhase[\s\S]{0,400}?(?:\.blur\s*\(|\.overl
                                 r"LockScreen|Placeholder)")
 
 
+# React Native: libraries that cover the app-switcher snapshot or block capture on iOS, and JS that shows a
+# cover when AppState leaves "active".
+_RN_SWITCHER_DEPS = re.compile(r"^(?:expo-screen-capture|react-native-privacy-snapshot|react-native-screenshot-prevent"
+                               r"|react-native-prevent-screenshot[\w-]*|react-native-capture-protection"
+                               r"|react-native-screenguard|freerasp-react-native|@talsec/[\w-]+)$")
+_RN_SWITCHER_CODE = re.compile(
+    r"\b(?:enableAppSwitcherProtectionAsync|preventScreenCaptureAsync|usePreventScreenCapture|enableSecureView"
+    r"|CaptureProtection|ScreenGuardModule)\b"
+    r"|\bAppState\s*\.\s*addEventListener\s*\([\s\S]{0,400}?(?:BlurView|[bB]lur(?:Overlay|Screen|Cover)|[oO]verlay|[oO]bscur|[pP]rivacy[A-Z]"
+    r"|[sS]ecureScreen|[cC]over(?:View|Screen)|[lL]ockScreen)")
+_RN_SWITCHER_NEEDLES = ("enableAppSwitcherProtectionAsync", "reventScreenCapture", "enableSecureView",
+                        "CaptureProtection", "ScreenGuardModule", "AppState")
+
+
+def _rn_switcher_evidence(ctx: Context) -> bool:
+    return bool(rn_expo.dep_matching(ctx, _RN_SWITCHER_DEPS)
+                or rn_expo.js_evidence(ctx, "switcher", _RN_SWITCHER_CODE, _RN_SWITCHER_NEEDLES))
+
+
 @detector("ios_app_switcher_snapshot")
 def app_switcher_snapshot(ctx: Context, rule: Rule) -> Iterable[Hit]:
     code_files = ctx.files(*CODE_SUFFIXES)
     if not code_files:
+        return
+    if rn_expo.is_rn_app(ctx) and _rn_switcher_evidence(ctx):
         return
     if _search_code(ctx, _SWITCHER_EVIDENCE, CODE_SUFFIXES + (".dart",), literals=_SWITCHER_LITERALS) or re.search(
             r"\b(?:secure_application|screen_protector|privacy_screen|no_screenshot|flutter_privacy_screen)\s*:",
@@ -2681,10 +2869,20 @@ _ATTEST_LITERALS = ("AppAttest", "appAttest", "freerasp", "Talsec", "aheaditec",
 _DEVICECHECK = re.compile(r"\bDCDevice\b|\bDeviceCheckProvider\w*|AppleProvider\s*\.\s*deviceCheck")
 
 
+# React Native: App Attest through React Native Firebase App Check (provider 'appAttest' or
+# 'appAttestWithDeviceCheckFallback'; its default on iOS is DeviceCheck), @expo/app-integrity, or a RASP SDK.
+_RN_ATTEST_DEPS = re.compile(r"^(?:@expo/app-integrity|freerasp-react-native|@talsec/[\w-]+|[\w@/-]*app-?attest[\w-]*)$",
+                             re.IGNORECASE)
+_RN_ATTEST_CODE = re.compile(r"['\"`]appAttest(?:WithDeviceCheckFallback)?['\"`]")
+
+
 @detector("ios_app_attest_missing")
 def app_attest_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
     suffixes = CODE_SUFFIXES + (".kt", ".dart")
     if not ctx.files(*CODE_SUFFIXES):
+        return
+    if rn_expo.is_rn_app(ctx) and (rn_expo.dep_matching(ctx, _RN_ATTEST_DEPS) or rn_expo.js_evidence(
+            ctx, "attest", _RN_ATTEST_CODE, ("appAttest",), keep_strings=True)):
         return
     if _search_code(ctx, _ATTEST_EVIDENCE, suffixes, literals=_ATTEST_LITERALS) \
             or _ATTEST_EVIDENCE.search(_deps_text(ctx)):
@@ -2843,11 +3041,37 @@ _PLACEHOLDER = re.compile(r"^\s*(?:todo|tbd|fixme|lorem|placeholder|description|
                           re.IGNORECASE)
 
 
+def _expo_purpose_strings(ctx: Context, expo: "rn_expo.ExpoApp") -> Iterator[Hit]:
+    """Purpose strings a managed Expo app sets in ios.infoPlist, or through a config plugin's option
+    (`["expo-camera", { "cameraPermission": "..." }]`), that are empty or placeholders."""
+    info = expo.get("ios", "infoPlist")
+    for k, v in (info.items() if isinstance(info, dict) else []):
+        if isinstance(k, str) and k.endswith("UsageDescription") and isinstance(v, str) \
+                and (not v.strip() or _PLACEHOLDER.search(v)):
+            line = expo.line("ios", "infoPlist", k)
+            yield Hit(expo.path, line, ctx.snippet(expo.path, line),
+                      f"{k} is empty or a placeholder (\"{v.strip()[:40]}\"); people see this text in the permission "
+                      "prompt and App Review rejects it.")
+    for p in rn_expo.rn.as_list(expo.get("plugins")):
+        if not (isinstance(p, list) and len(p) > 1 and isinstance(p[0], str) and isinstance(p[1], dict)):
+            continue
+        for k, v in p[1].items():
+            if isinstance(k, str) and k.endswith("Permission") and isinstance(v, str) \
+                    and (not v.strip() or _PLACEHOLDER.search(v)):
+                line = expo.line(p[0], k)
+                yield Hit(expo.path, line, ctx.snippet(expo.path, line),
+                          f"The {p[0]} option {k} is empty or a placeholder (\"{v.strip()[:40]}\"); it becomes the "
+                          "purpose string people see in the permission prompt, and App Review rejects it.")
+
+
 @detector("ios_purpose_string")
 def purpose_string(ctx: Context, rule: Rule) -> Iterable[Hit]:
     plists = _app_plists(ctx) or [d for d in _shipping_plists(ctx) if isinstance(d.data, dict)
                                    and "CFBundleIdentifier" in d.data and scope_of(d.path) == "main"]
     if not plists and not _projects(ctx):
+        expo = _managed_expo(ctx)
+        if expo is not None:
+            yield from _expo_purpose_strings(ctx, expo)
         return
     keys: Dict[str, Tuple[PlistDoc, Any]] = {}
     for doc in _shipping_plists(ctx):
@@ -2860,6 +3084,9 @@ def purpose_string(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if isinstance(v, str) and (not v.strip() or _PLACEHOLDER.search(v)):
             yield _plist_hit(ctx, doc, (k,), f"{k} is empty or a placeholder (\"{v.strip()[:40]}\"); people see this "
                              "text in the permission prompt and App Review rejects it.")
+    expo = _managed_expo(ctx) if not keys else None
+    if expo is not None:
+        yield from _expo_purpose_strings(ctx, expo)
     have = set(keys) | generated
     # Localized InfoPlist.strings values count too (the bundle's info dictionary merges them).
     for path in ctx.files(".strings"):
@@ -3030,7 +3257,11 @@ def _exists_under(ctx: Context, folder: str, name: str) -> bool:
 def privacy_manifest(ctx: Context, rule: Rule) -> Iterable[Hit]:
     projects = list(_projects(ctx))
     if not projects:
-        ctx.note_unknown(f"No Xcode project was found, so app targets couldn't be checked for {PRIVACY_MANIFEST}.")
+        if _managed_expo(ctx) is not None:
+            ctx.note_unknown(f"Managed Expo app: `expo prebuild` writes {PRIVACY_MANIFEST} from `ios.privacyManifests` "
+                             "in the app config. Check that it declares the required-reason APIs your code and SDKs use.")
+        else:
+            ctx.note_unknown(f"No Xcode project was found, so app targets couldn't be checked for {PRIVACY_MANIFEST}.")
         return
     for proj in projects:
         if _demo_project(ctx, proj):

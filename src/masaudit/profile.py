@@ -76,14 +76,15 @@ CLUES: List[Tuple[str, str, Optional[str], str]] = [
     (r"play-services-wallet|com\.google\.android\.gms\.wallet|IsReadyToPayRequest|PKPaymentRequest"
      r"|PKPaymentAuthorization(?:Controller|ViewController)", "Google Pay or Apple Pay", "ecommerce", ""),
     # Card fields: names that mean a card, never a bare "cvc" (Signal names a view controller `cvc`).
-    (r"\bcardNumber\b|\bcard_number\b|primaryAccountNumber|\bcvv\b|\bcard(?:Cvc|Cvv|_cvc|_cvv)\b"
-     r"|\bcardExpiry|\bcard_expiry", "card-number fields", "ecommerce-cards", ""),
+    # `card(?<!\wcard)` is `\bcard` with the literal first, which the regex engine finds much faster.
+    (r"card(?<!\wcard)(?:Number\b|_number\b|Cvc\b|Cvv\b|_cvc\b|_cvv\b|Expiry|_expiry)|primaryAccountNumber"
+     r"|cvv(?<!\wcvv)\b", "card-number fields", "ecommerce-cards", ""),
     (r"com\.plaid\.link|\bimport\s+LinkKit\b|truelayer|com\.tink\.link|tink-link|yapily",
      "an open-banking SDK", "banking", ""),
     (r"\bweb3j\b|\bbitcoinj\b|\bethers\b|WalletConnect|TrustWalletCore|\breown\b",
      "a crypto wallet library", "banking", ""),
-    (r"com\.onfido|\bimport\s+Onfido|com\.jumio|\bimport\s+Jumio|com\.veriff|\bimport\s+Veriff|com\.sumsub"
-     r"|IdensicMobileSDK|de\.idnow|withpersona|\bimport\s+Persona\b",
+    (r"com\.(?:onfido|jumio|veriff|sumsub)|import(?<!\wimport)\s+(?:Onfido|Jumio|Veriff|Persona\b)"
+     r"|IdensicMobileSDK|de\.idnow|withpersona",
      "an identity-verification (KYC) SDK", "identity", ""),
     (r"NFCTagReaderSession|\bIsoDep\b|\bjmrtd\b|\beMRTD\b", "passport or ID-card NFC reading", "identity", ""),
     (r"HealthKit|HKHealthStore|androidx\.health\.connect|health-connect|HealthConnectClient",
@@ -114,7 +115,7 @@ NEEDLES: Dict[str, Tuple[str, ...]] = {
     "card-number fields": ("card", "cvv", "primaryAccountNumber"),
     "an open-banking SDK": ("plaid", "LinkKit", "truelayer", "tink.link", "tink-link", "yapily"),
     "a crypto wallet library": ("web3j", "bitcoinj", "ethers", "WalletConnect", "TrustWalletCore", "reown"),
-    "an identity-verification (KYC) SDK": ("nfido", "umio", "eriff", "sumsub", "Idensic", "idnow", "ersona"),
+    "an identity-verification (KYC) SDK": ("nfido", "umio", "eriff", "sumsub", "Idensic", "idnow", "withpersona", "Persona"),
     "passport or ID-card NFC reading": ("NFCTagReaderSession", "IsoDep", "jmrtd", "eMRTD"),
     "a health data API": ("HealthKit", "HKHealthStore", "ealth"),
     "a smart-home API": ("HMHomeManager", "devicecontroller", "MatterSupport", "google.home"),

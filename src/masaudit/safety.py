@@ -26,18 +26,21 @@ SKIP_DIRS = {
     ".git", ".hg", ".svn", ".gradle", ".idea", ".vscode", ".cxx", ".externalNativeBuild",
     "build", "out", "DerivedData", "Pods", "Carthage", "node_modules", ".dart_tool",
     "__pycache__", ".venv", "venv", ".tox", "xcuserdata", ".build", ".swiftpm",
-    "intermediates", "generated",
+    "intermediates", "generated", ".expo", ".expo-shared", "coverage", "dist", "web-build",
 }
 
 SCANNED_SUFFIXES = {
     ".kt", ".kts", ".java", ".swift", ".m", ".mm", ".h", ".xml", ".plist", ".pbxproj",
     ".xcconfig", ".entitlements", ".gradle", ".toml", ".properties", ".yml", ".yaml",
-    ".json", ".pro", ".cfg", ".txt", ".strings", ".dart", ".js", ".ts", ".tsx", ".xcprivacy",
+    ".json", ".pro", ".cfg", ".txt", ".strings", ".dart", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs",
+    ".xcprivacy",
     ".c", ".cc", ".cpp", ".mk", ".podspec", ".storyboard", ".xib", ".sh",
     ".html", ".htm",  # pages bundled with the app and shown in a WebView
 }
 SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS", "Fastfile",
-                 "contents"}  # "contents": a Core Data model (Model.xcdatamodel/contents)
+                 "contents", ".npmrc", ".yarnrc", ".yarnrc.yml", ".env"}
+# Environment files that React Native tooling bundles into the app: .env.production, .env.staging...
+_ENV_FILE = re.compile(r"^\.env\.[\w.-]{1,40}$")  # "contents": a Core Data model (Model.xcdatamodel/contents)
 
 
 MAX_INT_DIGITS = 18      # no real version, size, or duration needs more
@@ -81,7 +84,7 @@ def walk(root: str, skipped: Optional[List[Tuple[str, str]]] = None) -> List[str
         )
         for name in sorted(filenames):
             suffix = os.path.splitext(name)[1]
-            if suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES:
+            if suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES and not _ENV_FILE.match(name):
                 continue
             full = os.path.join(dirpath, name)
             if _CONTROL.search(name) or "\n" in name or "\r" in name:

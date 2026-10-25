@@ -1,6 +1,6 @@
 {
   "name": "masaudit",
-  "description": "masaudit: free, risk-calibrated mobile security audits for Android, iOS, Kotlin Multiplatform, and Flutter.",
+  "description": "masaudit: free, risk-calibrated mobile security audits for Android, iOS, React Native, Kotlin Multiplatform, and Flutter.",
   "owner": {
     "name": "Hossam Atef",
     "email": "hossam9k@gmail.com",

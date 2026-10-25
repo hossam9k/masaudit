@@ -27,11 +27,12 @@ class ReadmeNumbers(unittest.TestCase):
     def test_rule_counts(self):
         rules = [r for r in engine.load_rules() if not r.retired]
         by = collections.Counter(r.platform for r in rules)
-        m = re.search(r"(\d+) rules: (\d+) Android, (\d+) iOS, (\d+) cross-platform code, (\d+) Flutter, "
-                      r"(\d+) CI and supply chain, (\d+) Kotlin\s+Multiplatform", README_FLAT)
+        m = re.search(r"(\d+) rules: (\d+) Android, (\d+) iOS, (?:(\d+) React Native, )?(\d+) cross-platform code, "
+                      r"(\d+) Flutter, (\d+) CI and supply chain, (\d+) Kotlin\s+Multiplatform", README_FLAT)
         self.assertIsNotNone(m, "README rule-count sentence not found")
-        self.assertEqual([int(x) for x in m.groups()],
-                         [len(rules), by["android"], by["ios"], by["cross"], by["flutter"], by["ci"], by["kmp"]])
+        found = [int(x) if x is not None else 0 for x in m.groups()]
+        self.assertEqual(found, [len(rules), by["android"], by["ios"], by["react-native"], by["cross"], by["flutter"],
+                                 by["ci"], by["kmp"]])
 
     def test_owasp_coverage(self):
         rules = engine.load_rules()

@@ -1,0 +1,4 @@
+{
+  "name": "bank",
+  "dependencies": {"react-native": "0.76.0", "react-native-ssl-public-key-pinning": "1.2.6"}
+}

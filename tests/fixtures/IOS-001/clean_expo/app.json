@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "ios": {
+      "bundleIdentifier": "com.bank.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true, "NSAllowsLocalNetworking": true }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+apply plugin: "com.android.application"
+apply plugin: "com.facebook.react"
+
+/**
+ * Run Proguard to shrink the Java bytecode in release builds.
+ */
+def enableProguardInReleaseBuilds = false
+
+android {
+    namespace "com.bank.app"
+    defaultConfig {
+        applicationId "com.bank.app"
+    }
+    buildTypes {
+        release {
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}

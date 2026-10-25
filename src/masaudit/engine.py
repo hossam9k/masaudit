@@ -205,9 +205,10 @@ def rules_version() -> str:
 
 # ---------------------------------------------------------------------------- running
 
-PLATFORM_OF_RULE = {"android": "android", "ios": "ios", "kmp": "kmp", "ci": "ci", "flutter": "flutter"}
+PLATFORM_OF_RULE = {"android": "android", "ios": "ios", "kmp": "kmp", "ci": "ci", "flutter": "flutter",
+                    "react-native": "react-native"}
 # Platforms whose source code the cross-platform rules read.
-CODE_PLATFORMS = {"android", "ios", "kmp", "flutter"}
+CODE_PLATFORMS = {"android", "ios", "kmp", "flutter", "react-native"}
 
 
 def applies_to_platforms(rule: Rule, platforms) -> bool:
@@ -317,7 +318,8 @@ def _import_detectors() -> None:
 
     # Listing modules can fail inside a zipapp on old Pythons, so the known modules are always
     # imported, plus anything else that's discoverable.
-    names = {"android", "ios", "cross", "ci", "kmp", "flutter"}
+    names = {"android", "ios", "cross", "ci", "kmp", "flutter", "reactnative", "rn_storage", "rn_network",
+             "rn_webview", "rn_platform", "rn_build", "rn_expo"}
     names |= {mod.name for mod in pkgutil.iter_modules(pkg.__path__)}
     for name in sorted(names):
         importlib.import_module(f"masaudit.detectors.{name}")

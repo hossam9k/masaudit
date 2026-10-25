@@ -1,0 +1,11 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "reactotron-react-native": "^5.1.14",
+    "remote-redux-devtools": "^0.5.16",
+    "react-native-flipper": "^0.212.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "scripts": {
+    "bundle:android": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --sourcemap-output android/app/src/main/assets/index.android.bundle.map --assets-dest android/app/src/main/res"
+  },
+  "dependencies": {
+    "react-native": "0.81.4"
+  }
+}

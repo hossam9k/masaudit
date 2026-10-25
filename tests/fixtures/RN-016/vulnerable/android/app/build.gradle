@@ -1,0 +1,7 @@
+apply plugin: "com.android.application"
+
+project.ext.react = [
+    enableHermes: false,  // clean and rebuild if changing
+]
+
+apply from: "../../node_modules/react-native/react.gradle"

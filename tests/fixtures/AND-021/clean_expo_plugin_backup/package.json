@@ -1,0 +1,5 @@
+{
+  "name": "bank",
+  "main": "expo-router/entry",
+  "dependencies": {"expo": "~52.0.0", "react-native": "0.76.0", "expo-build-properties": "~0.13.0"}
+}

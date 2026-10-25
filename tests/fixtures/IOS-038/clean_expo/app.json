@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "ios": {
+      "bundleIdentifier": "com.bank.app",
+      "infoPlist": { "NSFaceIDUsageDescription": "Bank uses Face ID to unlock your accounts." }
+    },
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "Bank uses the camera to scan checks.", "recordAudioAndroid": false }]
+    ]
+  }
+}

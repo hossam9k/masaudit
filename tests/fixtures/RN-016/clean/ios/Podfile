@@ -1,0 +1,7 @@
+target 'Wallet' do
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # :hermes_enabled => false,
+    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
+  )
+end

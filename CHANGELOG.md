@@ -3,6 +3,79 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.6.0 — 2026-10-25
+
+**React Native, JavaScript and TypeScript included. Rules 2.2.0: 20 new React Native rules (207 in
+total), and 32 cross-platform rules that now read JavaScript and TypeScript.** Until 0.5.0, masaudit
+scanned only a React Native app's `android/` and `ios/` folders. Now it reads the app's JavaScript,
+TypeScript, `package.json`, Expo config, and bundled `.env` files too, and a managed Expo app with no
+native folders gets the Android and iOS checks that apply to its `app.json`. Independent reviewers
+judged every finding the change adds to 10 open-source React Native apps: 57 of 63 are real (90%).
+RN-007, RN-008, RN-015, and XPL-008 are under 90% there and marked *Check by hand*; XPL-036 is at 96%
+across both corpora. Recall on three deliberately vulnerable React Native apps went from 6 to 21 of 28.
+The 19-app native corpus doesn't change. [Accuracy and speed](docs/precision.md#react-native-precision)
+has the tables.
+
+- **New React Native rules (RN-001 to RN-020):**
+  - Storage and secrets: tokens in AsyncStorage, unencrypted MMKV, or redux-persist (RN-001); secrets
+    bundled through `.env`, `EXPO_PUBLIC_` variables, `@env`, or Expo `extra` (RN-002).
+  - Network: request and response logging in release (RN-003); JS networking that accepts any
+    certificate (RN-004); npm dependencies taken from a git branch, a plain-HTTP address, or `*`, and registries over HTTP or
+    with TLS checks off (RN-019).
+  - WebView: local file access (RN-005); any origin or URL scheme allowed (RN-006); a URL from
+    navigation params or user input with no allowlist (RN-007, *Check by hand*); a bridge that trusts
+    the page (RN-008, *Check by hand*).
+  - Platform: deep-link data reaching `openURL`, `fetch`, a WebView, or navigation (RN-009); `eval` and
+    `new Function` on strings (RN-010); SQLite queries joined from strings (RN-011); native modules that
+    run a shell command or open a path sent from JavaScript (RN-020).
+  - Auth and crypto: a biometric check that only returns a boolean (RN-012); crypto-js deriving the key
+    from a passphrase string (RN-013).
+  - Build and release: unsigned over-the-air updates through CodePush or expo-updates (RN-014),
+    console output in release (RN-015, *Check by hand*), Hermes turned off (RN-016), a source map inside the app
+    (RN-017), and debug tooling that connects in release builds (RN-018).
+- **32 cross-platform rules read JavaScript and TypeScript,** among them hardcoded secrets and keys
+  (XPL-001 to XPL-003, XPL-011), plain HTTP and WebSocket URLs (XPL-009), secrets in logs and on the
+  clipboard (XPL-010, XPL-012), weak crypto and randomness (XPL-004, XPL-006 to XPL-008, XPL-013 to
+  XPL-016, XPL-045), staging endpoints (XPL-036), OAuth flows (XPL-037), and HTML injection (XPL-046).
+  The absence rules (root, debugger, emulator, and hooking detection, forced update) count React Native
+  libraries and calls as evidence.
+- **Android and iOS rules understand React Native and Expo:** pinning libraries count as pinning
+  (AND-007, IOS-007); react-native-keychain and expo-secure-store accessibility classes (IOS-008,
+  IOS-009); WebView props in JSX (AND-011, AND-013, IOS-014); and a managed Expo app's `app.json` for
+  cleartext, backup, permissions, App Transport Security, and the privacy manifest. Fixes for these
+  rules now say what to change in a React Native or Expo app.
+- **A comparison with rnsec,** a React Native scanner, rule by rule: of its 105 rules, 61 are covered,
+  14 in part, and 30 left out on purpose. See [Compared with rnsec](docs/compare-rnsec.md).
+- **Foundations for JavaScript:**
+  - The lexer handles template literals with nested `${...}`, regex literals, and JSX text, so strings
+    and comments are found correctly in ordinary React Native files. It is checked against a reference
+    implementation on 600,000 fuzzed inputs.
+  - React Native is detected only from a `react-native` or `expo` dependency in `package.json`. Before,
+    any Node project with an `index.js` counted.
+  - Jest, Detox, and Maestro tests, mocks, and Storybook stories are scoped as test or debug code; code
+    inside `if (__DEV__)` counts as debug code; a backend in `server/` or `backend/` isn't scanned as app
+    code. `.expo`, `dist`, `web-build`, and `coverage` folders are skipped.
+  - `.jsx`, `.mjs`, `.cjs`, `.env`, `.npmrc`, and `.yarnrc` files are read.
+- **Faster on large JavaScript apps:** several app-type clues and evidence checks start with their
+  literal text, which Python's regex engine finds faster. Expensify (107 MB of JavaScript) scans in about
+  14 seconds instead of 21.
+- **Hardening from an independent code review:** an `app.json` with a number or an object where Expo
+  expects a list no longer stops the scan; `!(__DEV__)` and `false === __DEV__` count as release code; a
+  Kotlin package or Swift group named `e2e` or `jest` is no longer taken for tests; and two checks that a
+  minified file could make quadratic are linear again (one of them, the test-import check, predates
+  0.6.0). From the final review: a native `stories` folder (a Stories feature) is no longer taken for
+  Storybook and lowered as debug code; lower-case test source sets such as `src/androidtest/` count as
+  tests; a JWT secret is found even when a variable named like a secret comes first in the file; an
+  array literal nested hundreds of levels deep no longer stops the scan; and a long run of spaces after
+  `import` no longer slows the import reader.
+- **False alarms removed after the independent review:** Apple's documented `http://maps.apple.com`
+  link is not plain-HTTP traffic (XPL-009); mixed-content mode on a WebView showing inline HTML with no
+  https base (AND-011); WebView file-URL switches and `originWhitelist={['*']}` when the app vets every
+  navigation with `onShouldStartLoadWithRequest` (RN-005, RN-006); no pinning reported when React
+  Native's HTTP client comes from a class that isn't in the repository (AND-007, now a note); and build
+  scripts in an app package's own `tools/` or `scripts/` folder counted as shipping console output
+  (RN-015).
+
 ## 0.5.0 — 2026-10-25
 
 **Rules 2.1.0: 15 new rules (187 in total) and fixes to 20 existing ones.** Recall on apps with

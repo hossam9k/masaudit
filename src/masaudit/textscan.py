@@ -254,7 +254,7 @@ def holds_any(ctx: Context, path: str, needles: Sequence[str]) -> bool:
     k = pos.get(path)
     if k is None:
         raw = ctx.text(path)
-        return raw is not None and any(n in raw for n in needles)
+        return raw is not None and any(map(raw.__contains__, needles))
     return k in index.holding_any(needles)
 
 

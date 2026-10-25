@@ -1,0 +1,4 @@
+{
+  "name": "bank",
+  "dependencies": {"react-native": "0.76.0", "@expo/app-integrity": "~0.1.0"}
+}

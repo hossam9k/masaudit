@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "ios": {
+      "bundleIdentifier": "com.bank.app",
+      "infoPlist": { "NSFaceIDUsageDescription": "TODO" }
+    },
+    "plugins": [
+      ["expo-camera", { "cameraPermission": "", "microphonePermission": "Bank records a short video to verify your identity." }]
+    ]
+  }
+}

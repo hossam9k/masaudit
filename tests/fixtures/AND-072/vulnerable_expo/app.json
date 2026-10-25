@@ -1,0 +1,7 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "android": { "package": "com.bank.app", "permissions": ["CAMERA", "READ_SMS", "android.permission.SYSTEM_ALERT_WINDOW"] }
+  }
+}

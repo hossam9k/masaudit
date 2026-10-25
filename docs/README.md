@@ -1,7 +1,7 @@
 # masaudit documentation
 
-masaudit is a free mobile security scanner for Android, iOS, Kotlin Multiplatform, and Flutter source
-code. It scales its advice to your app's risk. Everything works without AI or an account.
+masaudit is a free mobile security scanner for Android, iOS, React Native, Kotlin Multiplatform, and
+Flutter source code. It scales its advice to your app's risk. Everything works without AI or an account.
 
 **New here?** Start with [Getting started](getting-started.md): your first scan and first fix, in
 about ten minutes.
@@ -38,7 +38,8 @@ Background, to understand the results:
 
 - **[How masaudit works](how-it-works.md):** app types, OWASP MAS profiles, how a finding gets its
   bucket, and what masaudit never does.
-- **[Accuracy and speed](precision.md):** how the rules were measured on 19 open-source apps, and how fast scans are.
+- **[Accuracy and speed](precision.md):** how the rules were measured on 19 open-source apps and 10 React Native apps, and how fast scans are.
+- **[Compared with rnsec](compare-rnsec.md):** each rule of rnsec, a React Native scanner, mapped to masaudit.
 
 ## Contributing and project
 
@@ -63,9 +64,9 @@ you ask for one. See
 [Safe to run on any code](how-it-works.md#safe-to-run-on-any-code).
 
 **Which projects does it scan?**
-Android, iOS, Kotlin Multiplatform, and Flutter source code, plus GitHub Actions workflows. In a React
-Native app it scans the native `android/` and `ios/` folders, not the JavaScript yet. It doesn't read
-built APK or IPA files. See [What masaudit reads](how-it-works.md#what-masaudit-reads-and-what-it-doesnt).
+Android, iOS, React Native (including Expo), Kotlin Multiplatform, and Flutter source code, plus GitHub
+Actions workflows. In a React Native app it reads the JavaScript and TypeScript and the native
+`android/` and `ios/` folders. It doesn't read built APK or IPA files. See [What masaudit reads](how-it-works.md#what-masaudit-reads-and-what-it-doesnt).
 
 **Does it work on Windows?**
 Yes. See [Install and upgrade](install.md).

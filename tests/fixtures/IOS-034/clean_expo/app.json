@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "ios": {
+      "bundleIdentifier": "com.bank.app",
+      "infoPlist": { "UIFileSharingEnabled": true }
+    }
+  }
+}

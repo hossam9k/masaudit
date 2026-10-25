@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Download the precision corpus, scan it, and compare two scans: the method in docs/precision.md.
 
-    python3 scripts/corpus.py fetch DIR                   # clone the 19 apps at their recorded commits
-    python3 scripts/corpus.py scan DIR OUT [--src SRC]    # JSON per app (banking: every rule runs)
+    python3 scripts/corpus.py fetch DIR [--set rn]           # clone the apps at their recorded commits
+    python3 scripts/corpus.py scan DIR OUT [--set rn] [--src SRC]   # JSON per app (banking: every rule runs)
     python3 scripts/corpus.py diff BEFORE AFTER [RULE ...]  # per-rule counts, added and removed findings
 
 Typical use when changing a rule: scan with the last release's source as BEFORE and this checkout's
@@ -46,14 +46,35 @@ APPS = [
     ("immich", "immich-app/immich", "256eb55dbe92ac77e02794442f9487e88ffed2b1"),
 ]
 
+# React Native apps (the `rn` set), recorded on 2026-10-25. A monorepo is scanned at its mobile app's folder,
+# so its desktop or web code isn't judged as a mobile app: (folder, repository, commit, subfolder).
+RN_APPS = [
+    ("mattermost-mobile", "mattermost/mattermost-mobile", "8a9427f25ad9f16ed333b1865eff9c4b057cb093", ""),
+    ("Rocket.Chat.ReactNative", "RocketChat/Rocket.Chat.ReactNative", "072e42289fb72c1f716127b21c5835dbde2a4598", ""),
+    ("social-app", "bluesky-social/social-app", "4e4ad9c5f5cc584bd06473ab6f16318fd0bd8465", ""),
+    ("expensify-app", "Expensify/App", "c08c85f3c5d20214e219dd1a1286936a513527cc", ""),
+    ("BlueWallet", "BlueWallet/BlueWallet", "2ed086d3e83412b75169cb96becebcab261fed34", ""),
+    ("metamask-mobile", "MetaMask/metamask-mobile", "15d51ee50b5c855b5a8a345c079a0b17acf00ed3", ""),
+    ("rainbow", "rainbow-me/rainbow", "9997c6ed514428e778e879cfca7a5da675233e5d", ""),
+    ("joplin", "laurent22/joplin", "bad38b7fff0f1899109c0833d45a34b21d7b3603", "packages/app-mobile"),
+    ("standardnotes-app", "standardnotes/app", "521e9a453bd469cfac06e2a8a223901e428a10d4", "packages/mobile"),
+    ("eigen", "artsy/eigen", "16176d44346741112a2173bc0c2004c898add7f1", ""),
+]
+
+
+def _apps(which: str):
+    if which == "rn":
+        return RN_APPS
+    return [(folder, repo, commit, "") for folder, repo, commit in APPS]
+
 
 def _git(*args: str, cwd: str) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, stdout=subprocess.DEVNULL)
 
 
-def fetch(directory: str) -> None:
+def fetch(directory: str, which: str = "main") -> None:
     os.makedirs(directory, exist_ok=True)
-    for folder, repo, commit in APPS:
+    for folder, repo, commit, _sub in _apps(which):
         dest = os.path.join(directory, folder)
         if not os.path.isdir(os.path.join(dest, ".git")):
             os.makedirs(dest, exist_ok=True)
@@ -66,21 +87,22 @@ def fetch(directory: str) -> None:
 
 
 def _scan_one(job):
-    src, directory, out_dir, folder = job
+    src, directory, out_dir, folder, subfolder = job
     out = os.path.join(out_dir, folder + ".json")
     env = {**os.environ, "PYTHONPATH": src, "CI": "1", "SOURCE_DATE_EPOCH": "1767225600"}
     proc = subprocess.run([sys.executable, "-m", "masaudit", "--app-type", "banking", "--format", "json",
-                           "--output", out, "--", os.path.join(directory, folder)],
+                           "--output", out, "--", os.path.join(directory, folder, subfolder)],
                           env=env, capture_output=True, text=True)
     return folder, proc.returncode, (proc.stderr.strip().splitlines() or [""])[-1]
 
 
-def scan(directory: str, out_dir: str, src: str) -> int:
+def scan(directory: str, out_dir: str, src: str, which: str = "main") -> int:
     os.makedirs(out_dir, exist_ok=True)
-    folders = [f for f, _, _ in APPS if os.path.isdir(os.path.join(directory, f))]
+    jobs = [(src, directory, out_dir, f, sub) for f, _, _, sub in _apps(which)
+            if os.path.isdir(os.path.join(directory, f, sub))]
     failed = 0
     with concurrent.futures.ProcessPoolExecutor(max_workers=min(6, os.cpu_count() or 1)) as pool:
-        for folder, code, last in pool.map(_scan_one, [(src, directory, out_dir, f) for f in folders]):
+        for folder, code, last in pool.map(_scan_one, jobs):
             print(f"{folder:24} {'ok' if code == 0 else f'exit {code}: {last}'}")
             failed += code != 0
     return 1 if failed else 0
@@ -121,9 +143,11 @@ def main() -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("fetch", help="clone the corpus at its recorded commits")
     p.add_argument("dir")
+    p.add_argument("--set", default="main", choices=["main", "rn"], help="the 19 apps, or the React Native set")
     p = sub.add_parser("scan", help="scan every app as a banking app")
     p.add_argument("dir")
     p.add_argument("out")
+    p.add_argument("--set", default="main", choices=["main", "rn"], help="the 19 apps, or the React Native set")
     p.add_argument("--src", default=os.path.join(ROOT, "src"), help="masaudit source to run (default: this checkout)")
     p = sub.add_parser("diff", help="compare two scans")
     p.add_argument("before")
@@ -131,10 +155,10 @@ def main() -> int:
     p.add_argument("rules", nargs="*")
     args = parser.parse_args()
     if args.cmd == "fetch":
-        fetch(args.dir)
+        fetch(args.dir, args.set)
         return 0
     if args.cmd == "scan":
-        return scan(args.dir, args.out, os.path.abspath(args.src))
+        return scan(args.dir, args.out, os.path.abspath(args.src), args.set)
     diff(args.before, args.after, set(args.rules))
     return 0
 

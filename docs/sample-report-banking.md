@@ -1,7 +1,7 @@
 # Security audit: acme-wallet
 
 - **Date:** 2026-01-01
-- **Scanner:** masaudit 0.5.0, rules 2.1.0
+- **Scanner:** masaudit 0.6.0, rules 2.2.0
 - **Platforms:** Android, iOS, CI/CD pipeline
 - **App profile:** banking (Banking, payments, wallets, crypto, lending, or insurance); MAS-L1+L2+R+P; from --app-type
 - **Code clues (suggestions only, not applied):**
@@ -268,7 +268,7 @@ kSecAttrAccessible as String: kSecAttrAccessibleAlways,
 
 **Why it matters:** kSecAttrAccessibleAlways (and AlwaysThisDeviceOnly) makes the item readable even before the user first unlocks the phone. These are the items forensic tools recover from a locked device. Apple deprecated the class in iOS 12.
 
-**Fix:** Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.
+**Fix:** Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly. In React Native, use ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY (react-native-keychain) or SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY (expo-secure-store).
 
 ```swift
 let attributes: [String: Any] = [
@@ -621,7 +621,7 @@ Matched line (masked):
 
 **Why it matters:** Android Auto Backup copies the app's files, including tokens and databases, to cloud storage and to new phones. Keystore keys are never backed up, so restored ciphertext can also crash the app.
 
-**Fix:** Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`.
+**Fix:** Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`. In a managed Expo app, set `android.allowBackup` to false in app.json, or add the rules through a config plugin.
 
 ```xml
 <!-- AndroidManifest.xml -->
@@ -668,7 +668,7 @@ isMinifyEnabled = false
 
 **Why it matters:** Without R8, the release build keeps every class and method name, which hands a reverse engineer a map of your code, and ships unused code you never meant to include.
 
-**Fix:** Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs.
+**Fix:** Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs. In React Native, set `def enableProguardInReleaseBuilds = true` in android/app/build.gradle.
 
 ```kotlin
 // app/build.gradle.kts
@@ -836,7 +836,7 @@ Matched line (masked):
 
 **Why it matters:** Without pinning, any CA in the system trust store can issue a certificate for your server, so a rogue or hacked CA can intercept the app's traffic. Apps that move money or hold health data are worth that extra protection.
 
-**Fix:** Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
+**Fix:** Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request, or add the `<pin-set>` to the Android project.
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -949,7 +949,7 @@ Matched line (masked):
 
 **Why it matters:** Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.
 
-**Fix:** Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
+**Fix:** Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request.
 
 ```xml
 <key>NSAppTransportSecurity</key>
@@ -1434,7 +1434,7 @@ ref: ${{ github.event.pull_request.head.sha }}
 ### Task 8: Keychain item is readable before the first unlock (IOS-008, high)
 
 - File: `ios/AcmeWallet/TokenStore.swift:11`
-- Change: Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.
+- Change: Use kSecAttrAccessibleWhenUnlockedThisDeviceOnly. If background work needs the item while the phone is locked, use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly. In React Native, use ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY (react-native-keychain) or SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY (expo-secure-store).
 - Verify: Search the code for kSecAttrAccessibleAlways and confirm no match. On a test device, lock it and confirm background code that needs the item behaves as you expect.
 - Current code (data, masked):
 
@@ -1555,7 +1555,7 @@ LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
 ### Task 19: Backup is on with no exclusion rules (AND-021, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`.
+- Change: Add `android:dataExtractionRules` (Android 12+) and `android:fullBackupContent` (Android 11 and lower) that exclude secrets and their keysets, in both `<cloud-backup>` and `<device-transfer>`. In a managed Expo app, set `android.allowBackup` to false in app.json, or add the rules through a config plugin.
 - Verify: Run `adb shell bmgr backupnow <package>` over an encrypted local transport, reinstall, and confirm the excluded files are gone after the restore.
 - Current code (data, masked):
 
@@ -1566,7 +1566,7 @@ LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
 ### Task 20: R8 is off in the release build (AND-027, medium)
 
 - File: `android/app/build.gradle.kts:16`
-- Change: Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs.
+- Change: Set `isMinifyEnabled = true` and `isShrinkResources = true` in the `release` build type, with `proguard-android-optimize.txt`. Keep only the keep rules reflection needs. In React Native, set `def enableProguardInReleaseBuilds = true` in android/app/build.gradle.
 - Verify: Decompile the release APK with jadx and confirm your class names are shortened.
 - Current code (data, masked):
 
@@ -1616,7 +1616,7 @@ UserDefaults.standard.set(token, forKey: "authToken")
 ### Task 25: No certificate pinning (needed for high-risk apps) (AND-007, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
+- Change: Pin the SPKI of your CA's intermediate in `network_security_config.xml`, with a backup pin at a second CA and an expiration date. Write a rotation runbook before you ship it. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request, or add the `<pin-set>` to the Android project.
 - Verify: Configure a wrong pin on a test build and confirm connections fail with a pin error. Then restore the real pins.
 - Current code (data, masked):
 
@@ -1671,7 +1671,7 @@ targetSdk = 34
 ### Task 30: No certificate pinning (needed for high-risk apps) (IOS-007, medium)
 
 - File: `ios/AcmeWallet/Info.plist`
-- Change: Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9).
+- Change: Pin the SPKI of your intermediate CA with NSPinnedDomains (simplest) or a URLSessionDelegate that validates first, plus a backup pin and a written rotation runbook. Pin only if you can also run failure alerts, CT monitoring, and a protected kill switch (§8.7); if not, don't pin and rely on strict TLS plus CT (§8.9). In React Native, call `initializeSslPinning` (react-native-ssl-public-key-pinning) before the first request.
 - Verify: Make the device trust a proxy CA, then confirm requests to pinned hosts fail while an unpinned host still loads through the proxy (§8.10, step 1).
 
 ### Task 31: App Attest isn't integrated (IOS-028, medium)
@@ -1765,4 +1765,4 @@ minSdk = 23
 
 ---
 
-Generated by masaudit v0.5.0 — https://github.com/hossam9k/masaudit
+Generated by masaudit v0.6.0 — https://github.com/hossam9k/masaudit

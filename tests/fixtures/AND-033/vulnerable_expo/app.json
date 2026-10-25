@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Bank",
+    "slug": "bank",
+    "android": {
+      "package": "com.bank.app",
+      "permissions": ["CAMERA", "android.permission.READ_CONTACTS", "VIBRATE", "RECORD_AUDIO"],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
+    }
+  }
+}
