@@ -126,7 +126,7 @@ In GitHub Actions, the step looks like this; the [CI guide](https://github.com/h
 has the complete workflow:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.4.3
+- uses: hossam9k/masaudit@<commit-sha> # v0.5.0
   with:
     app-type: banking
     fail-on: high
@@ -145,7 +145,7 @@ scanned the apps again.
   that a source scanner can see (95%). The 0.5.0 rules were tuned on these apps, so expect less on
   unseen code; the misses and the method are published.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
-  under 6 seconds on a laptop, with no crashes on any of the 19.
+  about 5 seconds on a laptop, with no crashes on any of the 19.
 
 Method and per-rule numbers: [Accuracy and speed](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md).
 

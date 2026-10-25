@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@<commit-sha>
         with:
           persist-credentials: false
-      - uses: hossam9k/masaudit@<commit-sha> # v0.4.3
+      - uses: hossam9k/masaudit@<commit-sha> # v0.5.0
         with:
           app-type: banking
           fail-on: high
@@ -40,12 +40,12 @@ A tag can be moved to other code; a commit ID can't. Replace each `<commit-sha>`
 1. Find the commit ID of the tag. For masaudit, run:
 
    ```bash
-   git ls-remote https://github.com/hossam9k/masaudit 'refs/tags/v0.4.3^{}'
+   git ls-remote https://github.com/hossam9k/masaudit 'refs/tags/v0.5.0^{}'
    ```
 
    For `actions/checkout`, run the same command with its repository and tag.
 2. Paste the ID after the `@`.
-3. Keep the version as a comment after the ID, for example `# v0.4.3`.
+3. Keep the version as a comment after the ID, for example `# v0.5.0`.
 
 If you turn on Dependabot version updates for GitHub Actions, Dependabot updates the commit IDs and
 the version comments.
@@ -82,7 +82,7 @@ To scan before every commit, add this to `.pre-commit-config.yaml`
 ```yaml
 repos:
   - repo: https://github.com/hossam9k/masaudit
-    rev: v0.4.3
+    rev: v0.5.0
     hooks:
       - id: masaudit
         args: [--app-type, banking]
