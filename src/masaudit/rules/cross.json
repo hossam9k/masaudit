@@ -497,7 +497,7 @@
         "R"
       ],
       "why": "A rooted or jailbroken device lets other code read the app's memory and storage and hook its checks. Without any signal, your backend can't weigh that risk for a payment or sign-in.",
-      "fix": "Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally.",
+      "fix": "Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally. In React Native, jail-monkey gives root and jailbreak signals, and @react-native-firebase/app-check or react-native-device-attest gives attestation.",
       "verify": "Run the app on a rooted emulator or a jailbroken device and confirm the backend receives the signal.",
       "effort": "days",
       "book": "§14.4",
@@ -521,7 +521,7 @@
         "R"
       ],
       "why": "An attached debugger can read keys from memory and skip any client-side check. Without a debugger signal, the backend can't tell a tampered session from a normal one.",
-      "fix": "Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup.",
+      "fix": "Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup. In React Native, freerasp-react-native reports debugger, emulator, and hooking signals.",
       "verify": "Attach a debugger to a release build and confirm the signal reaches the backend.",
       "effort": "hours",
       "book": "§14.4",
@@ -668,7 +668,7 @@
     },
     {
       "id": "XPL-029",
-      "title": "Native code writes a secret into the WebView's DOM",
+      "title": "App code writes a secret into the WebView's DOM",
       "platform": "cross",
       "severity": "medium",
       "profiles": [
@@ -883,7 +883,7 @@
         "R"
       ],
       "why": "Fraud and cheating at scale run on emulators. Without an emulator signal, the backend can't tell a farm of virtual devices from real users.",
-      "fix": "Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal.",
+      "fix": "Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal. In React Native, freerasp-react-native reports these signals.",
       "verify": "Run a release build on an emulator and confirm the signal reaches the backend.",
       "effort": "hours",
       "book": "§14.4",
@@ -906,7 +906,7 @@
         "R"
       ],
       "why": "Frida, Xposed, and Substrate rewrite the app's checks at runtime. Without a hooking signal, the backend trusts results that the attacker computed.",
-      "fix": "Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal.",
+      "fix": "Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal. In React Native, freerasp-react-native reports these signals.",
       "verify": "Attach Frida to a release build and confirm the signal reaches the backend.",
       "effort": "hours",
       "book": "§14.4",

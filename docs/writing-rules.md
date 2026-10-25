@@ -3,8 +3,8 @@
 # Writing a rule
 
 A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a declarative
-`pattern` or a Python detector in `src/masaudit/detectors/<platform>.py`, plus a fixture in
-`tests/fixtures/<RULE-ID>/`. The tests check the rest automatically.
+`pattern` or a Python detector in `src/masaudit/detectors/<platform>.py` (React Native detectors are in
+`reactnative.py` and `rn_*.py`), plus a fixture in `tests/fixtures/<RULE-ID>/`. The tests check the rest automatically.
 
 ## 1. The JSON entry
 
@@ -36,7 +36,7 @@ A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a decla
 | Field | Rules |
 |---|---|
 | `id` | `AND-`, `IOS-`, `RN-` (React Native), `KMP-`, `FLT-` (Flutter), `XPL-` (cross-platform code), or `CI-`, then 3 digits. Never reuse an ID; retire with `"retired": true`. |
-| `platform` | `android`, `ios`, `kmp`, `flutter`, `cross`, `ci`. The rule runs only if the project has that platform. |
+| `platform` | `android`, `ios`, `react-native`, `kmp`, `flutter`, `cross`, `ci`. The rule runs only if the project has that platform. |
 | `severity` | `critical`, `high`, `medium`, `low`, `info`: the severity for an app whose profile includes this weakness. |
 | `profiles` | The MAS profiles the weakness belongs to (book §3.2): `L1` baseline, `L2` high-risk data and untrusted OS, `R` resilience, `P` privacy. If the app's profile shares none of them, the finding goes to "Not needed for your app". |
 | `app_types` | Optional allowlist of app types that need this (for example, pinning: `["banking","identity","health","ecommerce-cards"]`, from §8.8). Requires `not_needed_reason`. |

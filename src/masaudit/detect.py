@@ -144,8 +144,11 @@ _TEST_TARGET = re.compile(r"(?:^|/)[\w-]*(?:Tests|UITests|Mocks)/")
 # letter or digit must come before "Test", so ABTest.kt, Latest.kt, and KeyAttest.kt stay main.
 _TEST_FILE = re.compile(r"(?:[a-z0-9_](?:Test|Spec|IT)(?:_\w+)?\.(?:kt|java|swift|m|mm)|[A-Za-z0-9_]Tests\.(?:kt|java|swift|m|mm)"
                         r"|_test\.dart)$")
-_DEBUG_DIRS = {"sample", "samples", "example", "examples", "demo", "demos", "catalog", "showcase",
-               "preview content"}
+_DEBUG_DIRS = {"sample", "samples", "example", "examples", "demo", "demos", "preview content"}
+# Gradle modules only (a folder before /src/): an app's Catalog or Internal folder in Xcode or JS often ships.
+_DEBUG_MODULES = {"catalog", "showcase", "internal"}
+# A Gradle source set that ships (main, debug, release, a flavor): a file there is not a test by its name.
+_GRADLE_SET = re.compile(r"/src/\w+/")
 # Storybook's folders count as debug code for JavaScript-side files only. A folder named `stories` is often a
 # shipping feature (in native or JS code); Storybook's own files are `*.stories.*`.
 _JS_STORY_DIRS = {"storybook", ".storybook"}
@@ -174,7 +177,8 @@ def scope_of(path: str) -> str:
         return "ci"
     base = p.rsplit("/", 1)[-1]
     module = low.split("/src/", 1)[0] if "/src/" in low else low.rsplit("/", 1)[0]
-    if (_TEST_SOURCE_SET.search(p) or _TEST_TARGET.search(p) or _TEST_FILE.search(base)
+    named_test = _TEST_FILE.search(base) and not (base.endswith((".kt", ".java")) and _GRADLE_SET.search(p))
+    if (_TEST_SOURCE_SET.search(p) or _TEST_TARGET.search(p) or named_test
             or any(seg in _TEST_DIRS for seg in module.split("/"))
             or _JS_TEST_FILE.search(base)
             or (low.endswith(_JS_TEST_DIR_FILES) and any(seg in _JS_TEST_DIRS for seg in low.split("/")[:-1]))):
@@ -186,7 +190,9 @@ def scope_of(path: str) -> str:
         return "debug"
     # Sample, demo, catalog, and internal-build modules (sync-internal, settings/internal) count as debug
     # code, but only as module directories: a package such as src/main/java/com/example/... is production.
-    if any(seg in _DEBUG_DIRS or seg == "internal" or seg.endswith("-internal") for seg in module.split("/")):
+    gradle_module = "/src/" in low
+    if any(seg in _DEBUG_DIRS or (gradle_module and (seg in _DEBUG_MODULES or seg.endswith("-internal")))
+           for seg in module.split("/")):
         return "debug"
     top = low.lstrip("/").split("/", 1)[0]
     if (top in _TOOLING_TOP or low.endswith((".gradle", ".gradle.kts", "podfile", "package.swift", ".toml"))

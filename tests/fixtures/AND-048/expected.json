@@ -1,1 +1,1 @@
-{"vulnerable": 1, "clean": 0, "clean_code": 0, "clean_safetynet_only": 0, "clean_library": 0, "clean_rn_app_check": 0, "clean_rn_expo_integrity": 0, "vulnerable_rn_unrelated": 1}
+{"vulnerable": 1, "clean": 0, "clean_code": 0, "clean_safetynet_only": 0, "clean_library": 0, "clean_rn_app_check": 0, "clean_rn_expo_integrity": 0, "vulnerable_rn_unrelated": 1, "vulnerable_expo_managed": 1}

@@ -55,6 +55,12 @@ def collect() -> list:
                 continue
             rel = os.path.relpath(full, os.path.dirname(PACKAGE_DIR)).replace(os.sep, "/")
             entries.append((rel, full))
+    # The licenses travel with every copy: Apache-2.0 code, CC BY-SA 4.0 rule text, MIT-0 fix snippets.
+    for name in ("LICENSE", "LICENSING.md"):
+        entries.append((name, os.path.join(ROOT, name)))
+    for name in sorted(os.listdir(os.path.join(ROOT, "LICENSES"))):
+        if name.endswith(".txt"):
+            entries.append((f"LICENSES/{name}", os.path.join(ROOT, "LICENSES", name)))
     return sorted(entries)
 
 

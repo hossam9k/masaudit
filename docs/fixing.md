@@ -5,6 +5,9 @@
 After a scan, masaudit writes `SECURITY-AUDIT.md`. This page shows how to read it, what to fix first,
 and how to check each fix.
 
+Commands on this page start with `masaudit`. If you run it with uv, type `uvx masaudit` instead;
+[Install and upgrade](install.md) lists the other ways.
+
 ## What's in the report
 
 The report opens with a **verdict** for your app type and the **top fixes** (up to three), then one
@@ -16,8 +19,8 @@ paste-ready code), how to verify the fix, roughly how long it takes, its OWASP I
 section that explains it. Findings marked *Check by hand* need a person or an AI assistant to confirm
 them.
 
-A finding in test or debug code is still listed, at a lower severity, because that code usually
-doesn't ship. The *Accepted earlier* section appears only when you have suppressions or a baseline.
+A finding in native test or debug code is still listed, at a lower severity, because that code usually
+doesn't ship. JavaScript and TypeScript tests aren't reported at all. The *Accepted earlier* section appears only when you have suppressions or a baseline.
 
 ## Fix in this order
 
@@ -51,8 +54,10 @@ masaudit . --fix-safe --write-patch    # also save it as masaudit-fixes.patch
 masaudit . --fix-safe --yes            # apply it in place (needs a clean git tree)
 ```
 
-`--yes` needs a clean git tree, and an untracked `SECURITY-AUDIT.md` counts as a change. Commit the
-report, delete it, or add it to `.gitignore` before you run `--yes`.
+`--yes` needs a clean git tree, so that `git` can undo the change. masaudit's own files (the report,
+the patch, the baseline, and `.masaudit.ini`) don't count; if anything else is uncommitted, masaudit names
+it. The demo app has nothing to fix this way: its debuggable flag is in a Gradle file, so `--fix-safe`
+prints "No safe fixes to apply."
 
 masaudit never edits Gradle files. For `isDebuggable = true` in a Gradle release build type, the
 report's fix tells you the change to make by hand.

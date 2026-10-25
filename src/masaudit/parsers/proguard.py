@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass
 from typing import List
 
+from masaudit import safety
+
 _OPTION = re.compile(r"-(?P<name>[A-Za-z]+)(?P<rest>[^\n]*)")
 
 
@@ -28,7 +30,7 @@ def _strip_comment(line: str) -> str:
 
 def parse(text: str) -> List[Option]:
     out: List[Option] = []
-    for lineno, raw in enumerate(text.splitlines(), start=1):
+    for lineno, raw in enumerate(safety.lines(text), start=1):
         line = _strip_comment(raw).strip()
         if not line:
             continue

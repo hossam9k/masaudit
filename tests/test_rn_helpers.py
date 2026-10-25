@@ -132,6 +132,28 @@ class Project_(unittest.TestCase):
         self.assertFalse(detect.depends_on("[" * 100_000, "react-native"))
         self.assertTrue(detect.depends_on('{"peerDependencies": {"expo": "*"}}', "expo"))
 
+    def test_dev_only_token_write_is_debug_code(self):
+        self._write("package.json", json.dumps({"dependencies": {"react-native": "0.76.1"}}))
+        self._write("src/a.ts", "import AsyncStorage from '@react-native-async-storage/async-storage';\n"
+                                "if (__DEV__) {\n  AsyncStorage.setItem('authToken', t);\n}\n"
+                                "AsyncStorage.setItem('refreshToken', r);\n")
+        rule = [r for r in engine.load_rules() if r.id == "RN-001"]
+        found = {f.location.line: f.scope for f in engine.run(self._ctx().project, rule, profile.make("banking", "flag"))}
+        self.assertEqual(found, {3: "debug", 5: "main"})
+
+    def test_template_sdk_versions_resolve_from_the_root_ext_block(self):
+        # The React Native template: android/app/build.gradle reads rootProject.ext.minSdkVersion.
+        self._write("package.json", json.dumps({"dependencies": {"react-native": "0.79.0"}}))
+        self._write("android/build.gradle", "buildscript {\n    ext {\n        minSdkVersion = 26\n"
+                                            "        targetSdkVersion = 36\n    }\n}\n")
+        self._write("android/app/build.gradle", "android {\n    defaultConfig {\n"
+                                                "        minSdkVersion rootProject.ext.minSdkVersion\n"
+                                                "        targetSdkVersion rootProject.ext.targetSdkVersion\n    }\n}\n")
+        ctx = self._ctx()
+        rules = [r for r in engine.load_rules() if r.id in ("AND-028", "AND-029")]
+        self.assertEqual(engine.run(ctx.project, rules, profile.make("banking", "flag")), [])
+        self.assertFalse([u for u in ctx.project.unknowns if "resolve" in u])
+
     def test_odd_expo_values_dont_stop_the_scan(self):
         # Untrusted app.json: numbers, objects, and empty lists where Expo expects lists.
         self._write("package.json", json.dumps({"dependencies": {"expo": "~52.0.0", "react-native": "0.76.1"}}))

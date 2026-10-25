@@ -1,0 +1,4 @@
+name: shop
+dependencies:
+  flutter:
+    sdk: flutter

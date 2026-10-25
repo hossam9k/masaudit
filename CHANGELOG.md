@@ -3,6 +3,81 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.6.1 — 2026-10-25
+
+**A security fix for the GitHub Action, and fixes from a five-part audit of 0.6.0** (code, safety,
+docs, release, and a newcomer's first run). If you run the Action on pull requests, update to v0.6.1.
+
+### Security
+
+- **The Action could run code from the repository it scanned.** Its Python calls ran from the checkout,
+  so a pull request that added a `masaudit/` folder or a `json.py` replaced the scanner or the standard
+  library: it ran with the job's token and could pass the `fail-on` gate. Every call now runs in
+  Python's isolated mode with the Action's own source. CI scans a checkout with both files planted.
+- **Files masaudit writes inside the scanned folder no longer follow links.** A symbolic link planted as
+  `SECURITY-AUDIT.md`, the baseline, or `.masaudit.ini` made masaudit overwrite the file it pointed to.
+  The link is now replaced by a new file, and a FIFO or device there is refused. A linked `.masaudit.ini`
+  isn't read, so an error message can't print a line of another file.
+- **Secrets next to a secret-like name are masked in every snippet,** whichever rule matched the line:
+  `clientSecret = "..."`, `password=...` inside a string, `setItem('password', '...')`. Before, only the
+  value the rule matched was masked, so a second secret on the line showed. Baseline fingerprints don't
+  change.
+- **File and folder names with control characters are skipped and listed under *Not scanned*.** A
+  folder name with a newline could print a forged line, such as a GitHub `::error` command.
+- **`--fix-safe --yes` ignores git submodules,** whose own config could make `git status` run a command.
+- **A symbolic link to a hard link is treated as a hard link** (skipped), and a folder that can't be read
+  is listed under *Not scanned* instead of being left out silently.
+
+### React Native and Expo
+
+- **Managed Expo apps get the protection checks.** With no `android/` or `ios/` folder, root, debugger,
+  emulator, and hooking detection, forced update, screen lock, screenshot and overlay protection, Play
+  Integrity, App Attest, third-party keyboards, and R8 were listed under *Checked, nothing found*. They now
+  run on the app config (R8 reads expo-build-properties), and the report says that the native checks saw
+  only the config, with `npx expo prebuild` for a full check.
+- RN-001 treats a write inside `if (__DEV__)` as debug code.
+- react-native-device-attest counts as attestation (AND-048, IOS-028, XPL-021).
+- The fixes for AND-045, AND-046, AND-048, IOS-028, IOS-030, IOS-036, and XPL-021, XPL-022, XPL-038, and
+  XPL-039 say what to use in React Native. XPL-029 is now "App code writes a secret into the WebView's DOM",
+  since it also reads JavaScript.
+- `minSdkVersion rootProject.ext.minSdkVersion`, as the React Native template writes it, is read from the
+  root `ext` block instead of being reported as a value masaudit can't resolve.
+
+### Fixes
+
+- A Kotlin or Java string holding `putString(...)` sample code stopped the scan (exit 2).
+- A form feed, U+0085, or U+2028 in a file shifted every later snippet and inline suppression by a line.
+- **The baseline doesn't cover a new copy of an accepted line.** Two identical lines shared one
+  fingerprint, so a pasted copy of a baselined weakness was accepted too. Each copy now has its own
+  fingerprint. A baseline written before 0.6.1 keeps covering every identical line until
+  `--update-baseline` rewrites it, so upgrading turns no accepted finding new.
+- AND-027 reports an app module that never sets `isMinifyEnabled`: the Android Gradle plugin leaves R8 off
+  by default. Flutter apps and convention plugins that set it are left alone.
+- A Kotlin or Java file in a shipping source set is no longer treated as a test because its name ends in
+  `Test` or `Spec`, and an iOS or JavaScript folder named Catalog, Internal, or Showcase is no longer
+  treated as debug code.
+- Suppressed and baselined findings no longer also appear under *Checked, nothing found*.
+- Keeping your app type at the first-run question records the suggested type as reviewed, so the warning
+  doesn't repeat. Saving the type replaces an existing `app_type` line instead of adding a second one, and
+  a `.masaudit.ini` with a byte-order mark (Windows Notepad) is read.
+- Reports say "an ecommerce app", and iOS findings name the app, not the `ios` folder.
+- A malformed SARIF import and a baseline path that can't be written give a clear error instead of
+  "internal error".
+
+### Speed
+
+Five crafted inputs took 25 seconds to hours on a 200 KB file; each now scans in under a second: a run of
+`#` in Swift, `Math.random(` repeated on one line (Java, Dart), unclosed and nested calls in Kotlin, spaces
+after a Gradle block name, and blank lines in an xcconfig. A test scans each one.
+
+### Packaging and docs
+
+- `masaudit.pyz` and the Claude Code plugin include the license texts.
+- The release checks that the wheel holds every module and scans a React Native fixture before publishing.
+- The fuzz job covers the React Native parsers.
+- The skill points to `fixes-react-native.md`. The docs say which tests aren't reported, how a managed Expo
+  app is checked, and that commands written as `masaudit` run as `uvx masaudit` with uv.
+
 ## 0.6.0 — 2026-10-25
 
 **React Native, JavaScript and TypeScript included. Rules 2.2.0: 20 new React Native rules (207 in

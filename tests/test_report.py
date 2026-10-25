@@ -93,6 +93,10 @@ class Markdown(unittest.TestCase):
         self.assertIn("## Accepted earlier (not counted)", md)
         self.assertIn("lab only", md)
         self.assertIn("no issues found", md)
+        # An accepted finding is not a clean check.
+        held = md.split("## Checked, nothing found")[1].split("## Residual risk")[0]
+        self.assertNotIn(self.high_min.id, held)
+        self.assertNotIn(self.high_days.id, held)
 
     def test_source_date_epoch(self):
         with mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000"}):

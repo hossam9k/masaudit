@@ -18,7 +18,8 @@ from masaudit import safety
 
 # `release {`, `getByName("release") {`, `named("release") {`, `create("staging") {`
 _HEADER = re.compile(
-    r"(?<![\w.])(?P<fn>[A-Za-z_]\w*)\s*(?:\(\s*[\"'](?P<arg>[\w.-]+)[\"']\s*\))?\s*\{"
+    # The second \s* sits inside the optional group, so two \s* never split one run of spaces between them.
+    r"(?<![\w.])(?P<fn>[A-Za-z_]\w*)\s*(?:\(\s*[\"'](?P<arg>[\w.-]+)[\"']\s*\)\s*)?\{"
 )
 _NAMED_FNS = {"getByName", "named", "create", "maybeCreate", "register"}
 
@@ -233,7 +234,7 @@ def toml_versions(text: str) -> Dict[str, Tuple[str, int]]:
     """[versions] entries of a Gradle version catalog: key -> (value, 1-based line)."""
     out: Dict[str, Tuple[str, int]] = {}
     section = ""
-    for lineno, raw in enumerate(text.splitlines(), start=1):
+    for lineno, raw in enumerate(safety.lines(text), start=1):
         line = _strip_toml_comment(raw)
         sm = _TOML_SECTION.match(line)
         if sm:
@@ -249,7 +250,7 @@ def toml_versions(text: str) -> Dict[str, Tuple[str, int]]:
 
 def toml_lines(text: str) -> Iterator[Tuple[int, str]]:
     """Non-comment content of each TOML line."""
-    for lineno, raw in enumerate(text.splitlines(), start=1):
+    for lineno, raw in enumerate(safety.lines(text), start=1):
         yield lineno, _strip_toml_comment(raw)
 
 
@@ -462,7 +463,7 @@ def toml_libraries(text: str) -> Dict[str, Tuple[str, int]]:
     """[libraries] entries of a version catalog: alias -> ("group:name", 1-based line)."""
     out: Dict[str, Tuple[str, int]] = {}
     section = ""
-    for lineno, raw in enumerate(text.splitlines(), start=1):
+    for lineno, raw in enumerate(safety.lines(text), start=1):
         line = _strip_toml_comment(raw)
         sm = _TOML_SECTION.match(line)
         if sm:

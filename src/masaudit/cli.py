@@ -155,24 +155,27 @@ def prompt_app_type(root: str, suggestions: List[str]) -> Optional[str]:
 
 
 def _confirm_against_clues(chosen: str, clues: Sequence[profile_mod.Clue], rules: Sequence[Rule],
-                           platforms: Sequence[str] = ()) -> str:
-    """If the code suggests a riskier type than the answer, say so once and offer to switch."""
+                           platforms: Sequence[str] = ()) -> Tuple[str, List[str]]:
+    """If the code suggests a riskier type than the answer, say so once and offer to switch. Returns the type
+    and, when the user keeps theirs, the suggested type as reviewed (so it doesn't warn again)."""
     warnings = profile_mod.check(profile_mod.make(chosen, "prompt"), list(clues), list(rules),
                                  applies=lambda r: engine.applies_to_platforms(r, platforms))
     if not warnings:
-        return chosen
+        return chosen, []
     w = warnings[0]
     lines = w.lines()[:4]                       # headline, choice, evidence, suggestion
     sys.stderr.write(asciify("\n" + "\n".join(lines[:1] + ["  " + x for x in lines[1:]])) + "\n")
     answer = _ask(f"Use '{w.suggested}' instead? Press Enter to keep '{chosen}', or type y or another type: ")
-    if answer is None or not answer.strip():
-        return chosen
+    if answer is None:
+        return chosen, []
+    if not answer.strip():
+        return chosen, [w.suggested]
     if answer.strip().lower() in ("y", "yes"):
-        return w.suggested
+        return w.suggested, []
     try:
-        return profile_mod.normalize(answer)
+        return profile_mod.normalize(answer), []
     except ValueError:
-        return chosen
+        return chosen, []
 
 
 def _gh_escape(value: str, prop: bool = False) -> str:
@@ -199,12 +202,12 @@ def _annotate_github(warnings: Sequence[AppTypeWarning], root: str = ".") -> Non
                          f"{_gh_escape(w.summary())}\n")
 
 
-def _offer_save(root: str, app_type: str) -> None:
+def _offer_save(root: str, app_type: str, reviewed: Sequence[str] = ()) -> None:
     answer = _ask(f"Save '{app_type}' to {config.FILE_NAME} so you aren't asked again? [Y/n]: ")
     if answer is None or answer.strip().lower() not in ("", "y", "yes"):
         return
     try:
-        path = config.save_app_type(root, app_type)
+        path = config.save_app_type(root, app_type, reviewed)
         sys.stderr.write(f"Saved {path}\n")
     except OSError as exc:
         sys.stderr.write(f"Couldn't save {config.FILE_NAME}: {exc}\n")
@@ -224,9 +227,11 @@ def resolve_profile(cli_type: Optional[str], cfg: Dict[str, object], root: str,
     else:
         chosen = prompt_app_type(root, suggestions) if allow_prompt and _is_interactive() else None
         if chosen:
-            chosen = _confirm_against_clues(chosen, clues, rules, platforms)
+            chosen, reviewed = _confirm_against_clues(chosen, clues, rules, platforms)
             prof = profile_mod.make(chosen, "prompt")
-            _offer_save(root, chosen)
+            if reviewed:              # kept on purpose: this run doesn't warn about it again either
+                cfg["app_type_reviewed"] = list(cfg.get("app_type_reviewed") or []) + reviewed  # type: ignore
+            _offer_save(root, chosen, reviewed)
         else:
             prof = profile_mod.make("general", "default")
     prof.suggestions = list(suggestions)
@@ -326,12 +331,16 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
         findings += extra
         notes += extra_notes
     findings = _dedupe(findings)
+    _number_occurrences(findings)
     engine.calibrate(findings, prof)
     notes += suppress.apply_inline(findings, root)
     if baseline or update_baseline:
         path = baseline or os.path.join(root, DEFAULT_BASELINE)
         if update_baseline:
-            n = suppress.write_baseline(path, findings)
+            try:
+                n = suppress.write_baseline(path, findings, root)
+            except OSError as exc:
+                raise ToolError(f"Couldn't write the baseline {path}: {exc.strerror or exc}") from exc
             notes.append(f"Wrote {n} finding(s) to the baseline {os.path.basename(path)}.")
         try:
             fps = suppress.load_baseline(path)
@@ -349,6 +358,16 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
                          f"marks that as reviewed (app_type_reviewed).")
     return ScanResult(root=root, project=project, profile=prof, findings=findings, rules=all_rules,
                       rules_version=engine.rules_version(), notes=notes)
+
+
+def _number_occurrences(findings: List[Finding]) -> None:
+    """Number findings of one rule on identical lines of one file, top to bottom, so each has its own
+    fingerprint."""
+    counts: Dict[Tuple[str, str, str], int] = {}
+    for f in sorted(findings, key=lambda f: (f.location.path, f.location.line)):
+        key = (f.rule.id, f.location.path, (f.location.fingerprint_text or f.location.snippet).strip())
+        counts[key] = counts.get(key, 0) + 1
+        f.occurrence = counts[key]
 
 
 def _dedupe(findings: List[Finding]) -> List[Finding]:
@@ -391,12 +410,11 @@ def _write_stdout(text: str) -> None:
         sys.stdout.write(text)
 
 
-def _write_file(path: str, text: str) -> None:
+def _write_file(path: str, text: str, root: Optional[str] = None) -> None:
     try:
         directory = os.path.dirname(os.path.abspath(path))
         os.makedirs(directory, exist_ok=True)
-        with open(path, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(text)
+        safety.write_text(path, text, root)
     except OSError as exc:
         raise ToolError(f"can't write {path}: {exc}") from exc
 
@@ -430,15 +448,21 @@ def _git_clean(root: str) -> Optional[str]:
         # A hostile repo config must not run a command on `git status`: no fsmonitor, no hooks
         # (post-index-change), and no optional index writes that would trigger them.
         env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+        # --ignore-submodules=all: a submodule's own config could hold a filter, which `git status` would run.
         proc = subprocess.run([git, "-c", "core.fsmonitor=false", "-c", f"core.hooksPath={os.devnull}",
-                               "status", "--porcelain", "--untracked-files=normal"],
+                               "status", "--porcelain", "--untracked-files=normal", "--ignore-submodules=all"],
                               cwd=root, capture_output=True, text=True, timeout=60, env=env)
     except (OSError, subprocess.SubprocessError) as exc:
         return f"couldn't run git status: {exc}"
     if proc.returncode != 0:
         return "this folder isn't a git repository, so there is no way to undo the change."
-    if proc.stdout.strip():
-        return "the git working tree has uncommitted changes. Commit or stash them first."
+    # masaudit's own files (the report, a patch, the baseline, the config) are never changed by a fix.
+    own = {DEFAULT_REPORT, DEFAULT_PATCH, DEFAULT_BASELINE, config.FILE_NAME}
+    changed = [line[3:].strip().strip('"') for line in proc.stdout.splitlines() if line.strip()]
+    changed = [p for p in changed if p.rsplit("/", 1)[-1] not in own]
+    if changed:
+        listed = ", ".join(asciify(p) for p in changed[:3]) + (f", and {len(changed) - 3} more" if len(changed) > 3 else "")
+        return f"the git working tree has uncommitted changes ({listed}). Commit or stash them first."
     return None
 
 
@@ -456,7 +480,7 @@ def run_fix_safe(result: ScanResult, args) -> int:
     for s in plan.skipped:
         sys.stderr.write(asciify(f"Skipped: {s}") + "\n")
     if args.write_patch and diff:
-        _write_file(args.write_patch, diff)
+        _write_file(args.write_patch, diff, result.root)
         sys.stderr.write(f"Wrote {args.write_patch}. Apply it with: git apply {args.write_patch}\n")
     if args.yes and plan.fixes:
         reason = _git_clean(result.root)
@@ -520,7 +544,7 @@ def _main(args) -> int:
     color = terminal.use_color(args.no_color)
     if args.format is None:
         out_path = os.path.abspath(args.output) if args.output else os.path.join(root, DEFAULT_REPORT)
-        _write_file(out_path, markdown.render(result))
+        _write_file(out_path, markdown.render(result), root)
         sys.stdout.write(terminal.render(result, report_path=out_path, color=color))
     else:
         if args.format == "md":
@@ -532,7 +556,7 @@ def _main(args) -> int:
         else:
             text = terminal.render(result, report_path=None, color=color and not args.output)
         if args.output:
-            _write_file(args.output, text)
+            _write_file(args.output, text, root)
             sys.stderr.write(f"Wrote {args.output}\n")
         else:
             _write_stdout(text)

@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Shop",
+    "slug": "shop",
+    "android": {
+      "package": "com.shop"
+    },
+    "ios": {
+      "bundleIdentifier": "com.shop"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true
+          }
+        }
+      ]
+    ]
+  }
+}

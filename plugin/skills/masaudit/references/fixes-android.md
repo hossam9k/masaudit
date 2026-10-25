@@ -721,7 +721,7 @@ Book: [§17.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/07
 
 ## AND-045: App never blocks screenshots or the recents thumbnail
 
-Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.
+Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets. In React Native, use expo-screen-capture (`preventScreenCaptureAsync`) or react-native-capture-protection on those screens.
 
 ```kotlin
 class StatementActivity : AppCompatActivity() {
@@ -741,7 +741,7 @@ Book: [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-
 
 ## AND-046: App has no overlay (tapjacking) protection
 
-On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.
+On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons. In React Native, set it in MainActivity (bare app) or through a config plugin (Expo).
 
 ```kotlin
 // AndroidManifest.xml: <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />

@@ -75,6 +75,17 @@ class Inline(unittest.TestCase):
         self.assertEqual(hits[0].status, "suppressed")
         self.assertEqual(hits[0].suppression_reason, "only used by the offline lab build")
 
+    def test_page_break_earlier_in_the_file_keeps_lines_aligned(self):
+        # str.splitlines() also splits at U+0085 and U+2028 (and form feeds); line numbers count "\n" only.
+        path = os.path.join(self.root, NSC)
+        lines = _read(path, encoding="utf-8").split("\n")
+        lines[0] += "<!-- next line \x85 and line separator \u2028 -->"
+        _write(path, "\n".join(lines), encoding="utf-8")
+        self._prepend_comment("    <!-- masaudit:ignore AND-001 only used by the offline lab build -->")
+        res, hits = self._scan()
+        self.assertEqual(hits[0].status, "suppressed")
+        self.assertNotIn("masaudit:ignore", hits[0].location.snippet)
+
     def test_without_reason_is_ignored_and_noted(self):
         self._prepend_comment("    <!-- masaudit:ignore AND-001 -->")
         res, hits = self._scan()
@@ -112,6 +123,28 @@ class Baseline(unittest.TestCase):
         fresh = Finding(rule=rule(), location=Location(path="a.xml", line=9, snippet="<a/>"))
         self.assertEqual(suppress.apply_baseline([fresh], fps), 1)    # line moved, same fingerprint
         self.assertEqual(fresh.status, "baselined")
+
+    def test_a_new_copy_of_a_baselined_line_is_not_covered(self):
+        first = Finding(rule=rule(), location=Location(path="a.xml", line=1, snippet="<a/>"))
+        fp_before = first.fingerprint()
+        path = os.path.join(self.tmp.name, "base.json")
+        suppress.write_baseline(path, [first])
+        old = Finding(rule=rule(), location=Location(path="a.xml", line=1, snippet="<a/>"))
+        copy = Finding(rule=rule(), location=Location(path="a.xml", line=7, snippet="<a/>"))
+        cli._number_occurrences([copy, old])
+        self.assertEqual(old.fingerprint(), fp_before)      # baselines written by earlier versions still match
+        self.assertEqual(suppress.apply_baseline([old, copy], suppress.load_baseline(path)), 1)
+        self.assertEqual((old.status, copy.status), ("baselined", "open"))
+
+    def test_a_baseline_from_an_earlier_version_still_covers_identical_lines(self):
+        # Before 0.6.1 identical lines shared one fingerprint; upgrading must not turn accepted findings new.
+        path = os.path.join(self.tmp.name, "old.json")
+        first = Finding(rule=rule(), location=Location(path="a.xml", line=1, snippet="<a/>"))
+        _write(path, json.dumps({"schema_version": 1, "tool": "masaudit", "findings": {first.fingerprint(): {}}}))
+        old = Finding(rule=rule(), location=Location(path="a.xml", line=1, snippet="<a/>"))
+        copy = Finding(rule=rule(), location=Location(path="a.xml", line=7, snippet="<a/>"))
+        cli._number_occurrences([old, copy])
+        self.assertEqual(suppress.apply_baseline([old, copy], suppress.load_baseline(path)), 2)
 
     def test_bad_baseline(self):
         path = os.path.join(self.tmp.name, "bad.json")

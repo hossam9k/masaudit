@@ -6,6 +6,9 @@ The app type decides which advice your app gets. A banking app needs certificate
 detection; a news app doesn't, and masaudit lists those findings as *Not needed* with the reason.
 This page shows how to pick a type, set it, and handle the "Check your app type" warning.
 
+Commands on this page start with `masaudit`. If you run it with uv, type `uvx masaudit` instead;
+[Install and upgrade](install.md) lists the other ways.
+
 ## Pick a type
 
 Pick the row that matches what your app protects. If two fit, pick the riskier one: the one with

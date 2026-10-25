@@ -124,6 +124,9 @@ def strip(code: str, lang: str, keep_strings: bool = True) -> str:
                     out.append(opener + _spaces(inner) + segment[len(segment) - len(closer):])
                 i = end
                 continue
+            out.append("#" * hashes)              # no quote follows: the whole run is code (one pass, not one per #)
+            i += hashes
+            continue
         if c in ('"', "'") and not (c == "'" and lang in ("swift",)):
             j = _STRING_BODY[c].match(code, i + 1).end()
             end = min(j + 1, n)

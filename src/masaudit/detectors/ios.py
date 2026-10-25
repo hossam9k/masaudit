@@ -384,7 +384,7 @@ def _kmp_scaffold(ctx: Context, proj: pbxproj.Project) -> bool:
         if not path.startswith(prefix):
             continue
         text = ctx.text(path) or ""
-        if re.search(r"^\s*TEAM_ID\s*=\s*$", text, re.MULTILINE) and "$(TEAM_ID)" in text:
+        if "$(TEAM_ID)" in text and re.search(r"^[ \t]*TEAM_ID[ \t]*=[ \t]*$", text, re.MULTILINE):
             team_unset = True
     if not team_unset:
         return False
@@ -442,14 +442,30 @@ def _anchors(ctx: Context) -> List[Tuple[str, int, str]]:
             break
     if out or _projects(ctx):
         return out
-    docs = _app_plists(ctx) or [d for d in _shipping_plists(ctx)
-                                 if plist.get(d.data, "CFBundleIdentifier") is not None][:1]
+    docs = _app_plists(ctx)
+    expo = _managed_expo(ctx) if not docs and "ios" in ctx.project.platforms else None
+    if expo is not None:
+        # A managed Expo app: prebuild generates the app target from the app config. Any Info.plist in the
+        # repository belongs to an extension or a module, not the app.
+        name = expo.get("name")
+        if not isinstance(name, str) or not name.strip():
+            name = os.path.basename(os.path.normpath(ctx.root)) or "the app"   # a computed app.config.js
+        return [(expo.path, expo.line("ios") if expo.get("ios") is not None else expo.line("expo"), name)]
+    docs = docs or [d for d in _shipping_plists(ctx) if plist.get(d.data, "CFBundleIdentifier") is not None][:1]
     for doc in docs:
-        name = plist.get(doc.data, "CFBundleName")
-        if not isinstance(name, str) or xcconfig.is_unresolved(name):
-            name = doc.path.split("/", 1)[0] if "/" in doc.path else doc.path
+        name = next((n for n in (plist.get(doc.data, "CFBundleDisplayName"), plist.get(doc.data, "CFBundleName"))
+                     if isinstance(n, str) and n.strip() and not xcconfig.is_unresolved(n)), None)
+        if name is None:
+            # `$(PRODUCT_NAME)`: the folder that holds Info.plist is named after the target (ios/Wallet/Info.plist);
+            # a generic folder (ios/Info.plist) says nothing, so the repository's name stands in.
+            folders = [f for f in doc.path.split("/")[:-1] if f.lower() not in _GENERIC_FOLDERS]
+            name = folders[-1] if folders else os.path.basename(os.path.normpath(ctx.root)) or "the app"
+        # Line 0 (the whole file), as before: the line's text is part of a baseline fingerprint.
         out.append((doc.path, 0, name))
     return out
+
+
+_GENERIC_FOLDERS = {"ios", "macos", "supporting files", "resources", "config", "app", "src", "sources"}
 
 
 def _anchor_hits(ctx: Context, message: Callable[[str], str]) -> Iterator[Hit]:
@@ -2424,7 +2440,7 @@ _REFUSES_KEYBOARD = re.compile(
 @detector("ios_third_party_keyboard")
 def third_party_keyboard(ctx: Context, rule: Rule) -> Iterable[Hit]:
     code_files = ctx.files(*CODE_SUFFIXES)
-    if not code_files:
+    if not code_files and _managed_expo(ctx) is None:
         return
     found = False
     for path, line, body, _code, _m, _s in _functions(ctx, _KEYBOARD_METHOD):
@@ -2667,7 +2683,7 @@ def _rn_switcher_evidence(ctx: Context) -> bool:
 @detector("ios_app_switcher_snapshot")
 def app_switcher_snapshot(ctx: Context, rule: Rule) -> Iterable[Hit]:
     code_files = ctx.files(*CODE_SUFFIXES)
-    if not code_files:
+    if not code_files and _managed_expo(ctx) is None:
         return
     if rn_expo.is_rn_app(ctx) and _rn_switcher_evidence(ctx):
         return
@@ -2871,7 +2887,8 @@ _DEVICECHECK = re.compile(r"\bDCDevice\b|\bDeviceCheckProvider\w*|AppleProvider\
 
 # React Native: App Attest through React Native Firebase App Check (provider 'appAttest' or
 # 'appAttestWithDeviceCheckFallback'; its default on iOS is DeviceCheck), @expo/app-integrity, or a RASP SDK.
-_RN_ATTEST_DEPS = re.compile(r"^(?:@expo/app-integrity|freerasp-react-native|@talsec/[\w-]+|[\w@/-]*app-?attest[\w-]*)$",
+_RN_ATTEST_DEPS = re.compile(r"^(?:@expo/app-integrity|freerasp-react-native|@talsec/[\w-]+|[\w@/-]*app-?attest[\w-]*"
+                             r"|react-native-device-attest)$",
                              re.IGNORECASE)
 _RN_ATTEST_CODE = re.compile(r"['\"`]appAttest(?:WithDeviceCheckFallback)?['\"`]")
 
@@ -2879,7 +2896,7 @@ _RN_ATTEST_CODE = re.compile(r"['\"`]appAttest(?:WithDeviceCheckFallback)?['\"`]
 @detector("ios_app_attest_missing")
 def app_attest_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
     suffixes = CODE_SUFFIXES + (".kt", ".dart")
-    if not ctx.files(*CODE_SUFFIXES):
+    if not ctx.files(*CODE_SUFFIXES) and _managed_expo(ctx) is None:
         return
     if rn_expo.is_rn_app(ctx) and (rn_expo.dep_matching(ctx, _RN_ATTEST_DEPS) or rn_expo.js_evidence(
             ctx, "attest", _RN_ATTEST_CODE, ("appAttest",), keep_strings=True)):

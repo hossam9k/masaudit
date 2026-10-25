@@ -63,12 +63,14 @@ finding.
   `expo` as a dependency. masaudit then reads the JavaScript and TypeScript (`.js`, `.jsx`, `.ts`,
   `.tsx`, `.mjs`, `.cjs`), `package.json`, the Expo config (`app.json`, `app.config.*`, `eas.json`), the
   `.env` files that build tools compile into the app, and `.npmrc` and `.yarnrc`, along with the native
-  `android/` and `ios/` folders. A managed Expo app commits no native folders; `expo prebuild` generates
-  them from its config, so masaudit runs the Android and iOS checks that apply to that config. Tests
-  (`__tests__`, `__mocks__`, `*.test.*`, `*.spec.*`, and `e2e`, Detox, and Maestro folders) count as
-  test code, Storybook stories (`*.stories.*` and the `.storybook` folder) and code inside
-  `if (__DEV__)` as debug code, and bundler and Babel configs as build scripts. A backend kept in the
-  same repository (`server/`, `backend/`, or `api-server/`) isn't scanned as app code.
+  `android/` and `ios/` folders. A managed Expo app commits no native folders: `expo prebuild` generates
+  them from its config, so masaudit checks what the config sets and reports missing protections
+  (screenshots, root detection, attestation, and the like) against it. For the full native check, run
+  `npx expo prebuild` and scan again. JavaScript tests (`__tests__`, `__mocks__`, `*.test.*`,
+  `*.spec.*`, and `e2e`, Detox, and Maestro folders) aren't reported. Storybook stories (`*.stories.*`
+  and the `.storybook` folder) and code inside `if (__DEV__)` count as debug code, and bundler and Babel
+  configs as build scripts. A backend kept in the same repository (`server/`, `backend/`, or
+  `api-server/`) isn't scanned as app code.
 - **Built apps:** it doesn't read APK or IPA files. To test a built app and the running app, use a
   tool such as [MobSF](https://github.com/MobSF/Mobile-Security-Framework-MobSF) alongside masaudit.
 - **Skipped folders:** build output, dependencies, and tool folders are never scanned: `build`, `out`,

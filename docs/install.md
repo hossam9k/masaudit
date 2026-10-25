@@ -20,7 +20,8 @@ The single file, `masaudit.pyz`, is on the
 project, and give its full path when you run it.
 
 In this documentation, commands start with `masaudit`. If you run it another way, type
-`uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in place of `masaudit`.
+`uvx masaudit`, `pipx run masaudit`, or `python3 ~/Downloads/masaudit.pyz` (the file's full path) in place
+of `masaudit`.
 
 ## Check that a download is genuine
 

@@ -537,9 +537,10 @@ def _all_names(ctx: Context) -> List[str]:
         )
         for name in sorted(filenames):
             full = os.path.join(dirpath, name)
-            if os.path.islink(full):
+            rel = os.path.relpath(full, root)
+            if os.path.islink(full) or safety.has_control(rel):
                 continue
-            out.append(os.path.relpath(full, root).replace(os.sep, "/"))
+            out.append(rel.replace(os.sep, "/"))
             if len(out) >= safety.MAX_FILES:
                 break
     ctx._ci_all_names = out  # type: ignore[attr-defined]

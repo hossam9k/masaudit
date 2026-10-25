@@ -34,7 +34,17 @@ jobs:
           python -m pip install --require-hashes -r scripts/build-requirements.txt
           python -m build --no-isolation
           SOURCE_DATE_EPOCH=1767225600 python scripts/build_zipapp.py   # same bytes as the skill's bundled copy
-          cd dist && sha256sum -- * > SHA256SUMS
+      - name: The wheel holds every module and rule file, and scans
+        run: |
+          # Unpacked rather than pip-installed: the check is that nothing the package needs is missing.
+          python -m zipfile -e dist/masaudit-*.whl "$RUNNER_TEMP/wheel"
+          python -I -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); sys.argv[0] = "masaudit"; from masaudit.cli import main; sys.exit(main())' \
+            "$RUNNER_TEMP/wheel" tests/fixtures/RN-001/vulnerable --app-type banking --format json --output "$RUNNER_TEMP/report.json" || [ $? = 1 ]
+          grep -q '"rule_id": "RN-001"' "$RUNNER_TEMP/report.json"
+          python dist/masaudit.pyz tests/fixtures/RN-001/vulnerable --app-type banking --format json --output "$RUNNER_TEMP/pyz.json" || [ $? = 1 ]
+          grep -q '"rule_id": "RN-001"' "$RUNNER_TEMP/pyz.json"
+      - name: Checksums
+        run: cd dist && sha256sum -- * > SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression tests for attacks found by the independent security review (2026-10-23)."""
 
+import contextlib
+import io
 import os
 import shutil
 import subprocess
@@ -21,6 +23,20 @@ class AttackRegressions(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_mask_hides_every_secret_named_value_on_a_line(self):
+        # Each of these showed a secret in 0.6.0: the detector masked only the value it matched.
+        for line, secret in (('val clientSecret = "FirstS3cretAbc"; val apiSecret = "SecondS3cretXyz"', "SecondS3cretXyz"),
+                             ('{"expo":{"extra":{"apiSecret":"Js0nApiS3cret","clientSecret":"Js0nClientS3cret"}}}',
+                              "Js0nClientS3cret"),
+                             ('Log.d("auth", "password=Hunt3rPassw0rd user=bob")', "Hunt3rPassw0rd"),
+                             ("AsyncStorage.setItem('password', 'JsStoredPassw0rd')", "JsStoredPassw0rd"),
+                             ("storePassword=hunter2abc9", "hunter2abc9")):
+            with self.subTest(line=line):
+                self.assertNotIn(secret, safety.mask_names(safety.mask(line)))
+        for line in ('android:password="true"', "val password: String = getPassword()", 'val tokenType = "Bearer"',
+                     'tokenEndpoint = "https://auth-stage.example.com/token"', 'passwordHint = "4 digits"'):
+            self.assertEqual(safety.mask_names(line), line)      # nothing secret: left readable
 
     def test_mask_is_fast_on_huge_crafted_lines(self):
         # A long digit-free run used to backtrack quadratically.
@@ -204,3 +220,58 @@ class FuzzSmoke(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(os.name == "nt", "symbolic links need extra rights on Windows")
+class PlantedLinks(unittest.TestCase):
+    """The scanned repository decides what already sits where masaudit writes its own files."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.repo = os.path.join(self.tmp, "repo")
+        shutil.copytree(os.path.join(helpers.FIXTURES, "AND-001", "vulnerable"), self.repo)
+        self.victim = os.path.join(self.tmp, "victim.txt")
+        with open(self.victim, "w") as fh:
+            fh.write("API_TOKEN=outside-the-repo\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _victim(self):
+        with open(self.victim) as fh:
+            return fh.read()
+
+    def test_report_and_baseline_replace_links_never_follow_them(self):
+        for name, argv in (("SECURITY-AUDIT.md", ()),
+                           (".masaudit-baseline.json", ("--update-baseline", "--format", "json",
+                                                        "--output", os.devnull))):
+            with self.subTest(file=name):
+                link = os.path.join(self.repo, name)
+                os.symlink(self.victim, link)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    cli.main([self.repo, "--app-type", "banking", *argv])
+                self.assertEqual(self._victim(), "API_TOKEN=outside-the-repo\n")
+                self.assertFalse(os.path.islink(link))
+
+    def test_a_linked_config_file_is_not_read(self):
+        os.symlink(self.victim, os.path.join(self.repo, ".masaudit.ini"))
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = cli.main([self.repo, "--format", "json", "--output", os.devnull])
+        self.assertEqual(code, 2)
+        self.assertNotIn("outside-the-repo", err.getvalue())
+
+    def test_forged_lines_in_folder_names_and_linked_hard_links_are_skipped(self):
+        evil = os.path.join(self.repo, "app", "src", "main", "java", "evil\n::error file=x::FORGED")
+        os.makedirs(evil)
+        with open(os.path.join(evil, "A.kt"), "w") as fh:
+            fh.write("class A\n")
+        inside = os.path.join(self.repo, "Inside.kt")
+        os.link(self.victim, inside)                     # a second name for a file outside the repository
+        os.symlink("Inside.kt", os.path.join(self.repo, "Alias.kt"))
+        skipped = []
+        files = safety.walk(self.repo, skipped)
+        self.assertFalse(any("FORGED" in f or f in ("Inside.kt", "Alias.kt") for f in files))
+        reasons = {path: why for path, why in skipped}
+        self.assertEqual(reasons.get("Alias.kt"), "hard link")
+        self.assertTrue(any("\n" not in p and "FORGED" in p for p in reasons))

@@ -1149,7 +1149,7 @@
         "L2"
       ],
       "why": "Without `FLAG_SECURE`, screenshots, screen recording, casting and the recents-screen thumbnail capture whatever is on screen, including balances, card numbers and one-time codes.",
-      "fix": "Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.",
+      "fix": "Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets. In React Native, use expo-screen-capture (`preventScreenCaptureAsync`) or react-native-capture-protection on those screens.",
       "verify": "Open a sensitive screen, take a screenshot and open the recents screen; confirm both show a blank or blocked view.",
       "effort": "hours",
       "book": "§6.5",
@@ -1177,7 +1177,7 @@
         "L2"
       ],
       "why": "Android 12+ blocks touches through most full-screen overlays from other apps, but not a partial overlay that covers everything except your button. A malicious overlay can then trick the user into approving a transfer or a permission.",
-      "fix": "On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.",
+      "fix": "On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons. In React Native, set it in MainActivity (bare app) or through a config plugin (Expo).",
       "verify": "Run a test app that draws a partial overlay over the confirm button and confirm the tap is ignored or the overlay is hidden.",
       "effort": "hours",
       "book": "§17.6",
@@ -1235,7 +1235,7 @@
         "R"
       ],
       "why": "Without Play Integrity the backend can't tell a request from your genuine app on a genuine device from one sent by a modified APK, an emulator farm or a script.",
-      "fix": "Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2).",
+      "fix": "Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2). In React Native, use @react-native-firebase/app-check with the Play Integrity provider, or react-native-device-attest.",
       "verify": "Send a sensitive request from a re-signed build and confirm the server rejects it or lowers its trust score.",
       "effort": "days",
       "book": "§9.6",

@@ -20,7 +20,7 @@ from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 from masaudit import safety
 from masaudit.detect import scope_of
-from masaudit.detectors.reactnative import as_list, call_args, imports, js_files, memo, package_deps
+from masaudit.detectors.reactnative import as_list, call_args, imports, in_dev, js_files, memo, package_deps
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.textscan import bracket_match, text_memo
@@ -451,7 +451,9 @@ def plain_token_storage(ctx: Context, rule: Rule) -> Iterable[Hit]:
             line = ctx.line_of(code, offset)
             if line not in seen:
                 seen.add(line)
-                yield Hit(path, line, ctx.snippet(path, line), message)
+                # A write under `if (__DEV__)` runs only in development builds.
+                yield Hit(path, line, ctx.snippet(path, line), message,
+                          scope="debug" if in_dev(code, blank, offset) else "")
 
 
 # ---------------------------------------------------------------------------- RN-002: names and values

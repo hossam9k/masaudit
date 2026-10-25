@@ -1,2 +1,2 @@
-let githubToken = "ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"
-let slack = "xoxb-1234567890-abcdefghij"
+let githubToken = "{{FAKE_GITHUB_TOKEN}}"
+let slack = "{{FAKE_SLACK_BOT}}"

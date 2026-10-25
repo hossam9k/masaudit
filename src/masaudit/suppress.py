@@ -24,7 +24,14 @@ _INLINE = re.compile(r"masaudit:ignore[ \t]+(?P<ids>[A-Za-z]+-[A-Za-z0-9-]+(?:[ 
 # Comment closers and decoration to trim from the end of a reason.
 _TRAILER = re.compile(r"\s*(?:-->|\*/|\*\)|%>|#>|--)\s*$")
 
-BASELINE_SCHEMA = 1
+# 2: a finding on a second identical line has its own fingerprint (Finding.occurrence). A schema 1 file,
+# written before that, still covers every identical line, so an upgrade doesn't turn accepted findings new.
+BASELINE_SCHEMA = 2
+
+
+class BaselineSet(set):
+    """The fingerprints of a baseline file; `legacy` when it predates per-occurrence fingerprints."""
+    legacy = False
 
 
 class BaselineError(Exception):
@@ -65,7 +72,7 @@ def apply_inline(findings: List[Finding], root: str) -> List[str]:
         path = f.location.path
         if path not in cache:
             text = safety.read_text(root, path)
-            cache[path] = text.splitlines() if text is not None else None
+            cache[path] = safety.lines(text) if text is not None else None
         lines = cache[path]
         if not lines:
             continue
@@ -92,7 +99,7 @@ def apply_inline(findings: List[Finding], root: str) -> List[str]:
 # ---------------------------------------------------------------------------- baseline
 
 
-def load_baseline(path: str) -> Set[str]:
+def load_baseline(path: str) -> "BaselineSet":
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
@@ -102,19 +109,22 @@ def load_baseline(path: str) -> Set[str]:
         raise BaselineError(f"can't read baseline {path}: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("findings"), dict):
         raise BaselineError(f"{path} is not a masaudit baseline (expected a 'findings' object)")
-    return {str(k) for k in data["findings"]}
+    out = BaselineSet(str(k) for k in data["findings"])
+    schema = data.get("schema_version")
+    out.legacy = not isinstance(schema, int) or schema < 2
+    return out
 
 
 def apply_baseline(findings: Iterable[Finding], fingerprints: Set[str]) -> int:
     count = 0
     for f in findings:
-        if f.status == "open" and f.fingerprint() in fingerprints:
+        if f.status == "open" and f.fingerprint(legacy=getattr(fingerprints, "legacy", False)) in fingerprints:
             f.status = "baselined"
             count += 1
     return count
 
 
-def write_baseline(path: str, findings: Iterable[Finding]) -> int:
+def write_baseline(path: str, findings: Iterable[Finding], root: Optional[str] = None) -> int:
     """Record every finding that isn't suppressed inline. Returns how many were written."""
     entries = {}
     for f in findings:
@@ -125,7 +135,5 @@ def write_baseline(path: str, findings: Iterable[Finding]) -> int:
             "findings": dict(sorted(entries.items()))}
     directory = os.path.dirname(os.path.abspath(path))
     os.makedirs(directory, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, sort_keys=False)
-        fh.write("\n")
+    safety.write_text(path, json.dumps(data, indent=2, sort_keys=False) + "\n", root, newline=None)
     return len(entries)

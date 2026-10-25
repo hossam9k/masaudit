@@ -715,7 +715,7 @@
         "R"
       ],
       "why": "Without App Attest, the server can't tell your genuine app from a repackaged copy, an emulator script or a bot replaying your API. DeviceCheck alone only flags devices, not the app.",
-      "fix": "Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.",
+      "fix": "Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server. In React Native, use @react-native-firebase/app-check with the App Attest provider, or react-native-device-attest.",
       "verify": "Call a sensitive endpoint with curl using a valid session and confirm the server rejects it for a missing or invalid assertion.",
       "effort": "days",
       "book": "§10.7",
@@ -759,7 +759,7 @@
         "L2"
       ],
       "why": "iOS stores a snapshot of the last screen for the app switcher, and screen recording or mirroring shows everything live. Without an overlay, balances, messages or one-time codes stay visible there.",
-      "fix": "Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.",
+      "fix": "Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded. In React Native, use expo-screen-capture or react-native-capture-protection, or cover the screen when AppState turns inactive.",
       "verify": "Open a sensitive screen, swipe to the app switcher, and confirm the snapshot shows the cover; start a screen recording and confirm the content is hidden.",
       "effort": "hours",
       "book": "§6.5",
@@ -918,7 +918,7 @@
         "L2"
       ],
       "why": "A third-party keyboard with Full Access can send everything typed into your app, including passwords and card numbers, to its developer. iOS disables custom keyboards only in secure text fields.",
-      "fix": "Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.",
+      "fix": "Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard. In React Native, add it to AppDelegate (bare app) or through a config plugin (Expo).",
       "verify": "Install a third-party keyboard, open the app, and confirm only the system keyboard appears in every field.",
       "effort": "minutes",
       "book": "§17.6",

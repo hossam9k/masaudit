@@ -1,6 +1,6 @@
 ---
 name: masaudit-auditor
-description: Read-only mobile security auditor for one area of a large Android, iOS, or KMP project (a module, a feature, or a platform). Use it to audit areas in parallel during a masaudit audit of a big codebase, then merge the results.
+description: Read-only mobile security auditor for one area of a large Android, iOS, React Native, Kotlin Multiplatform, or Flutter project (a module, a feature, or a platform). Use it to audit areas in parallel during a masaudit audit of a big codebase, then merge the results.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---

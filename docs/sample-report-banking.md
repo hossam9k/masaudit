@@ -1,7 +1,7 @@
 # Security audit: acme-wallet
 
 - **Date:** 2026-01-01
-- **Scanner:** masaudit 0.6.0, rules 2.2.0
+- **Scanner:** masaudit 0.6.1, rules 2.2.1
 - **Platforms:** Android, iOS, CI/CD pipeline
 - **App profile:** banking (Banking, payments, wallets, crypto, lending, or insurance); MAS-L1+L2+R+P; from --app-type
 - **Code clues (suggestions only, not applied):**
@@ -704,7 +704,7 @@ Matched line (masked):
 
 **Why it matters:** Without `FLAG_SECURE`, screenshots, screen recording, casting and the recents-screen thumbnail capture whatever is on screen, including balances, card numbers and one-time codes.
 
-**Fix:** Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.
+**Fix:** Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets. In React Native, use expo-screen-capture (`preventScreenCaptureAsync`) or react-native-capture-protection on those screens.
 
 ```kotlin
 class StatementActivity : AppCompatActivity() {
@@ -736,7 +736,7 @@ Matched line (masked):
 
 **Why it matters:** Android 12+ blocks touches through most full-screen overlays from other apps, but not a partial overlay that covers everything except your button. A malicious overlay can then trick the user into approving a transfer or a permission.
 
-**Fix:** On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.
+**Fix:** On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons. In React Native, set it in MainActivity (bare app) or through a config plugin (Expo).
 
 ```kotlin
 // AndroidManifest.xml: <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
@@ -798,11 +798,11 @@ func storeToken(_ token: Data, account: String,
 
 - **Rule:** `IOS-030` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `ios/AcmeWallet/Info.plist`
-  - App ios never covers its screen when it goes to the background or is recorded (no sceneWillResignActive overlay, sceneCaptureState check or privacySensitive()), so the app switcher snapshot and screen recordings show whatever was on screen.
+  - App AcmeWallet never covers its screen when it goes to the background or is recorded (no sceneWillResignActive overlay, sceneCaptureState check or privacySensitive()), so the app switcher snapshot and screen recordings show whatever was on screen.
 
 **Why it matters:** iOS stores a snapshot of the last screen for the app switcher, and screen recording or mirroring shows everything live. Without an overlay, balances, messages or one-time codes stay visible there.
 
-**Fix:** Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.
+**Fix:** Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded. In React Native, use expo-screen-capture or react-native-capture-protection, or cover the screen when AppState turns inactive.
 
 ```swift
 func sceneWillResignActive(_ scene: UIScene) {
@@ -935,7 +935,7 @@ Matched line (masked):
 
 **Why it matters:** Without Play Integrity the backend can't tell a request from your genuine app on a genuine device from one sent by a modified APK, an emulator farm or a script.
 
-**Fix:** Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2).
+**Fix:** Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2). In React Native, use @react-native-firebase/app-check with the Play Integrity provider, or react-native-device-attest.
 
 **How to verify:** Send a sensitive request from a re-signed build and confirm the server rejects it or lowers its trust score.
 
@@ -945,7 +945,7 @@ Matched line (masked):
 
 - **Rule:** `IOS-007` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `ios/AcmeWallet/Info.plist`
-  - No certificate pinning found for app ios: no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate.
+  - No certificate pinning found for app AcmeWallet: no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate.
 
 **Why it matters:** Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.
 
@@ -986,11 +986,11 @@ Matched line (masked):
 
 - **Rule:** `IOS-028` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `ios/AcmeWallet/Info.plist`
-  - App Attest isn't integrated in app ios (no DCAppAttestService, Firebase App Attest provider or attestation SDK), so the server can't tell your app from a modified copy or a script.
+  - App Attest isn't integrated in app AcmeWallet (no DCAppAttestService, Firebase App Attest provider or attestation SDK), so the server can't tell your app from a modified copy or a script.
 
 **Why it matters:** Without App Attest, the server can't tell your genuine app from a repackaged copy, an emulator script or a bot replaying your API. DeviceCheck alone only flags devices, not the app.
 
-**Fix:** Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.
+**Fix:** Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server. In React Native, use @react-native-firebase/app-check with the App Attest provider, or react-native-device-attest.
 
 ```swift
 import DeviceCheck
@@ -1012,11 +1012,11 @@ try await api.registerAttestation(keyId: keyId, attestation: attestation)
 
 - **Rule:** `IOS-036` · **Severity:** low · **Confidence:** Medium confidence (review it)
 - **Where:** `ios/AcmeWallet/Info.plist`
-  - App ios never refuses third-party keyboards (no shouldAllowExtensionPointIdentifier returning false for .keyboard), so a keyboard with Full Access can log what users type.
+  - App AcmeWallet never refuses third-party keyboards (no shouldAllowExtensionPointIdentifier returning false for .keyboard), so a keyboard with Full Access can log what users type.
 
 **Why it matters:** A third-party keyboard with Full Access can send everything typed into your app, including passwords and card numbers, to its developer. iOS disables custom keyboards only in secure text fields.
 
-**Fix:** Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.
+**Fix:** Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard. In React Native, add it to AppDelegate (bare app) or through a config plugin (Expo).
 
 ```swift
 func application(_ application: UIApplication,
@@ -1071,7 +1071,7 @@ Matched line (masked):
 
 **Why it matters:** An attached debugger can read keys from memory and skip any client-side check. Without a debugger signal, the backend can't tell a tampered session from a normal one.
 
-**Fix:** Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup.
+**Fix:** Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup. In React Native, freerasp-react-native reports debugger, emulator, and hooking signals.
 
 **How to verify:** Attach a debugger to a release build and confirm the signal reaches the backend.
 
@@ -1111,7 +1111,7 @@ Matched line (masked):
 
 **Why it matters:** Fraud and cheating at scale run on emulators. Without an emulator signal, the backend can't tell a farm of virtual devices from real users.
 
-**Fix:** Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal.
+**Fix:** Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal. In React Native, freerasp-react-native reports these signals.
 
 **How to verify:** Run a release build on an emulator and confirm the signal reaches the backend.
 
@@ -1131,7 +1131,7 @@ Matched line (masked):
 
 **Why it matters:** Frida, Xposed, and Substrate rewrite the app's checks at runtime. Without a hooking signal, the backend trusts results that the attacker computed.
 
-**Fix:** Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal.
+**Fix:** Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal. In React Native, freerasp-react-native reports these signals.
 
 **How to verify:** Attach Frida to a release build and confirm the signal reaches the backend.
 
@@ -1151,7 +1151,7 @@ Matched line (masked):
 
 **Why it matters:** A rooted or jailbroken device lets other code read the app's memory and storage and hook its checks. Without any signal, your backend can't weigh that risk for a payment or sign-in.
 
-**Fix:** Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally.
+**Fix:** Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally. In React Native, jail-monkey gives root and jailbreak signals, and @react-native-firebase/app-check or react-native-device-attest gives attestation.
 
 **How to verify:** Run the app on a rooted emulator or a jailbroken device and confirm the backend receives the signal.
 
@@ -1311,7 +1311,7 @@ These checks ran and found nothing to fix.
 - MAC or signature compared with an ordinary equality check (`XPL-025`)
 - Generated key is saved next to the data it protects (`XPL-026`)
 - SecRandomCopyBytes result is not checked (`XPL-027`)
-- Native code writes a secret into the WebView's DOM (`XPL-029`)
+- App code writes a secret into the WebView's DOM (`XPL-029`)
 - Embedded TLS library skips certificate checks or allows old TLS (`XPL-030`)
 - Local database stores credentials without encryption (`XPL-031`)
 - Notification shows a one-time code or a balance on the lock screen (`XPL-032`)
@@ -1577,7 +1577,7 @@ isMinifyEnabled = false
 ### Task 21: App never blocks screenshots or the recents thumbnail (AND-045, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets.
+- Change: Set `FLAG_SECURE` on screens that show account data or codes, and `SecureFlagPolicy.SecureOn` on Compose dialogs that show secrets. In React Native, use expo-screen-capture (`preventScreenCaptureAsync`) or react-native-capture-protection on those screens.
 - Verify: Open a sensitive screen, take a screenshot and open the recents screen; confirm both show a blank or blocked view.
 - Current code (data, masked):
 
@@ -1588,7 +1588,7 @@ isMinifyEnabled = false
 ### Task 22: App has no overlay (tapjacking) protection (AND-046, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons.
+- Change: On sensitive screens, call `window.setHideOverlayWindows(true)` (API 31+, with the `HIDE_OVERLAY_WINDOWS` permission) and set `filterTouchesWhenObscured` on confirm and pay buttons. In React Native, set it in MainActivity (bare app) or through a config plugin (Expo).
 - Verify: Run a test app that draws a partial overlay over the confirm button and confirm the tap is ignored or the overlay is hidden.
 - Current code (data, masked):
 
@@ -1610,7 +1610,7 @@ UserDefaults.standard.set(token, forKey: "authToken")
 ### Task 24: App never hides its screen in the app switcher or recordings (IOS-030, medium)
 
 - File: `ios/AcmeWallet/Info.plist`
-- Change: Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded.
+- Change: Cover sensitive views in sceneWillResignActive and remove the cover in sceneDidBecomeActive, and watch sceneCaptureState (iOS 17+) to hide content while the screen is recorded. In React Native, use expo-screen-capture or react-native-capture-protection, or cover the screen when AppState turns inactive.
 - Verify: Open a sensitive screen, swipe to the app switcher, and confirm the snapshot shows the cover; start a screen recording and confirm the content is hidden.
 
 ### Task 25: No certificate pinning (needed for high-risk apps) (AND-007, medium)
@@ -1660,7 +1660,7 @@ targetSdk = 34
 ### Task 29: Play Integrity is not integrated (AND-048, medium)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2).
+- Change: Request a standard Play Integrity token for sensitive actions and decide on the server (§9.3, §12.2). In React Native, use @react-native-firebase/app-check with the Play Integrity provider, or react-native-device-attest.
 - Verify: Send a sensitive request from a re-signed build and confirm the server rejects it or lowers its trust score.
 - Current code (data, masked):
 
@@ -1677,13 +1677,13 @@ targetSdk = 34
 ### Task 31: App Attest isn't integrated (IOS-028, medium)
 
 - File: `ios/AcmeWallet/Info.plist`
-- Change: Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server.
+- Change: Generate and attest a key once per install with DCAppAttestService, send an assertion with sensitive requests, and verify both on the server. In React Native, use @react-native-firebase/app-check with the App Attest provider, or react-native-device-attest.
 - Verify: Call a sensitive endpoint with curl using a valid session and confirm the server rejects it for a missing or invalid assertion.
 
 ### Task 32: App doesn't refuse third-party keyboards (IOS-036, low)
 
 - File: `ios/AcmeWallet/Info.plist`
-- Change: Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard.
+- Change: Implement application(_:shouldAllowExtensionPointIdentifier:) and return false for .keyboard. In React Native, add it to AppDelegate (bare app) or through a config plugin (Expo).
 - Verify: Install a third-party keyboard, open the app, and confirm only the system keyboard appears in every field.
 
 ### Task 33: minSdk is below 24 (AND-029, low)
@@ -1700,7 +1700,7 @@ minSdk = 23
 ### Task 34: No debugger detection found (XPL-022, low)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup.
+- Change: Add JDWP and TracerPid checks on Android, and the `sysctl` P_TRACED check on iOS, to the signals you report, and run them during sensitive flows, not only at startup. In React Native, freerasp-react-native reports debugger, emulator, and hooking signals.
 - Verify: Attach a debugger to a release build and confirm the signal reaches the backend.
 - Current code (data, masked):
 
@@ -1722,7 +1722,7 @@ minSdk = 23
 ### Task 36: No emulator detection found (XPL-038, low)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal.
+- Change: Add emulator signals (build fingerprint, hardware, `ro.kernel.qemu`; the iOS simulator environment) to the set you report, and rely on attestation for the strong signal. In React Native, freerasp-react-native reports these signals.
 - Verify: Run a release build on an emulator and confirm the signal reaches the backend.
 - Current code (data, masked):
 
@@ -1733,7 +1733,7 @@ minSdk = 23
 ### Task 37: No hooking or instrumentation detection found (XPL-039, low)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal.
+- Change: Add Frida and Xposed signals (ports, loaded libraries, `/proc/self/maps`) to the set you report, and rely on attestation for the strong signal. In React Native, freerasp-react-native reports these signals.
 - Verify: Attach Frida to a release build and confirm the signal reaches the backend.
 - Current code (data, masked):
 
@@ -1744,7 +1744,7 @@ minSdk = 23
 ### Task 38: No root or jailbreak detection found (XPL-021, low)
 
 - File: `android/app/src/main/AndroidManifest.xml:4`
-- Change: Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally.
+- Change: Collect root and jailbreak signals, or better, attestation (Play Integrity, App Attest), and send them to the backend as risk signals. Report; don't block locally. In React Native, jail-monkey gives root and jailbreak signals, and @react-native-firebase/app-check or react-native-device-attest gives attestation.
 - Verify: Run the app on a rooted emulator or a jailbroken device and confirm the backend receives the signal.
 - Current code (data, masked):
 
@@ -1765,4 +1765,4 @@ minSdk = 23
 
 ---
 
-Generated by masaudit v0.6.0 — https://github.com/hossam9k/masaudit
+Generated by masaudit v0.6.1 — https://github.com/hossam9k/masaudit
