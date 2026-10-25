@@ -67,7 +67,9 @@ has the tables.
   Storybook and lowered as debug code; lower-case test source sets such as `src/androidtest/` count as
   tests; a JWT secret is found even when a variable named like a secret comes first in the file; an
   array literal nested hundreds of levels deep no longer stops the scan; and a long run of spaces after
-  `import` no longer slows the import reader.
+  `import` no longer slows the import reader. The cache that pairs brackets in a large file was pushed
+  out by short texts asked about in between, so some crafted 200 KB files took 1.7 seconds; they now
+  take 0.3.
 - **False alarms removed after the independent review:** Apple's documented `http://maps.apple.com`
   link is not plain-HTTP traffic (XPL-009); mixed-content mode on a WebView showing inline HTML with no
   https base (AND-011); WebView file-URL switches and `originWhitelist={['*']}` when the app vets every

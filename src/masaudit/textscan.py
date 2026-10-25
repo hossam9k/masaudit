@@ -49,6 +49,7 @@ def text_memo(text: str, key: tuple, compute: Callable[[], object]):
 
 # Recent texts bracket_match was asked about: [text, opener, closer, {open: close} once asked twice].
 _PAIRINGS: List[list] = []
+_PAIR_MIN = 4096                              # texts shorter than this are walked without the cache
 
 
 def bracket_match(text: str, i: int, opener: str, closer: str) -> int:
@@ -57,9 +58,14 @@ def bracket_match(text: str, i: int, opener: str, closer: str) -> int:
     with thousands of unclosed blocks quadratic. From the second question about the same text, all its
     brackets are paired in one walk instead (pairing forwards with a stack gives the bracket at `i` the
     same partner as counting depth from `i`; a closer with nothing open never pairs with it)."""
-    if len(opener) == 1 and len(closer) == 1 and opener != closer and 0 <= i < len(text) and text[i] == opener:
-        for entry in _PAIRINGS:
+    # Short texts (an argument list, a signature) are walked directly: cached, they would push a large
+    # file's pairing out of the cache before it is reused.
+    if (len(opener) == 1 and len(closer) == 1 and opener != closer and len(text) >= _PAIR_MIN
+            and 0 <= i < len(text) and text[i] == opener):
+        for k, entry in enumerate(_PAIRINGS):
             if entry[0] is text and entry[1] == opener and entry[2] == closer:
+                if k:
+                    _PAIRINGS.insert(0, _PAIRINGS.pop(k))     # most recently used first
                 if entry[3] is None:
                     pairs: dict = {}
                     stack: List[int] = []

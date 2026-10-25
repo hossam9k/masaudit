@@ -4242,11 +4242,17 @@ def _js_sensitive_log(ctx: Context) -> Iterable[Hit]:
         full = ctx.code(path) or ""
         seen: Set[int] = set()
         lexical: Optional[bool] = None
-        for m in JS_CONSOLE.finditer(bare):
+        calls = list(JS_CONSOLE.finditer(bare))
+        for k, m in enumerate(calls):
             if m.group(1) in stripped:
                 continue                      # the release bundle drops this call
+            line = ctx.line_of(bare, m.start())
+            if line in seen:
+                continue                      # this line is already reported
             open_at = m.end() - 1
             close = _close_paren(bare, open_at)
+            if bare[close:close + 1] != ")" and k + 1 < len(calls):
+                close = min(close, calls[k + 1].start())    # unclosed: its arguments end where the next call starts
             args_code, args_text = bare[open_at:close], full[open_at:close]
             names: List[str] = []
             for w in re.finditer(r"[A-Za-z_$][\w$]*", args_code):
@@ -4274,8 +4280,7 @@ def _js_sensitive_log(ctx: Context) -> Iterable[Hit]:
                     lexical = bool(_LEXICAL_TOKEN_FILE.search(bare))
                 if lexical:
                     continue
-            line = ctx.line_of(bare, m.start())
-            if not names or line in seen:
+            if not names:
                 continue
             seen.add(line)
             yield Hit(path, line, ctx.snippet(path, line), f"`{names[0]}` is written to the log with "
