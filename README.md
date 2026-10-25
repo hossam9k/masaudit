@@ -8,8 +8,8 @@
 [![PyPI](https://img.shields.io/pypi/v/masaudit)](https://pypi.org/project/masaudit/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/hossam9k/masaudit/blob/main/LICENSING.md)
 
-masaudit reads the source code of your Android, iOS, Kotlin Multiplatform, or Flutter app and finds
-security weaknesses before you ship. It first asks what kind of app you're building, then sorts every
+masaudit reads the source code of your Android, iOS, Kotlin Multiplatform, or Flutter app, or the
+native `android/` and `ios/` parts of a React Native app, and finds security weaknesses before you ship. It first asks what kind of app you're building, then sorts every
 finding into **fix before release**, **fix soon**, or **not needed for your app**, and says why.
 masaudit tells a banking app to pin certificates, and never tells a news app to.
 

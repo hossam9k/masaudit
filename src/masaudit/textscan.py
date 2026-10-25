@@ -272,3 +272,18 @@ def holds_all(ctx: Context, path: str, needles: Sequence[str]) -> bool:
     return all(n in raw for n in needles[1:])
 
 
+MAX_TAG = 4000
+
+
+def xml_tags(text: str, start: "re.Pattern[str]") -> Iterator[Tuple[int, str]]:
+    """(offset, whole tag) for each tag `start` finds, up to its `>`; a tag with no `>` within MAX_TAG
+    characters is skipped. The `>` is found with str.find, and a stretch already known to have none is not
+    searched again, so a crafted file of unclosed tags stays linear."""
+    clear_until = 0                           # no `>` in text[...:clear_until] past the last failed search
+    for m in start.finditer(text):
+        limit = m.end() + MAX_TAG
+        end = text.find(">", max(m.end(), clear_until), limit)
+        if end < 0:
+            clear_until = limit
+            continue
+        yield m.start(), text[m.start():end + 1]

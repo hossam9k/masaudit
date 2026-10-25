@@ -31,6 +31,18 @@ remove none.
   done in an NSURLConnection delegate, a DOM read reported as a write, and `android:password="true"`
   fields.
 - **Android projects are detected from their imports** when there is no manifest or Gradle file.
+- **Hardening from an independent code review:**
+  - Two crashes fixed: a WebView client whose `= false` body starts on the next line, and a number of
+    more than 4,300 digits (Python 3.11+ refuses to convert it). Every place that reads a number from
+    the scanned project now rejects absurd ones, including older rules.
+  - Eleven checks that a crafted file could make quadratic are linear again, three of them in rules
+    older than 0.5.0 (XPL-033 layout tags, KDF constants, and the HTTP scheme constant). A test scans
+    each crafted file in under 3 seconds.
+  - A regex in the new IOS-004 unwrap check could backtrack exponentially (found by CodeQL).
+  - The AND-076 fix snippet set an OTP field to a phone keyboard; it now shows `number` and
+    `textNoSuggestions` separately.
+- **React Native is named in the README and the docs:** masaudit scans the native `android/` and `ios/`
+  folders; the JavaScript isn't scanned yet.
 - **`.html` pages and Core Data models are scanned.**
 - `scripts/corpus.py` downloads the precision corpus at fixed commits, scans it, and compares scans.
 

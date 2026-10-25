@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from masaudit import safety
+
 # `release {`, `getByName("release") {`, `named("release") {`, `create("staging") {`
 _HEADER = re.compile(
     r"(?<![\w.])(?P<fn>[A-Za-z_]\w*)\s*(?:\(\s*[\"'](?P<arg>[\w.-]+)[\"']\s*\))?\s*\{"
@@ -218,8 +220,7 @@ def inside(index: int, spans: List[Block]) -> bool:
 
 
 def int_literal(value: str) -> Optional[int]:
-    v = value.strip().strip("\"'")
-    return int(v) if v.isdigit() else None
+    return safety.small_int(value.strip().strip("\"'"))
 
 
 # ---------------------------------------------------------------------------- version catalog

@@ -63,8 +63,9 @@ you ask for one. See
 [Safe to run on any code](how-it-works.md#safe-to-run-on-any-code).
 
 **Which projects does it scan?**
-Android, iOS, Kotlin Multiplatform, and Flutter source code, plus GitHub Actions workflows. It doesn't
-read built APK or IPA files. See [What masaudit reads](how-it-works.md#what-masaudit-reads-and-what-it-doesnt).
+Android, iOS, Kotlin Multiplatform, and Flutter source code, plus GitHub Actions workflows. In a React
+Native app it scans the native `android/` and `ios/` folders, not the JavaScript yet. It doesn't read
+built APK or IPA files. See [What masaudit reads](how-it-works.md#what-masaudit-reads-and-what-it-doesnt).
 
 **Does it work on Windows?**
 Yes. See [Install and upgrade](install.md).

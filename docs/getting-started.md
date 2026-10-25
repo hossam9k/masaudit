@@ -122,7 +122,7 @@ fixed, and verified your first finding.
 ## 7. Scan your own app
 
 Go to your own project's root folder, the one with your `build.gradle.kts`, Xcode project, or
-`pubspec.yaml`, and run the same command:
+`pubspec.yaml` (for React Native, the folder with `android/` and `ios/`), and run the same command:
 
 ```bash
 uvx masaudit .

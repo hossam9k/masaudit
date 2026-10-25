@@ -14,8 +14,9 @@ import itertools
 import re
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Pattern, Sequence, Set, Tuple
 
+from masaudit import safety
 from masaudit.guards import debug_guarded, preprocessor_debug_guarded
-from masaudit.textscan import _raw_index, bracket_match, finditer_lit, holds_any, text_memo
+from masaudit.textscan import _raw_index, bracket_match, finditer_lit, holds_any, text_memo, xml_tags
 from masaudit.detect import scope_of as _scope_of
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
@@ -1019,6 +1020,9 @@ _BROWSER_OPEN = re.compile(r"\b(?:launchUri|launchUrl|launchUrlString|launchBrow
 HTTP_SCHEME_CONST = re.compile(r"\b([A-Za-z_]\w*)\s*(?::\s*String\??)?\s*=\s*@?\"http://\"")
 
 
+_CONCAT_USE = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\s*\+\s*(?:this\s*\.\s*)?[A-Za-z_]")
+
+
 @detector("xpl_http_url")
 def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE):
@@ -1058,10 +1062,12 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     hit.message += " It's opened in the browser rather than fetched by the app; still link to https."
                 yield hit
         # The scheme-constant regex has no literal to anchor on; run it only where the bare scheme is.
-        names = HTTP_SCHEME_CONST.findall(code) if '"http://"' in code else []
-        for name in sorted(set(names)):
-            # `String protocol = "http://"`, then `new HttpPost(protocol + serverip + ...)`.
-            for use in re.finditer(r"(?<![\w.])" + re.escape(name) + r"\s*\+\s*(?:this\s*\.\s*)?[A-Za-z_]", blank):
+        names = set(HTTP_SCHEME_CONST.findall(code)) if '"http://"' in code else set()
+        # `String protocol = "http://"`, then `new HttpPost(protocol + serverip + ...)`. One pass over the file for
+        # every `name + identifier`, kept when the name holds the scheme (a pass per name is quadratic).
+        for use in (_CONCAT_USE.finditer(blank) if names else ()):
+            name = use.group(1)
+            if name in names:
                 line = ctx.line_of(code, use.start())
                 if line not in seen:
                     seen.add(line)
@@ -1156,8 +1162,11 @@ def _labelled_card_values(full: str, bare: str, open_at: int, close: int) -> Lis
     return out
 
 
-# `user["password"] = …` or `user.password = …`: the object now holds a secret.
-_HOLDS_SECRET = r"\s*(?:\[\s*\"[^\"\n]*(?:password|passwd|token|secret)[^\"\n]*\"\s*\]|\.\s*\w*(?:[Pp]assword|[Tt]oken|[Ss]ecret)\w*)\s*=(?!=)"
+# `user["password"] = …` or `user.password = …`: the object now holds a secret. The member is captured once and
+# checked in Python; a pattern per logged name with `\w*password\w*` inside backtracks over the whole window.
+_MEMBER_ASSIGN = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\s*(?:\[\s*\"([^\"\n]*)\"\s*\]|\.\s*(\w+))\s*=(?!=)")
+_SECRET_KEY = re.compile(r"password|passwd|token|secret")
+_SECRET_MEMBER = re.compile(r"[Pp]assword|[Tt]oken|[Ss]ecret")
 
 
 def _objects_holding_secrets(full: str, bare: str, open_at: int, close: int, path: str) -> List[str]:
@@ -1167,14 +1176,17 @@ def _objects_holding_secrets(full: str, bare: str, open_at: int, close: int, pat
     exprs += re.findall(r"(?<![\w.\"])([A-Za-z_]\w*(?:\.(?:description|debugDescription|toString\(\s*\)))?)\s*[,)]",
                         bare[open_at:close + 1])
     out = []
-    start = -1
+    holders: Optional[Set[str]] = None
     for expr in exprs:
         m = re.fullmatch(r"\s*([A-Za-z_]\w*)(?:\s*\.\s*(?:description|debugDescription|toString\(\s*\)))?\s*", expr)
         if not m or SENSITIVE_WORD.search(m.group(1)):
             continue                          # a sensitive name is the other check's job
-        if start < 0:                         # the function, at most the 4,000 characters before the call
+        if holders is None:                   # the function, at most the 4,000 characters before the call
             start = max(_enclosing_function(bare, open_at, path)[0], open_at - 4000)
-        if re.search(r"(?<![\w.])" + re.escape(m.group(1)) + _HOLDS_SECRET, full[start:open_at]):
+            holders = {a.group(1) for a in _MEMBER_ASSIGN.finditer(full, start, open_at)
+                       if (a.group(2) is not None and _SECRET_KEY.search(a.group(2)))
+                       or (a.group(3) is not None and _SECRET_MEMBER.search(a.group(3)))}
+        if m.group(1) in holders:
             out.append(m.group(1))
     return out
 
@@ -1313,6 +1325,21 @@ def _param_index(head: str, name: str) -> int:
     return -1
 
 
+_CALL_SITE = re.compile(r"(?<![\w$])([A-Za-z_$][\w$]*)\s*\(")
+
+
+def _call_sites(blank: str) -> Dict[str, List[Tuple[int, int, bool]]]:
+    """name -> [(start, offset of its `(`, called on a receiver)] for every call in the text, built once per text:
+    a regex per helper over the whole file is quadratic when a file declares thousands of helpers."""
+    def build() -> Dict[str, List[Tuple[int, int, bool]]]:
+        sites: Dict[str, List[Tuple[int, int, bool]]] = {}
+        for m in _CALL_SITE.finditer(blank):
+            dotted = m.start() > 0 and blank[m.start() - 1] == "."
+            sites.setdefault(m.group(1), []).append((m.start(), m.end() - 1, dotted))
+        return sites
+    return text_memo(blank, ("call_sites",), build)
+
+
 def _literal_arg_callers(code: str, blank: str, name: str, idx: int, path: str) -> List[int]:
     """`SecretKeySpec(keyBytes, …)` or `IvParameterSpec(ivBytes)` where the argument is a parameter of the
     enclosing function: the offsets of the calls in the same file that pass a literal there, directly or
@@ -1329,10 +1356,10 @@ def _literal_arg_callers(code: str, blank: str, name: str, idx: int, path: str) 
 def _literal_arg_calls(code: str, blank: str, fn: str, pos: int, decl_start: int, decl_end: int,
                        path: str) -> List[int]:
     out = []
-    for call in re.finditer(r"(?<![\w$])" + re.escape(fn) + r"\s*\(", blank):
-        if decl_start <= call.start() < decl_end:
+    for call_start, paren, _dotted in _call_sites(blank).get(fn, []):
+        if decl_start <= call_start < decl_end:
             continue                          # the declaration itself
-        args = _args_of(blank, call.end() - 1)
+        args = _args_of(blank, paren)
         if len(args) <= pos:
             continue
         arg = code[args[pos][0]:args[pos][1]].strip()
@@ -1340,18 +1367,18 @@ def _literal_arg_calls(code: str, blank: str, fn: str, pos: int, decl_start: int
         var = re.fullmatch(r"([A-Za-z_]\w*)", arg)
         if not lit and var:
             n = re.escape(var.group(1))
-            if _var_is_literal(code, var.group(1), call.start(), path, blank) or re.search(
+            if _var_is_literal(code, var.group(1), call_start, path, blank) or re.search(
                     r"(?:byte\s*\[\s*\]\s*" + n + r"|\b(?:val|var)\s+" + n + r"(?:\s*:\s*ByteArray)?)\s*=\s*"
-                    r"(?:\{|byteArrayOf\()", code[max(0, call.start() - 3000):call.start()]):
+                    r"(?:\{|byteArrayOf\()", code[max(0, call_start - 3000):call_start]):
                 # (the second test: a literal in the enclosing function of an inner listener or lambda)
                 lit = var
             else:
-                c_start, _c_end, _c_head = _enclosing_function(blank, call.start(), path)
+                c_start, _c_end, _c_head = _enclosing_function(blank, call_start, path)
                 src = re.search(r"\b" + re.escape(var.group(1)) + r"\s*=\s*(?:this\.)?([A-Za-z_]\w*)\s*\.\s*"
-                                r"(?:getBytes|toByteArray|encodeToByteArray)\s*\(", code[c_start:call.start()])
+                                r"(?:getBytes|toByteArray|encodeToByteArray)\s*\(", code[c_start:call_start])
                 lit = src if src and _string_constant(code, src.group(1)) else None
         if lit:
-            out.append(call.start())
+            out.append(call_start)
     return out
 
 
@@ -1470,10 +1497,7 @@ def _local_body(code: str, blank: str, idx: int, path: str) -> str:
 
 
 def _int_literal(text: str) -> Optional[int]:
-    t = text.strip().replace("_", "")
-    if re.fullmatch(r"\d+[Ll]?", t):
-        return int(t.rstrip("Ll"))
-    return None
+    return safety.small_int(text.strip().replace("_", "").rstrip("Ll"))
 
 
 def _int_value(code: str, expr: str) -> Optional[int]:
@@ -1484,8 +1508,22 @@ def _int_value(code: str, expr: str) -> Optional[int]:
     name = expr.strip().rsplit(".", 1)[-1]
     if not re.fullmatch(r"[A-Za-z_]\w*", name):
         return None
-    m = re.search(r"\b" + re.escape(name) + r"\s*(?::\s*(?:Int|Long|UInt32|Int32))?\s*=\s*([\d_]+)[Ll]?\b", code)
-    return _int_literal(m.group(1)) if m else None
+    value = _int_constants(code).get(name)
+    return _int_literal(value) if value is not None else None
+
+
+_INT_ASSIGN = re.compile(r"\b([A-Za-z_]\w*)\s*(?::\s*(?:Int|Long|UInt32|Int32))?\s*=\s*([\d_]+)[Ll]?\b")
+
+
+def _int_constants(code: str) -> Dict[str, str]:
+    """name -> the digits of its first `name = 123` in the text, built once per text (a search per lookup
+    over the whole file is quadratic when a file has thousands of KDF calls)."""
+    def build() -> Dict[str, str]:
+        found: Dict[str, str] = {}
+        for m in _INT_ASSIGN.finditer(code):
+            found.setdefault(m.group(1), m.group(2))
+        return found
+    return text_memo(code, ("int_constants",), build)
 
 
 def _words_of(text: str) -> Set[str]:
@@ -1638,7 +1676,9 @@ def small_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
             seen.add(line)
             yield _hit_at(ctx, path, code, m.start(), f"An RSA, DSA, or DH key of {n} bits; use at least 2048.", blank)
         for m in KEYGEN_INIT.finditer(code):
-            n = int(m.group(1))
+            n = safety.small_int(m.group(1))
+            if n is None:
+                continue
             line = ctx.line_of(code, m.start())
             if n < 128 and line not in seen:
                 seen.add(line)
@@ -1646,7 +1686,9 @@ def small_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, APPLE, ("kSecAttrKeySizeInBits", "kCCKeySizeDES", "kCCKeySize3DES")):
         seen = set()
         for m in APPLE_KEY_SIZE.finditer(code):
-            n = int(m.group(1))
+            n = safety.small_int(m.group(1))
+            if n is None:
+                continue
             window = code[max(0, m.start() - 400):m.end() + 400]
             line = ctx.line_of(code, m.start())
             if n < 2048 and "kSecAttrKeyTypeRSA" in window and "kSecAttrKeyTypeEC" not in window and line not in seen:
@@ -1659,7 +1701,9 @@ def small_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 yield _hit_at(ctx, path, code, m.start(), "A DES or 3DES key size (56 or 112 effective bits).", blank)
     for path, code, blank in _files_with(ctx, DART, ("RSAKeyGeneratorParameters",)):
         for m in DART_RSA_SIZE.finditer(code):
-            n = int(m.group(1))
+            n = safety.small_int(m.group(1))
+            if n is None:
+                continue
             if n < 2048:
                 yield _hit_at(ctx, path, code, m.start(), f"An RSA key of {n} bits; use at least 2048.", blank)
 
@@ -1742,13 +1786,13 @@ def _forwarded(code: str, blank: str, path: str, span: Optional[Tuple[int, int]]
         return None
     label = params[pos][0]
     out: Dict[int, Tuple[int, int]] = {}
-    for call in re.finditer(r"(?<![\w$.])" + re.escape(fn) + r"\s*\(", blank):
-        if start - len(head) <= call.start() < start:
-            continue                          # the declaration itself
-        args = _args_of(blank, call.end() - 1)
+    for call_start, paren, dotted in _call_sites(blank).get(fn, []):
+        if dotted or start - len(head) <= call_start < start:
+            continue                          # a method of another object, or the declaration itself
+        args = _args_of(blank, paren)
         arg = _named_arg(blank, code, args, label) if label else (args[pos] if len(args) > pos else None)
         if arg is not None:
-            out[call.start()] = arg
+            out[call_start] = arg
     return out
 
 
@@ -2696,8 +2740,10 @@ _DB_OWNER = {"account", "user", "session", "auth", "authentication", "credential
              "profile", "member", "customer"}
 # Realm models: Swift `class User: Object {`, Objective-C `@interface User : RLMObject`.
 REALM_MODEL = re.compile(r"\bclass\s+(\w+)\s*:\s*(?:Realm\w*\.)?Object\b[^{\n]*\{|@interface\s+(\w+)\s*:\s*RLMObject\b")
-REALM_SECRET_FIELD = re.compile(r"(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?\s+)*(?:(?:private|public|internal|fileprivate|"
-                                r"dynamic)\s+)*var\s+(\w+)\s*[:=]|^[ \t]*@property\b[^;\n]*?\*?\s*(\w+)\s*;")
+# Whitespace stays on one line (`\s+` across lines rescans the rest of the body from every line start), and an
+# Objective-C property's name is the last word of its declaration, taken in Python, not by a lazy match.
+REALM_SECRET_FIELD = re.compile(r"(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?[ \t]+)*(?:(?:private|public|internal|"
+                                r"fileprivate|dynamic)[ \t]+)*var[ \t]+(\w+)[ \t]*[:=]|^[ \t]*@property\b([^;\n]*);")
 # A literal `CREATE TABLE name (col TYPE, ...)` handed to SQLite.
 SQL_CREATE = re.compile(r"(?i)\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?[`\"]?(\w+)[`\"]?\s*\(([^)\"\n]{1,600})\)")
 
@@ -2719,7 +2765,7 @@ def _current_core_data_models(ctx: Context) -> List[str]:
             continue
         group = "/".join(parts[:-2])
         num = re.search(r"(\d+)\.xcdatamodel$", parts[-2])
-        rank = int(num.group(1)) if num else 1
+        rank = (safety.small_int(num.group(1)) or 1) if num else 1
         if group not in newest or rank > newest[group][0]:
             newest[group] = (rank, path)
     return [p for _r, p in newest.values()]
@@ -2793,6 +2839,25 @@ def _db_encryption_evidence(ctx: Context) -> Set[str]:
     return found
 
 
+# Tags are bounded so a crafted model with no closing `>` or `</entity>` can't make every tag rescan the file.
+_CORE_DATA_ENTITY = re.compile(r"<entity\b([^>]{0,2000})>")
+_CORE_DATA_ATTRIBUTE = re.compile(r"<attribute\b([^>]{0,2000})>")
+
+
+def _core_data_entities(text: str) -> Iterator[Tuple[str, int, int]]:
+    """(entity tag attributes, body start, body end) for each `<entity ...>...</entity>` in a Core Data model."""
+    pos = 0
+    while True:
+        m = _CORE_DATA_ENTITY.search(text, pos)
+        if not m:
+            return
+        end = text.find("</entity>", m.end())
+        if end < 0:
+            return                            # no entity after this one can close either
+        yield m.group(1), m.end(), end
+        pos = end + len("</entity>")
+
+
 def _db_plain_native(ctx: Context) -> Iterable[Hit]:
     """Raw SQLite tables, Realm models, and Core Data entities that hold a password or token."""
     encrypted = _db_encryption_evidence(ctx)
@@ -2805,7 +2870,7 @@ def _db_plain_native(ctx: Context) -> Iterable[Hit]:
             body_end = bracket_match(blank, m.end() - 1, "{", "}") if blank[m.end() - 1] == "{" else \
                 blank.find("@end", m.end())
             for f in REALM_SECRET_FIELD.finditer(code, m.end(), body_end if body_end > 0 else len(code)):
-                name = f.group(1) or f.group(2)
+                name = f.group(1) or (re.findall(r"\w+", f.group(2)) or [""])[-1]
                 if owner & _DB_OWNER and _db_secret_name(name, owner):
                     yield _hit_at(ctx, path, code, f.start(), f"Realm field `{name}` is stored without an "
                                                               "`encryptionKey`.", blank)
@@ -2824,16 +2889,19 @@ def _db_plain_native(ctx: Context) -> Iterable[Hit]:
     created = _core_data_created(ctx) if models else set()
     for path in models:
         text = ctx.text(path) or ""
-        for e in re.finditer(r"<entity\b([^>]*)>(.*?)</entity>", text, re.DOTALL):
-            names = set(re.findall(r"\b(?:name|representedClassName)=\"\.?(\w+)\"", e.group(1)))
+        for head, body_start, body_end in _core_data_entities(text):
+            names = set(re.findall(r"\b(?:name|representedClassName)=\"\.?(\w+)\"", head))
             if not names & created:
                 continue                      # an entity no code makes any more (kept for migration)
             owner = _words_of(" ".join(names))
-            for a in re.finditer(r"<attribute\b[^>]*\bname=\"([^\"]+)\"[^>]*attributeType=\"String\"", e.group(2)):
-                if owner & _DB_OWNER and _db_secret_name(a.group(1), owner):
-                    line = ctx.line_of(text, e.start(2) + a.start())
-                    yield Hit(path, line, ctx.snippet(path, line), f"Core Data attribute `{a.group(1)}` is stored "
-                              "in a plain SQLite file.")
+            for a in _CORE_DATA_ATTRIBUTE.finditer(text, body_start, body_end):
+                name = re.search(r"\bname=\"([^\"]+)\"", a.group(1))
+                if not name or 'attributeType="String"' not in a.group(1):
+                    continue
+                if owner & _DB_OWNER and _db_secret_name(name.group(1), owner):
+                    line = ctx.line_of(text, a.start())
+                    yield Hit(path, line, ctx.snippet(path, line), f"Core Data attribute `{name.group(1)}` is "
+                              "stored in a plain SQLite file.")
 
 
 # ---------------------------------------------------------------------------- XPL-032
@@ -2887,7 +2955,7 @@ def notification_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 _FIELD_SECRET = re.compile(r"(?i)pass(?:word|code|wd)|(?<![a-z])pin(?![a-z])|(?<![a-z])pin(?=[A-Z_]|code)")
 _XML_FIELD = re.compile(r"<(?:[\w.]+\.)?(?:EditText|TextInputEditText|AppCompatEditText|MaterialAutoCompleteTextView)"
-                        r"\b[^>]*>")
+                        r"\b")
 # The deprecated `android:password="true"` masks the input too.
 _MASKED_TYPE = re.compile(r"android:inputType\s*=\s*\"[^\"]*(?:textPassword|numberPassword|textWebPassword)|"
                           r"android:password\s*=\s*\"true\"")
@@ -2953,8 +3021,7 @@ def unmasked_secret_field(ctx: Context, rule: Rule) -> Iterable[Hit]:
         text = ctx.text(path) or ""
         if "EditText" not in text:
             continue
-        for m in _XML_FIELD.finditer(text):
-            tag = m.group(0)
+        for at, tag in xml_tags(text, _XML_FIELD):
             names = " ".join(re.findall(r"android:(?:id|hint|autofillHints|contentDescription)\s*=\s*\"([^\"]*)\"",
                                         tag))
             if not _FIELD_SECRET.search(names) or _MASKED_TYPE.search(tag):
@@ -2962,7 +3029,7 @@ def unmasked_secret_field(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if "textVisiblePassword" not in tag and "android:inputType" in tag and \
                     not re.search(r"android:inputType\s*=\s*\"(?:text|number|phone)\"", tag):
                 continue
-            line = ctx.line_of(text, m.start())
+            line = ctx.line_of(text, at)
             yield Hit(path, line, ctx.snippet(path, line),
                       "A password or PIN field shows the typed characters (no password input type).")
     for path, code, blank in _files_with(ctx, (".kt",), ("TextField",)):

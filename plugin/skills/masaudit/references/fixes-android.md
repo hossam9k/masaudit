@@ -862,9 +862,16 @@ Book: [§16.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/07
 Give secrets a password input type (`textPassword`, `numberPassword`). For other sensitive fields, add `textNoSuggestions` (`TYPE_TEXT_FLAG_NO_SUGGESTIONS`) and `imeOptions="flagNoPersonalizedLearning"`.
 
 ```xml
+<!-- An account or card number typed as text: no suggestions, no learning -->
+<EditText
+    android:id="@+id/accountNumber"
+    android:inputType="textNoSuggestions"
+    android:imeOptions="flagNoPersonalizedLearning" />
+
+<!-- A one-time code: digits only -->
 <EditText
     android:id="@+id/otp"
-    android:inputType="number|textNoSuggestions"
+    android:inputType="number"
     android:imeOptions="flagNoPersonalizedLearning" />
 ```
 
