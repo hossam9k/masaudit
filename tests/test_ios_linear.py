@@ -65,6 +65,15 @@ class IosDetectorsAreLinear(unittest.TestCase):
                 self.assertLess(elapsed, 3.0)
                 self.assertEqual(bool(findings), reports)
 
+    def test_trust_unwrap_clause_is_linear(self):
+        # CodeQL found exponential backtracking here: two adjacent \s* around an optional `?`/`!`.
+        # 26 repeats took about 6 s before the fix; the guard heads it reads can be 1,200 characters.
+        from masaudit.detectors import ios
+        start = time.monotonic()
+        ios._UNWRAP_CLAUSE.match("let 0=0" + " .0" * 26)
+        ios._UNWRAP_CLAUSE.match("let 0=0" + " .0" * 400)
+        self.assertLess(time.monotonic() - start, 0.5)
+
 
 if __name__ == "__main__":
     unittest.main()

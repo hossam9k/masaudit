@@ -141,6 +141,9 @@ scanned the apps again.
 
 - **79 rules fired on these apps; 78 are at 90% precision or better.** The one below, IOS-012 (89%),
   is marked *Check by hand*. Rules that found nothing there are checked by their test fixtures.
+- **Finds 126 of 133 planted weaknesses** in OWASP's MASTG demos, DIVA, InsecureBankv2, and DVIA-v2
+  that a source scanner can see (95%). The 0.5.0 rules were tuned on these apps, so expect less on
+  unseen code; the misses and the method are published.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
   under 6 seconds on a laptop, with no crashes on any of the 19.
 

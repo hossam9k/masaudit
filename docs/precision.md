@@ -22,6 +22,14 @@ These numbers are for masaudit 0.4.0, measured in October 2026.
 4. **Fix, then re-check:** every false positive was fixed in the detector, with a test fixture that must
    stay quiet, and the corpus was scanned again to confirm it was gone and no real finding was lost.
 
+`scripts/corpus.py` downloads the corpus at the commits used, scans it, and compares two scans, so
+anyone can repeat the method. Every later rule change goes through the same gate: scan the corpus
+before and after, and open every added or removed finding. In 0.5.0, the 15 new rules and the fixes to
+20 existing ones added 3 findings to the corpus, all real (one AND-012 JavaScript bridge, and two AND-075
+WebViews that open any link, both low risk), and removed none. The table below is still the 0.4.0
+review; the new rules have no other corpus findings, so their fixtures and the recall apps below check
+them.
+
 **Precision** below is the share of a rule's findings that are real weaknesses after those fixes. A rule
 must reach 90% or be marked *Check by hand*. Rules with no findings in this corpus are checked by
 their vulnerable and clean test fixtures only.
@@ -116,6 +124,45 @@ Open findings (fix before release or fix soon) in shipping code and CI. "Apps" i
 IOS-012 is the one rule under 90%: one of its nine findings is a confirmation prompt before saving a
 biometric-bound key, not an unlock check. The rule is marked *Check by hand*.
 
+## Recall on apps with known weaknesses
+
+Precision says how often a finding is real. Recall says how many real weaknesses masaudit finds. To
+measure it, masaudit 0.5.0 scanned four public apps whose authors list the weaknesses they planted, as
+banking apps:
+
+| App (commit) | In scope | Found, 0.4.3 | Found, 0.5.0 |
+|---|---|---|---|
+| [OWASP MASTG demos](https://github.com/OWASP/mastg/tree/master/demos), Android (2eb0f709) | 53 | 33 | 52 |
+| OWASP MASTG demos, iOS (2eb0f709) | 39 | 19 | 35 |
+| [DIVA Android](https://github.com/payatu/diva-android) (2bb63b53) | 13 | 6 | 13 |
+| [InsecureBankv2](https://github.com/dineshshetty/Android-InsecureBankv2) (3c8cc3a3) | 14 | 9 | 13 |
+| [DVIA-v2](https://github.com/prateek147/DVIA-v2) (96466ab8) | 14 | 3 | 13 |
+| **Total** | **133** | **70 (53%)** | **126 (95%)** |
+
+- **In scope** means visible in source or config. Runtime, reverse-engineering, server, dependency, and
+  business-logic weaknesses are out of scope for a source scanner, as are MASTG demos of a passing app
+  and repeats of the same sample with another tool.
+- **Found** means a finding from a rule that targets that weakness, at its line or at the config that
+  causes it.
+- **Read the 95% with care.** The 0.5.0 rules and fixes were written from the 0.4.3 misses on these same
+  apps, so this is recall on apps masaudit was tuned against, not a prediction for your code. They are
+  also small, deliberately vulnerable samples.
+- **MASTG demos are scanned in a normal app layout** (a manifest, `res/xml/`, symlinks resolved).
+  Scanned as raw demo folders, 47 of 92 are found, mostly because a lone Kotlin file with no manifest
+  gives too little context.
+
+The 7 still missed, and why:
+
+- **Keyboard caching of a name, email, or username field** (MASTG-DEMO-0076, InsecureBankv2, DVIA-v2):
+  the rules cover password, PIN, card, and account fields only. Flagging every name field would bury
+  the real ones.
+- **MD5 or SHA-1 with no security purpose in sight** (MASTG-DEMO-0015, 0016): XPL-007 needs a password,
+  signature, or token nearby, because most MD5 in real apps is a checksum or a cache key.
+- **A person's name in a notification** (MASTG-DEMO-0078): XPL-032 covers one-time codes and balances;
+  names appear in every messaging app's notifications by design.
+- **A secret file excluded from iOS backup** (MASTG-DEMO-0019): IOS-046 treats `isExcludedFromBackup` as
+  the fix, as the book does. MASTG fails the demo because exclusion isn't guaranteed.
+
 ## Speed
 
 Every app in the corpus scans without a crash. End-to-end times for the largest, as a banking app (so
@@ -134,10 +181,9 @@ linear time. `scripts/benchmark.py` times a scan per rule.
 
 ## What this doesn't measure
 
-- **Recall** (what masaudit misses) is harder to measure. The reviewers searched the corpus for the
-  patterns each new rule targets and found no misses in the rules they checked, but no scanner sees
-  server behavior, runtime state, or business logic. Every report has a *Residual risk* section for
-  that reason.
+- **Recall on real apps.** The recall apps above are deliberately vulnerable samples. No scanner sees
+  server behavior, runtime state, or business logic, which is where many breaches happen. Every report
+  has a *Residual risk* section for that reason.
 - **Your app is not the corpus.** If a rule is wrong for your code, a
   [false-positive report](https://github.com/hossam9k/masaudit/issues/new?template=false-positive.yml)
   is the most useful contribution you can make.

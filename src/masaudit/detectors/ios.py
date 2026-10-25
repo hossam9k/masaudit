@@ -1183,7 +1183,7 @@ def _pin_markers(body: str) -> bool:
 # A guard (or if) that only unwraps the server trust or checks the authentication method: its else
 # branch rejects a challenge that has no trust object to judge, not a certificate the code judged bad.
 _UNWRAP_CLAUSE = re.compile(
-    r"\s*(?:let|var)\s+\w+\s*(?::\s*SecTrust\s*)?=\s*(?:\w+\s*[?!]?\s*\.\s*)*serverTrust\s*"
+    r"\s*(?:let|var)\s+\w+\s*(?::\s*SecTrust\s*)?=\s*(?:\w+(?:\s*[?!])?\s*\.\s*)*serverTrust\s*"
     r"|\s*(?:\w+\s*\.\s*)*authenticationMethod\s*==\s*(?:\w+\s*\.\s*)*\w*ServerTrust\s*"
 )
 _UNWRAP_HEAD = re.compile(r"\bguard\b([^{}\n]{0,300}(?:\n[^{}\n]{0,300}){0,3}?)\belse\s*\{"

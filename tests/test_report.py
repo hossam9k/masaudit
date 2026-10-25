@@ -119,6 +119,23 @@ class Json(unittest.TestCase):
         self.assertNotIn("/tmp/demo-app", json.dumps(data))      # no absolute paths
 
 
+class JobSummary(unittest.TestCase):
+    def test_summary_is_the_report_opening(self):
+        from masaudit.report import markdown
+        report = "# Security audit: x\n\n**Verdict: not ready.**\n\n## Top fixes\n\n1. A\n\n## Fix before release\n\nlong\n"
+        out = markdown.job_summary(report)
+        self.assertIn("**Verdict: not ready.**", out)
+        self.assertIn("## Top fixes\n\n1. A", out)
+        self.assertNotIn("Fix before release", out)
+        self.assertTrue(out.endswith("in the job's working folder.\n"))
+
+    def test_summary_without_top_fixes(self):
+        from masaudit.report import markdown
+        out = markdown.job_summary("# Security audit: x\n\n**Verdict: ready.**\n\n## Notes\n\nn\n")
+        self.assertIn("**Verdict: ready.**", out)
+        self.assertNotIn("## Notes", out)
+
+
 class Terminal(unittest.TestCase):
     def test_ascii_and_next_line(self):
         r = rule("AND-030")
