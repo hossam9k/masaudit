@@ -1240,6 +1240,10 @@ These checks ran and found nothing to fix.
 - APK is signed with the v1 (JAR) scheme only (`AND-064`)
 - Serializable object read from an Intent (`AND-065`)
 - App requests fraud-relevant permissions (`AND-072`)
+- SSLSocket doesn't check the server's host name (`AND-073`)
+- Keystore key stays unlocked long after authentication (`AND-074`)
+- WebView opens any URL with no allowlist (`AND-075`)
+- Sensitive field lets the keyboard learn what is typed (`AND-076`)
 
 **iOS**
 
@@ -1275,6 +1279,11 @@ These checks ran and found nothing to fix.
 - Tracking domain isn't declared in the privacy manifest (`IOS-040`)
 - App Attest uses the development environment in a release build (`IOS-041`)
 - XML parser resolves external entities (`IOS-042`)
+- Sensitive text field lets the keyboard learn what is typed (`IOS-043`)
+- Socket connection sends data without TLS (`IOS-044`)
+- Password field rendered inside a web view (`IOS-045`)
+- Secret file is written where backups copy it (`IOS-046`)
+- A host the app calls isn't in NSPinnedDomains (`IOS-047`)
 
 **Cross-platform code**
 
@@ -1313,6 +1322,12 @@ These checks ran and found nothing to fix.
 - OAuth sign-in uses a flow RFC 8252 rules out (`XPL-037`)
 - Jackson accepts attacker-chosen classes (`XPL-041`)
 - Shell command built from a variable (`XPL-042`)
+- Password, PIN, or username is checked against a value in the code (`XPL-043`)
+- Password or token is written to a file in plain text (`XPL-044`)
+- Token, nonce, or random value is taken from the clock (`XPL-045`)
+- Web page or HTML string inserts untrusted text as markup (`XPL-046`)
+- Native code copies Java input into a fixed buffer without a length check (`XPL-047`)
+- App reads sensitive page data in the page's JavaScript world (`XPL-048`)
 
 **CI/CD pipeline**
 

@@ -7,6 +7,7 @@ import json
 import re
 from collections import OrderedDict
 from typing import Dict, List
+from urllib.parse import quote
 
 from masaudit import REPO_URL, __version__
 from masaudit.model import SEVERITY_RANK, Finding, Rule
@@ -24,10 +25,11 @@ def rule_name(rule: Rule) -> str:
 
 
 def _uri(path: str) -> str:
+    """A relative URI reference: forward slashes, and spaces, `%`, `#`, `?` and non-ASCII percent-encoded."""
     p = path.replace("\\", "/")
     while p.startswith("./"):
         p = p[2:]
-    return p.lstrip("/") or "."
+    return quote(p.lstrip("/"), safe="/") or "."
 
 
 def _rule_entry(rule: Rule, severity: str) -> dict:
@@ -133,7 +135,7 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
                 "descriptor": {"id": "masaudit/app-type"},
                 "level": "warning",
                 "message": {"text": w.summary()},
-                "locations": [{"physicalLocation": {"artifactLocation": {"uri": w.path}}}],
+                "locations": [{"physicalLocation": {"artifactLocation": {"uri": _uri(w.path)}}}],
             } for w in result.profile.warnings]} if result.profile.warnings else {}),
         )],
         "columnKind": "unicodeCodePoints",

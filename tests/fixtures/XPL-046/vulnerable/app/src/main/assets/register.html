@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <p id="username"></p>
+    <div id="msg"></div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const name = params.get('username');
+        document.getElementById('username').innerHTML = name;
+        document.getElementById('msg').insertAdjacentHTML('beforeend', decodeURIComponent(location.hash.slice(1)));
+    </script>
+</body>
+</html>

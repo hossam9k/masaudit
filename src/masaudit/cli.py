@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from masaudit import __version__, config, detect, engine, fix, importers, lexer, safety, suppress
 from masaudit import profile as profile_mod
@@ -279,6 +279,21 @@ def _without_comments(rel: str, text: str) -> str:
     return text
 
 
+def _skipped_messages(skipped: Sequence[Tuple[str, str]]) -> List[str]:
+    """One line per reason: what wasn't scanned, with the first few paths."""
+    by_reason: Dict[str, List[str]] = {}
+    for path, reason in skipped:
+        by_reason.setdefault(reason, []).append(path)
+    out = []
+    for reason, paths in by_reason.items():
+        if reason.startswith("the scan stops"):
+            out.append(f"Not scanned: some files, because {reason}. Scan each app's folder separately.")
+            continue
+        shown = ", ".join(paths[:3]) + (f", and {len(paths) - 3} more" if len(paths) > 3 else "")
+        out.append(f"Not scanned ({reason}): {shown}.")
+    return out
+
+
 def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, object]] = None,
          rules: Optional[List[Rule]] = None, import_sarif: Sequence[str] = (),
          baseline: Optional[str] = None, update_baseline: bool = False,
@@ -287,11 +302,13 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     if not os.path.isdir(root):
         raise ToolError(f"not a directory: {root}")
     cfg = cfg if cfg is not None else config.load(root)
-    files = safety.walk(root)
+    skipped: List[Tuple[str, str]] = []
+    files = safety.walk(root, skipped)
     excludes = list(cfg.get("exclude") or [])  # type: ignore[arg-type]
     if excludes:
         files = [f for f in files if not config.is_excluded(f, excludes)]
-    platforms = detect.platforms(files)
+        skipped = [(p, why) for p, why in skipped if not config.is_excluded(p, excludes)]
+    platforms = detect.platforms(files, root)
     clues = collect_clues(root, files)
     all_rules = rules if rules is not None else engine.load_rules()
     prof = resolve_profile(cli_type, cfg, root, [c.describe() for c in clues], allow_prompt, clues, all_rules,
@@ -299,6 +316,7 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
 
     project = Project(root=root, platforms=platforms, files=files)
     findings = engine.run(project, all_rules, prof)
+    project.unknowns += _skipped_messages(skipped)
     notes: List[str] = []
     for sarif_path in import_sarif:
         try:

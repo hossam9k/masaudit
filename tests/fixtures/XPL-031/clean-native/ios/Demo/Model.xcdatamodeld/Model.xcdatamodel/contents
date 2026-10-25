@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" sourceLanguage="Swift">
+    <entity name="Article" representedClassName="Article" syncable="YES">
+        <attribute name="key" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="token" optional="YES" attributeType="String" syncable="YES"/>
+        <attribute name="pin" optional="YES" attributeType="Boolean" syncable="YES"/>
+    </entity>
+    <entity name="LegacyAccount" representedClassName="LegacyAccount" syncable="YES">
+        <attribute name="accessToken" optional="YES" attributeType="String" syncable="YES"/>
+    </entity>
+</model>

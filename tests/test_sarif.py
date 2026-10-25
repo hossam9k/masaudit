@@ -68,6 +68,13 @@ def make_result(findings, app_type):
 
 
 class Sarif(unittest.TestCase):
+    def test_uris_are_percent_encoded(self):
+        # artifactLocation.uri is a URI reference: a space or `#` in a folder name must be encoded.
+        self.assertEqual(sarif._uri("my app/src/Main #2.kt"), "my%20app/src/Main%20%232.kt")
+        self.assertEqual(sarif._uri("./app\\src\\A.kt"), "app/src/A.kt")
+        self.assertEqual(sarif._uri("caf\u00e9/A.kt"), "caf%C3%A9/A.kt")
+        self.assertEqual(sarif._uri(""), ".")
+
     def test_fixture_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = os.path.join(tmp, "r.sarif")

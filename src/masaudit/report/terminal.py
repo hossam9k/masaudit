@@ -44,20 +44,23 @@ def _c(color: bool, key: str, s: str) -> str:
 
 
 def render(result, report_path: Optional[str] = None, color: bool = False) -> str:
+    # Clean every piece of text first, then add colors: cleaning the finished text would also strip
+    # the escape character the colors use.
+    a = asciify
     c = counts(result.findings)
     lines: List[str] = [
-        _c(color, "bold", f"masaudit {__version__} (rules {result.rules_version}) - {project_name(result)}"),
-        f"Platforms: {', '.join(result.project.platforms) or 'none detected'}",
-        f"Profile:   {profile_mod.describe(result.profile)}",
+        _c(color, "bold", a(f"masaudit {__version__} (rules {result.rules_version}) - {project_name(result)}")),
+        a(f"Platforms: {', '.join(result.project.platforms) or 'none detected'}"),
+        a(f"Profile:   {profile_mod.describe(result.profile)}"),
     ]
     if result.profile.source == "default":
         lines.append("Assumed a general app (MAS-L1+P). Set --app-type for accurate results.")
     for w in result.profile.warnings:
         wl = w.lines()
-        lines.append(_c(color, "high", f"WARNING: {wl[0]}"))
-        lines += [f"  {x}" for x in wl[1:]]
+        lines.append(_c(color, "high", a(f"WARNING: {wl[0]}")))
+        lines += [a(f"  {x}") for x in wl[1:]]
     for s in result.profile.suggestions:
-        lines.append(f"Clue:      {s}")
+        lines.append(a(f"Clue:      {s}"))
     lines += [
         "",
         f"Fix before release: {_c(color, 'high', str(c['fix-before-release'])) if c['fix-before-release'] else 0}"
@@ -69,24 +72,24 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
         lines += ["", "Top fixes:"]
         for i, f in enumerate(top, 1):
             loc = f"{f.location.path}:{f.location.line}" if f.location.line else (f.location.path or "project")
-            sev = _c(color, f.effective_severity, f"[{f.effective_severity}]")
-            lines.append(f"  {i}. {sev} {f.rule.title} ({f.rule.id}) - {loc}")
+            sev = _c(color, f.effective_severity, a(f"[{f.effective_severity}]"))
+            lines.append(f"  {i}. {sev} {a(f'{f.rule.title} ({f.rule.id}) - {loc}')}")
     else:
         lines += ["", "No open findings to fix." + (" Check your app type first (see the warning above)."
                                                     if result.profile.warnings else "")]
     notes = list(getattr(result, "notes", []))
     for n in notes:
-        lines.append(f"Note: {n}")
+        lines.append(a(f"Note: {n}"))
     if result.project.unknowns:
         n = len(result.project.unknowns)
         lines.append(f"Couldn't decide {n} {'thing' if n == 1 else 'things'}; see Residual risk in the report.")
     lines.append("")
     if report_path:
-        lines.append(f"Report: {report_path}")
-        lines.append(_next_step(result, report_path))
+        lines.append(a(f"Report: {report_path}"))
+        lines.append(a(_next_step(result, report_path)))
     else:
-        lines.append(_next_step(result, None))
-    return asciify("\n".join(lines)) + "\n"
+        lines.append(a(_next_step(result, None)))
+    return "\n".join(lines) + "\n"
 
 
 PYTHON = "py" if os.name == "nt" else "python3"      # the launcher Python's Windows installer adds

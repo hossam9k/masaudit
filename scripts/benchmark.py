@@ -69,7 +69,7 @@ def main() -> int:
     files = []
     for i in range(args.runs):
         files = safety.walk(root)
-        project = Project(root=root, platforms=detect.platforms(files), files=files)
+        project = Project(root=root, platforms=detect.platforms(files, root), files=files)
         start = time.perf_counter()
         findings = len(engine.run(project, rules, prof))
         runs.append(time.perf_counter() - start)

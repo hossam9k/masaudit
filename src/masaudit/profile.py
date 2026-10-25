@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from masaudit.model import AppTypeWarning, Profile
+from masaudit.textscan import _NeedleIndex
 
 # app type -> (MAS profiles, one-line description shown in the prompt)
 # §3.2: L2 for high-risk data or sensitive functions; R for apps protecting their own logic or assets;
@@ -143,10 +144,12 @@ def find_clues(texts: Dict[str, str], strip: Optional[Callable[[str, str], str]]
     """Evidence about the app's type (path -> text). With `strip`, a raw match only counts if it
     survives strip(path, text), which removes comments; files without a raw match are never stripped."""
     found: Dict[str, Clue] = {}
-    for path, text in texts.items():
+    # One word index answers every clue's needles, instead of a pass over all the text per clue.
+    index = _NeedleIndex(list(texts.values()))
+    for k, (path, text) in enumerate(texts.items()):
         stripped: Optional[str] = None
         for regex, label, app_type, note, needles in _COMPILED:
-            if label in found or not any(n in text for n in needles) or not regex.search(text):
+            if label in found or k not in index.holding_any(needles) or not regex.search(text):
                 continue
             if strip is not None:
                 if stripped is None:

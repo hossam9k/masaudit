@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" initialViewController="Tr1-aa-001">
+    <scenes>
+        <scene sceneID="Sc1-aa-001">
+            <objects>
+                <viewController id="Tr1-aa-001" customClass="TransferViewController" customModule="App" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Vw1-aa-001">
+                        <subviews>
+                            <textField opaque="NO" contentMode="scaleToFill" borderStyle="roundedRect" placeholder="Account number" textAlignment="natural" minimumFontSize="17" id="Tf1-aa-001">
+                                <rect key="frame" x="16" y="100" width="343" height="34"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
+                        </subviews>
+                    </view>
+                </viewController>
+            </objects>
+        </scene>
+    </scenes>
+</document>

@@ -1,1 +1,1 @@
-{"vulnerable": 1, "clean": 0, "clean_read_only": 0, "vulnerable_user_download": 1}
+{"vulnerable": 1, "clean": 0, "clean_read_only": 0, "vulnerable_user_download": 1, "vulnerable_mediastore_secret": 1, "clean_mediastore_export": 0}

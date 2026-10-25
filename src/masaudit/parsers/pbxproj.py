@@ -16,6 +16,7 @@ The helpers at the bottom list native targets, their build configurations (Debug
 from __future__ import annotations
 
 import posixpath
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -380,9 +381,24 @@ def is_debug_config(name: str) -> bool:
     Only a fallback: when a project has shared schemes, the Archive action's configuration
     decides what ships (see xcscheme.py)."""
     low = name.lower().strip()
-    return ("debug" in low or "test" in low
-            or low in ("dev", "development", "profile", "profiling", "local")
-            or low.endswith((" dev", "-dev", "_dev")))
+    if low in ("dev", "development", "profile", "profiling", "local") or low.endswith((" dev", "-dev", "_dev")):
+        return True
+    # Whole words and CamelCase tokens, not substrings: "Contest", "Latest" and "MASTestApp" (a product
+    # name with "Test" in the middle) ship; "Debug-Staging", "StagingDebug", "UITests", "Test-QA" don't.
+    for word in _WORD_SPLIT.split(name):
+        tokens = [t.lower() for t in _CAMEL_TOKEN.findall(word)]
+        if not tokens:
+            continue
+        if any(t.startswith("debug") for t in tokens):
+            return True
+        if tokens[0] in _TEST_WORDS or tokens[-1] in _TEST_WORDS or word.lower() in _TEST_WORDS:
+            return True
+    return False
+
+
+_WORD_SPLIT = re.compile(r"[^A-Za-z0-9]+")
+_CAMEL_TOKEN = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+_TEST_WORDS = frozenset(("test", "tests", "testing", "uitest", "uitests", "unittest", "unittests"))
 
 
 def _join(base: Optional[str], rel: str) -> Optional[str]:

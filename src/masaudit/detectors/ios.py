@@ -6,6 +6,7 @@ single regex (function bodies, #if blocks evaluated against the real compilation
 
 from __future__ import annotations
 
+import bisect
 import itertools
 import os
 import posixpath
@@ -16,7 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set,
 from masaudit import safety
 from masaudit.detect import scope_of as _scope_of
 from masaudit.detectors import flutter
-from masaudit.textscan import bracket_match, holds_any
+from masaudit.textscan import bracket_match, holds_any, text_memo
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import pbxproj, plist, xcconfig, xcscheme
@@ -827,7 +828,7 @@ def _variant_note(env: CondEnv, conds: List[str]) -> str:
 
 def _body(code: str, start: int, max_gap: int = 800) -> Optional[Tuple[int, int]]:
     """Span of the brace-balanced block that starts after `start` (code must have strings blanked)."""
-    i = code.find("{", start)
+    i = code.find("{", start, start + max_gap + 1)
     if i == -1 or i - start > max_gap:
         return None
     j = bracket_match(code, i, "{", "}")        # the same depth count, answered from a cached pairing
@@ -856,15 +857,31 @@ def _paren_end(code: str, open_idx: int, limit: int = 2000) -> int:
 _FUNC_START = re.compile(r"\bfunc\s+\w+|^\s*[-+]\s*\(", re.MULTILINE)
 
 
+def _last_func_start(code: str, index: int) -> int:
+    """Start of the last function declaration that ends before `index` (-1: none). The declarations are
+    found once per text, so asking about every hit in a file stays linear."""
+    starts, ends = text_memo(code, ("ios_func_starts",), lambda: tuple(
+        list(x) for x in zip(*[(m.start(), m.end()) for m in _FUNC_START.finditer(code)])) or ([], []))
+    i = bisect.bisect_right(ends, index) - 1
+    return starts[i] if i >= 0 else -1
+
+
 def _enclosing_function(code: str, index: int) -> Tuple[int, int]:
     """Best-effort span of the function around `index` (from the last `func` before it)."""
-    start = 0
-    for m in _FUNC_START.finditer(code, 0, index):
-        start = m.start()
+    start = max(0, _last_func_start(code, index))
     span = _body(code, start, max_gap=4000)
     if span and span[0] <= index <= span[1]:
         return start, span[1]
     return max(0, index - 1500), min(len(code), index + 1500)
+
+
+def _in_function(code: str, index: int) -> bool:
+    """True if `index` sits inside the body of the last function declared before it."""
+    start = _last_func_start(code, index)
+    if start < 0:
+        return False
+    span = _body(code, start, max_gap=4000)
+    return bool(span and span[0] <= index <= span[1])
 
 
 def _functions(ctx: Context, signature: "re.Pattern[str]", files: Optional[List[str]] = None,
@@ -1025,10 +1042,14 @@ def weak_tls(ctx: Context, rule: Rule) -> Iterable[Hit]:
                           "The session accepts TLS 1.0 or 1.1, below the TLS 1.2 floor ATS enforces.")
 
 
+# The arguments may span lines; the match stays inside the call (no `;`, at most one nested pair of
+# parentheses) and is bounded, so the scan stays linear.
+_CALL_ARGS = r"(?:[^;()]|\([^;()]{0,80}\)){0,200}?"
 _NW_WEAK_TLS = re.compile(
-    r"\bsec_protocol_options_set_(?:min|max)_tls_protocol_version\s*\([^;\n]{0,200}?"
+    r"\bsec_protocol_options_set_(?:min|max)_tls_protocol_version\s*\(" + _CALL_ARGS +
     r"(?:\.TLSv1[01]\b|tls_protocol_version_TLSv1[01]\b|\.DTLSv10\b|tls_protocol_version_DTLSv10\b)"
-    r"|\bSSLSetProtocolVersion(?:Min|Max)\s*\([^;\n]{0,160}?\b(?:kTLSProtocol1|kTLSProtocol11|kSSLProtocol3|kSSLProtocol2|kDTLSProtocol1)\b"
+    r"|\bSSLSetProtocolVersion(?:Min|Max)\s*\(" + _CALL_ARGS +
+    r"\b(?:kTLSProtocol1|kTLSProtocol11|kSSLProtocol3|kSSLProtocol2|kDTLSProtocol1)\b"
 )
 
 
@@ -1037,6 +1058,103 @@ def network_framework_tls(ctx: Context, rule: Rule) -> Iterable[Hit]:
     yield from _code_hits(ctx, _NW_WEAK_TLS, "Protocol",
                           "This connection accepts TLS 1.0 or 1.1. Network.framework and Secure Transport "
                           "connections are outside ATS, so nothing else raises the floor.")
+
+
+_SOCKET_CALL = re.compile(r"\bNWConnection\s*\(|\bgetaddrinfo\s*\(|\bCFStreamCreatePairWithSocketToHost\s*\("
+                          r"|\bgetStreamsToHost\s*\(\s*withName\s*:|\bstreamTask\s*\(\s*withHostName\s*:")
+_PLAIN_TCP = re.compile(r"^\s*(?:NWParameters\s*)?\.tcp\s*$|^\s*NWParameters\s*\(\s*tls\s*:\s*nil\b")
+_CLEARTEXT_PORT = re.compile(r"^\s*(?:\"?(?:80|8080)\"?|\"http\"|\.http|NWEndpoint\s*\.\s*Port\s*\.\s*http"
+                             r"|NWEndpoint\s*\.\s*Port\s*\(\s*(?:integerLiteral|rawValue)\s*:\s*(?:80|8080)\s*\)\s*!?"
+                             r"|String\s*\(\s*(?:80|8080)\s*\))\s*$")
+_STREAM_TLS = re.compile(r"startSecureConnection|SocketSecurityLevel|kCFStreamPropertySSLSettings|NWProtocolTLS")
+_LITERAL_HOST = re.compile(r"\"([A-Za-z0-9.\-:\[\]]{1,253})\"")
+
+
+def _resolve_local(fn: str, expr: str, depth: int = 0) -> str:
+    """The expression a local name stands for (one assignment in the function), else the expression."""
+    expr = expr.strip()
+    inner = re.fullmatch(r"(?:String|NWEndpoint\s*\.\s*Host|NWEndpoint\s*\.\s*Port)\s*\(\s*(?:integerLiteral\s*:\s*)?"
+                         r"([A-Za-z_]\w*)\s*\)\s*!?", expr)
+    name = inner.group(1) if inner else expr
+    if depth > 2 or not re.fullmatch(r"[A-Za-z_]\w*", name):
+        return expr
+    values = re.findall(rf"\b(?:let|var)\s+{re.escape(name)}\s*(?::\s*[\w.]+\s*)?=\s*([^\n;]+)", fn)
+    if len(values) != 1:
+        return expr
+    return _resolve_local(fn, values[0], depth + 1)
+
+
+def _non_local_host(expr: str) -> Optional[str]:
+    m = _LITERAL_HOST.search(expr)
+    if not m:
+        return None
+    host = m.group(1).strip("[]").lower()
+    if _is_local(host) or re.match(r"(?:10|127|192\.168|169\.254|172\.(?:1[6-9]|2\d|3[01]))\.", host) \
+            or "." not in host and ":" not in host:
+        return None
+    return host
+
+
+def _named_arg(args: str, name: str) -> Optional[str]:
+    m = re.search(rf"\b{name}\s*:\s*", args)
+    if not m:
+        return None
+    rest = args[m.end():]
+    return _paren_balance_cut(re.split(r",\s*\w+\s*:", rest, maxsplit=1)[0])
+
+
+@detector("ios_cleartext_socket")
+def cleartext_socket(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        if _is_test_path(path) or not holds_any(ctx, path, ("NWConnection", "getaddrinfo", "SocketToHost",
+                                                            "getStreamsToHost", "withHostName")):
+            continue
+        code = _release_code(ctx, path, keep_strings=True)
+        if code is None:
+            continue
+        connects = bool(re.search(r"(?<![\w.])connect\s*\(", code))
+        stream_tls = bool(_STREAM_TLS.search(code))
+        for m in _SOCKET_CALL.finditer(code):
+            open_idx = code.find("(", m.start())
+            end = _paren_end(code, open_idx, limit=800)
+            if end == -1:
+                continue
+            args = code[open_idx + 1:end - 1]
+            fstart, _fend = _enclosing_function(code, m.start())
+            fn = code[max(fstart, m.start() - 3000):m.start()]     # the names it uses are set just before it
+            call = m.group(0)
+            if call.startswith("NWConnection"):
+                using = _named_arg(args, "using")
+                if using is None or not _PLAIN_TCP.search(_resolve_local(fn, using)):
+                    continue
+                host_expr = _named_arg(args, "host") or ""
+                port_expr = _named_arg(args, "port") or ""
+            elif call.startswith("getaddrinfo"):
+                parts = [p.strip() for p in args.split(",")]
+                if len(parts) < 2 or not connects:
+                    continue
+                host_expr, port_expr = parts[0], parts[1]
+            else:
+                if stream_tls:
+                    continue
+                parts = [p.strip() for p in args.split(",")]
+                host_expr = _named_arg(args, "withName") or _named_arg(args, "withHostName") \
+                    or (parts[1] if len(parts) > 2 else "")
+                port_expr = _named_arg(args, "port") or (parts[2] if len(parts) > 2 else "")
+            host_value = _resolve_local(fn, host_expr)
+            host = _non_local_host(host_value)
+            local = host is None and bool(_LITERAL_HOST.search(host_value))
+            port = _resolve_local(fn, port_expr)
+            if local or re.search(r"\b443\b|\.https\b|\"https\"", port):
+                continue
+            # Plain TCP to a public host on any port, or to an unknown host on a cleartext port (80, http).
+            if not (_CLEARTEXT_PORT.match(port) or (host and call.startswith("NWConnection"))):
+                continue
+            where = f" to {host}" if host else ""
+            line = ctx.line_of(code, m.start())
+            yield Hit(path, line, ctx.snippet(path, line),
+                      f"This connection{where} uses plain TCP with no TLS. Socket and Network.framework "
+                      "connections are outside App Transport Security, so the data travels in cleartext.")
 
 
 # ---------------------------------------------------------------------------- trust and pinning
@@ -1052,7 +1170,7 @@ _REJECTS = re.compile(r"[cC]ancelAuthenticationChallenge|[rR]ejectProtectionSpac
 # Words that only pinning code uses. Chain-access APIs alone (SecTrustCopyCertificateChain,
 # SecCertificateCopyData) also serve trust-on-first-use dialogs, so they need a constant to compare with.
 _STRONG_PIN = re.compile(r"(?i:\bpin(?:s|ned\w*|set|ning\w*)?\b)|\bspki\w*|SPKI\w*|\bpublicKeyHash\w*")
-_CHAIN_API = re.compile(r"SecTrustCopyCertificateChain|SecTrustGetCertificateAtIndex|SecCertificateCopyKey"
+_CHAIN_API = re.compile(r"SecTrustCopyCertificateChain|SecTrustGetCertificateAtIndex|SecCertificateCopyKey|SecCertificateCopyData"
                         r"|SecTrustCopyPublicKey|SecTrustCopyKey")
 _PIN_CONST = re.compile(r"\bforResource\s*:|\bSHA256\b|\bsha256\b|CC_SHA256|\bSHA256Digest\b")
 _DEFAULT_HANDLING = re.compile(r"\.performDefaultHandling\b|NSURLSessionAuthChallengePerformDefaultHandling")
@@ -1062,6 +1180,56 @@ def _pin_markers(body: str) -> bool:
     return bool(_STRONG_PIN.search(body) or (_CHAIN_API.search(body) and _PIN_CONST.search(body)))
 
 
+# A guard (or if) that only unwraps the server trust or checks the authentication method: its else
+# branch rejects a challenge that has no trust object to judge, not a certificate the code judged bad.
+_UNWRAP_CLAUSE = re.compile(
+    r"\s*(?:let|var)\s+\w+\s*(?::\s*SecTrust\s*)?=\s*(?:\w+(?:\s*[?!])?\s*\.\s*)*serverTrust\s*"
+    r"|\s*(?:\w+\s*\.\s*)*authenticationMethod\s*==\s*(?:\w+\s*\.\s*)*\w*ServerTrust\s*"
+)
+_UNWRAP_HEAD = re.compile(r"\bguard\b([^{}\n]{0,300}(?:\n[^{}\n]{0,300}){0,3}?)\belse\s*\{"
+                          r"|\bif\s+((?:let|var)\b[^{}\n]{1,200})\{")
+_NO_TRUST_IF = re.compile(
+    r"\bif\s*\(?\s*(?:!\s*\w*[tT]rust|\w*[tT]rust\s*==\s*(?:nil|NULL)"
+    r"|(?:\w+\s*\.\s*|\[\s*\w+\s+)*authenticationMethod\s*\]*\s*!=\s*\w*ServerTrust"
+    r"|!\s*\[\s*\w+\s*\.\s*\w+\s*\.\s*authenticationMethod\s+isEqualToString\s*:\s*\w*ServerTrust\s*\])\s*\)?\s*\{"
+)
+
+
+def _without_unwrap_rejects(code: str) -> str:
+    """Blank the branches that run only when there is no server trust to evaluate (the guard-let
+    unwrap's else, an `if let trust` else, `if (!serverTrust)`), so a cancel there doesn't count as
+    the handler rejecting a certificate."""
+    spans: List[Tuple[int, int]] = []
+    for m in _UNWRAP_HEAD.finditer(code):
+        cond = m.group(1) if m.group(1) is not None else m.group(2)
+        if not all(_UNWRAP_CLAUSE.fullmatch(c) for c in cond.split(",")):
+            continue
+        brace = m.end() - 1
+        end = bracket_match(code, brace, "{", "}")
+        if end >= len(code):
+            continue
+        if m.group(1) is not None:
+            spans.append((brace, end))
+            continue
+        tail = re.match(r"\s*else\s*\{", code[end + 1:end + 200])
+        if tail:
+            other = end + tail.end()
+            spans.append((other, bracket_match(code, other, "{", "}")))
+    for m in _NO_TRUST_IF.finditer(code):
+        brace = m.end() - 1
+        spans.append((brace, bracket_match(code, brace, "{", "}")))
+    if not spans:
+        return code
+    parts, pos = [], 0
+    for a, b in sorted(spans):
+        a, b = max(a + 1, pos), min(b, len(code))
+        if a >= b:
+            continue
+        parts += [code[pos:a], re.sub(r"[^\n]", " ", code[a:b])]
+        pos = b
+    return "".join(parts) + code[pos:]
+
+
 @detector("ios_trust_all")
 def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
     env = _cond_env(ctx)
@@ -1069,7 +1237,7 @@ def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
         for text, conds in _branch_variants(body, env):
             if not (_TRUST_CREDENTIAL.search(text) and _USE_CREDENTIAL.search(text)):
                 continue
-            if _EVALUATES.search(text) or _REJECTS.search(text):
+            if _EVALUATES.search(text) or _REJECTS.search(_without_unwrap_rejects(text)):
                 continue
             if _pin_markers(text):
                 msg = ("This handler compares pins but never validates the chain (no SecTrustEvaluateWithError), "
@@ -1120,6 +1288,12 @@ _PIN_EVIDENCE_CODE = re.compile(
 _PIN_EVIDENCE_NEEDLES = ("TrustKit", "TSKPinn", "TrustEvaluator", "CertificatePinner", "WultraSSLPinning",
                          "SecTrustSetAnchorCertificates", "pinnedCertificates", "pinnedPublicKeys", "spkiHashes")
 _PIN_EVIDENCE_DEPS = re.compile(r"TrustKit|ssl-pinning-ios|WultraSSLPinning", re.IGNORECASE)
+# Pinning evidence also counts in the older NSURLConnection delegate (willSendRequestFor challenge:).
+_ANY_CHALLENGE = re.compile(
+    _CHALLENGE.pattern
+    + r"|willSendRequestFor\s+challenge\s*:\s*URLAuthenticationChallenge"
+    + r"|willSendRequestForAuthenticationChallenge\s*:\s*\(\s*NSURLAuthenticationChallenge"
+)
 
 
 def _native_pinning_evidence(ctx: Context, code_files: List[str]) -> bool:
@@ -1132,7 +1306,7 @@ def _native_pinning_evidence(ctx: Context, code_files: List[str]) -> bool:
         code = ctx.code(path, keep_strings=False)
         if code and _PIN_EVIDENCE_CODE.search(code):
             return True
-    for _path, _line, body, _code, _m, _s in _functions(ctx, _CHALLENGE, code_files):
+    for _path, _line, body, _code, _m, _s in _functions(ctx, _ANY_CHALLENGE, code_files):
         if _pin_markers(body) and not _is_test_path(_path):
             return True
     for name in ("Podfile", "Package.swift", "Cartfile"):
@@ -1165,6 +1339,63 @@ def pinning_missing(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if is_flutter:
         missing = "no NSPinnedDomains, TrustKit, pin-checking URLSession delegate, or Dart-side pinning"
     yield from _anchor_hits(ctx, lambda name: f"No certificate pinning found for app {name}: {missing}.")
+
+
+_HTTPS_LITERAL = re.compile(r"\"https://([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)(?::\d+)?(/[^\"\s]*)?\"")
+_CALLS_NETWORK = re.compile(r"\b(?:URLSession|NSURLSession|URLRequest|NSURLRequest|dataTask|AF\s*\.\s*request|Alamofire"
+                            r"|MoyaProvider)\b")
+# Hosts an app opens for the user (store, docs, legal pages) rather than calls with its own session.
+_NOT_API_HOST = re.compile(r"(?:^|\.)(?:apple\.com|icloud\.com|itunes\.com|github\.com|google\.com|youtube\.com"
+                           r"|twitter\.com|x\.com|facebook\.com|instagram\.com|linkedin\.com|w3\.org)$")
+
+
+def _pinned_hosts(ctx: Context) -> Dict[str, bool]:
+    """NSPinnedDomains of shipping plists: domain -> NSIncludesSubdomains."""
+    out: Dict[str, bool] = {}
+    for _doc, ats in _ats_docs(ctx):
+        pinned = ats.get("NSPinnedDomains")
+        if isinstance(pinned, dict):
+            for domain, conf in pinned.items():
+                if isinstance(domain, str):
+                    out[domain.strip().lower().rstrip(".")] = isinstance(conf, dict) and plist.truthy(
+                        conf.get("NSIncludesSubdomains"))
+    return out
+
+
+def _pin_covers(host: str, pinned: Dict[str, bool]) -> bool:
+    """NSIncludesSubdomains covers one level of subdomain only (book §8.10)."""
+    if host in pinned:
+        return True
+    label, _, parent = host.partition(".")
+    return bool(label) and pinned.get(parent, False)
+
+
+@detector("ios_unpinned_host")
+def unpinned_host(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    pinned = _pinned_hosts(ctx)
+    if not pinned:
+        return
+    reported: Set[str] = set()
+
+    def missing(host: str, path_part: str) -> bool:
+        host = host.lower()
+        return not (host in reported or _pin_covers(host, pinned) or _is_local(host) or _NOT_API_HOST.search(host)
+                    or _NON_TRACKING_PATH.search(path_part or ""))
+
+    for path in ctx.files(*CODE_SUFFIXES):
+        if _is_test_path(path) or not holds_any(ctx, path, ("https://",)):
+            continue
+        code = _release_code(ctx, path, keep_strings=True)
+        if code is None or not _CALLS_NETWORK.search(code):
+            continue
+        for m in _HTTPS_LITERAL.finditer(code):
+            if missing(m.group(1), m.group(2)):
+                reported.add(m.group(1).lower())
+                line = ctx.line_of(code, m.start())
+                yield Hit(path, line, ctx.snippet(path, line),
+                          f"The app pins {', '.join(sorted(pinned)[:3])}{' and more' if len(pinned) > 3 else ''} "
+                          f"in NSPinnedDomains, but {m.group(1).lower()} isn't covered, so requests to it accept "
+                          "any publicly trusted certificate.")
 
 
 # ============================================================================ WebViews
@@ -1259,6 +1490,25 @@ _BROAD_DIR = re.compile(
 _NARROWED = re.compile(r"appending(?:PathComponent)?\s*\(|URLByAppendingPathComponent|appendingPathComponent")
 
 
+# The assigned expression, with chained calls continued on following lines (`\n    .first!.appending...`).
+_ASSIGNED = r"([^\n;]+(?:\n[ \t]*\.[^\n;]*)*)"
+
+
+_DECLARATION = re.compile(r"\b(?:let|var)\s+(\w+)\s*(?::\s*[\w.?!]+\s*)?=\s*" + _ASSIGNED)
+
+
+def _stored_properties(code: str) -> Dict[str, str]:
+    """name -> assigned expression, for declarations outside any function body (type-level let/var;
+    the last declaration of a name wins)."""
+    def compute() -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for d in _DECLARATION.finditer(code):
+            if not _in_function(code, d.start()):
+                out[d.group(1)] = d.group(2)
+        return out
+    return text_memo(code, ("ios_stored_properties",), compute)
+
+
 def _broad_expr(expr: str) -> bool:
     return bool(_BROAD_DIR.search(expr)) and not _NARROWED.search(expr)
 
@@ -1277,12 +1527,17 @@ def webview_broad_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
             close = _paren_balance_cut(arg)
             broad = _broad_expr(close)
             if not broad:
-                ident = re.match(r"(?:self\s*\.\s*)?([A-Za-z_]\w*)\s*$", close)
+                ident = re.match(r"(?:(?:self|Self|[A-Z]\w*)\s*\.\s*)?([A-Za-z_]\w*)\s*$", close)
                 if ident:
+                    name = re.escape(ident.group(1))
                     fstart, _fend = _enclosing_function(code, m.start())
                     before = code[fstart:m.start()]
-                    for a in re.finditer(rf"\b{re.escape(ident.group(1))}\s*(?::\s*[\w.?!]+\s*)?=\s*([^\n;]+)", before):
-                        broad = _broad_expr(a.group(1))
+                    local = False
+                    for a in re.finditer(rf"\b{name}\s*(?::\s*[\w.?!]+\s*)?=\s*{_ASSIGNED}", before):
+                        broad, local = _broad_expr(a.group(1)), True
+                    if not local:
+                        # A stored property of the type (`private static let docDir = ...documentDirectory...`).
+                        broad = _broad_expr(_stored_properties(code).get(ident.group(1), ""))
             if broad:
                 line = ctx.line_of(code, m.start())
                 yield Hit(path, line, ctx.snippet(path, line),
@@ -1303,6 +1558,61 @@ def _paren_balance_cut(arg: str) -> str:
         elif ch == "," and depth == 0:
             return arg[:i].strip()
     return arg.strip()
+
+
+_LOAD_HTML = re.compile(r"\bloadHTMLString\s*(?:\(\s*|:\s*)")
+_PASSWORD_INPUT = re.compile(r"<input\b[^>]{0,400}?\btype\s*=\s*(?:\\?[\"'])?password\b", re.IGNORECASE)
+
+
+_STRING_DECL = re.compile(r"(?:\b(?:let|var)\s+|\*\s*)(\w+)\s*(?::\s*String\s*)?=\s*")
+
+
+def _literal_value(code: str, name: str, before: int) -> str:
+    """The text assigned to `name` in its last declaration before `before` (a Swift multi-line string, or the
+    rest of the statement, at most 4000 characters), or "" when there is none."""
+    decls = text_memo(code, ("ios_string_decls",), lambda: _index_by_name(_STRING_DECL.finditer(code)))
+    ends = decls.get(name, [])
+    i = bisect.bisect_left(ends, before) - 1
+    if i < 0:
+        return ""
+    start = ends[i]
+    if code.startswith('"""', start):
+        close = code.find('"""', start + 3, start + 20000)
+        return code[start:close if close != -1 else start]
+    stop = code.find(";", start, start + 4000)
+    line_end = code.find("\n", start, start + 4000)
+    end = stop if stop != -1 and (code.startswith("@", start) or line_end == -1 or stop < line_end) else line_end
+    return code[start:end if end != -1 else start + 4000]
+
+
+def _index_by_name(matches: Iterable["re.Match[str]"]) -> Dict[str, List[int]]:
+    out: Dict[str, List[int]] = {}
+    for d in matches:
+        out.setdefault(d.group(1), []).append(d.end())
+    return out
+
+
+@detector("ios_webview_password_input")
+def webview_password_input(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        if _is_test_path(path) or not holds_any(ctx, path, ("loadHTMLString",)):
+            continue
+        code = _release_code(ctx, path, keep_strings=True)
+        if code is None or not _PASSWORD_INPUT.search(code):
+            continue
+        for m in _LOAD_HTML.finditer(code):
+            arg = code[m.end():m.end() + 4000]
+            ident = re.match(r"(?:self\s*\.\s*)?([A-Za-z_]\w*)\s*[,\s\]]", arg)
+            if ident and ident.group(1) not in ("String", "NSString"):
+                html = _literal_value(code, ident.group(1), m.start())
+            else:
+                close = arg.find('"""', 3) if arg.startswith('"""') else -1
+                html = arg[:close] if close != -1 else arg.split("\n", 1)[0]
+            if _PASSWORD_INPUT.search(html):
+                line = ctx.line_of(code, m.start())
+                yield Hit(path, line, ctx.snippet(path, line),
+                          "The HTML loaded here has a password input, so the password lives in the page's DOM "
+                          "where any script in the web view can read it.")
 
 
 _DEEPLINK_HANDLER = re.compile(
@@ -1769,6 +2079,58 @@ def app_group_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
             break
 
 
+_BACKED_UP_DIR = re.compile(r"\b(?:documentDirectory|documentsDirectory|libraryDirectory|applicationSupportDirectory"
+                            r"|NSDocumentDirectory|NSLibraryDirectory|NSApplicationSupportDirectory)\b"
+                            r"|\bNSHomeDirectory\s*\(|\bURL\s*\.\s*(?:documentsDirectory|libraryDirectory"
+                            r"|applicationSupportDirectory)\b")
+_BACKUP_WRITE = re.compile(r"\.write\s*\(\s*(?:to|toFile)\s*:|\bcreateFile\s*\(\s*atPath\s*:|\bcreateFileAtPath\s*:"
+                           r"|\bwriteToURL\s*:|\bwriteToFile\s*:")
+_BACKUP_EXCLUDED = re.compile(r"isExcludedFromBackup|NSURLIsExcludedFromBackupKey|excludedFromBackup|ExcludedFromBackup")
+_PATH_NAME_VAR = re.compile(r"(?:appendingPathComponent|appending\s*\(\s*(?:path|component)\s*:|URLByAppendingPathComponent\s*:"
+                            r"|stringByAppendingPathComponent\s*:)\s*\(?\s*([A-Za-z_]\w*)\s*[,)\]]")
+_FOLDER_BASE = re.compile(r"\b(\w+)\s*[?!]?\s*\.\s*(?:appendingPathComponent|appending|URLByAppendingPathComponent"
+                          r"|stringByAppendingPathComponent)\b|\[\s*(\w+)\s+(?:URLByAppendingPathComponent"
+                          r"|stringByAppendingPathComponent)\s*:")
+_BACKUP_SECRET_NAME = re.compile(r"secret|token(?!iz)|password|passwd|credential|\bjwt\b|api_?key|private_?key"
+                                 r"|\.(?:key|pem|p12)$", re.IGNORECASE)
+
+
+@detector("ios_backup_secret_file")
+def backup_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*CODE_SUFFIXES):
+        if _is_test_path(path) or not holds_any(ctx, path, ("Directory",)):
+            continue
+        code = _release_code(ctx, path, keep_strings=True)
+        if code is None or _BACKUP_EXCLUDED.search(code) or not _BACKED_UP_DIR.search(code):
+            continue
+        done: Set[int] = set()
+        for w in _BACKUP_WRITE.finditer(code):
+            fstart, fend = _enclosing_function(code, w.start())
+            if fstart in done:              # one look (and at most one finding) per function
+                continue
+            done.add(fstart)
+            fn = code[fstart:fend]
+            if not _BACKED_UP_DIR.search(fn):
+                # The folder may be a stored property of the type (`let docs = ...documentDirectory...`).
+                stored = _stored_properties(code)
+                if not any(_BACKED_UP_DIR.search(stored.get(b.group(1) or b.group(2), ""))
+                           for b in itertools.islice(_FOLDER_BASE.finditer(fn), 20)):
+                    continue
+            names = [n.group(1) for n in _DOCS_WRITE_NAME.finditer(fn)]
+            for v in itertools.islice(_PATH_NAME_VAR.finditer(fn), 20):
+                value = re.search(rf"\b(?:let|var)\s+{re.escape(v.group(1))}\s*(?::\s*String\s*)?=\s*@?\"([^\"\n]{{1,80}})\"",
+                                  fn)
+                if value:
+                    names.append(value.group(1))
+            name = next((n for n in names if _BACKUP_SECRET_NAME.search(n)), None)
+            if name is None:
+                continue
+            line = ctx.line_of(code, w.start())
+            yield Hit(path, line, ctx.snippet(path, line),
+                      f"\"{name}\" is written under Documents or Library and never excluded from backup, so it is "
+                      "copied into iCloud and computer backups.")
+
+
 _UNARCHIVE = re.compile(
     r"\bNSKeyedUnarchiver\s*\.\s*unarchiveObject\s*\(\s*(?:with|withFile)\s*:|\bunarchiveTopLevelObjectWithData\b"
     r"|\[\s*NSKeyedUnarchiver\s+unarchiveObjectWith(?:Data|File)\s*:|\brequiresSecureCoding\s*=\s*(?:false|NO)\b")
@@ -1924,6 +2286,163 @@ def keyboard_full_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if plist.truthy(plist.get(ext, "NSExtensionAttributes", "RequestsOpenAccess")):
             yield _plist_hit(ctx, doc, ("NSExtension", "NSExtensionAttributes", "RequestsOpenAccess"),
                              "This keyboard extension requests Full Access (network and shared storage).")
+
+
+# ---------------------------------------------------------------------------- keyboard cache
+
+_WORD_TOKEN = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+_SECRET_FIELD_WORDS = {"password": "a password", "passwd": "a password", "passcode": "a passcode",
+                       "pin": "a PIN", "pincode": "a PIN", "otp": "a one-time code", "cvv": "a card security code",
+                       "cvc": "a card security code", "cvv2": "a card security code", "iban": "an account number",
+                       "ssn": "a social security number"}
+_SECRET_FIELD_PAIRS = {("card", "number"): "a card number", ("card", "no"): "a card number",
+                       ("card", "num"): "a card number", ("account", "number"): "an account number",
+                       ("account", "no"): "an account number", ("account", "num"): "an account number",
+                       ("security", "code"): "a security code"}
+# Words that make a password-like label something else: a hint, or a "show password" toggle.
+_NOT_SECRET_FIELD = {"hint", "show", "hide", "forgot", "reveal", "visible", "strength"}
+
+
+def _secret_field_kind(label: str) -> Optional[str]:
+    """What secret a field with this name, placeholder or identifier takes (None: nothing sensitive)."""
+    tokens = [t.lower() for t in _WORD_TOKEN.findall(label[:200])]
+    if not tokens or _NOT_SECRET_FIELD.intersection(tokens):
+        return None
+    for t in tokens:
+        if t in _SECRET_FIELD_WORDS:
+            return _SECRET_FIELD_WORDS[t]
+    for pair in zip(tokens, tokens[1:]):
+        if pair in _SECRET_FIELD_PAIRS:
+            return _SECRET_FIELD_PAIRS[pair]
+    return None
+
+
+# Settings that keep the keyboard from learning: a secure field, autocorrection off, or a number pad
+# (no predictive text, and third-party keyboards can't replace it).
+_NO_LEARNING = (r"(?:isSecureTextEntry|secureTextEntry)\s*=|setSecureTextEntry\s*:"
+                r"|autocorrectionType\s*=\s*(?:\.no\b|UITextAutocorrectionTypeNo\b)"
+                r"|setAutocorrectionType\s*:\s*UITextAutocorrectionTypeNo\b"
+                r"|keyboardType\s*=\s*(?:\.(?:numberPad|decimalPad|phonePad|asciiCapableNumberPad)\b"
+                r"|UIKeyboardType(?:NumberPad|DecimalPad|PhonePad|ASCIICapableNumberPad)\b)")
+_NO_LEARNING_RX = re.compile(_NO_LEARNING)
+_NO_LEARNING_TARGET = re.compile(r"\b(\w+)\s*[?!]?\s*\.\s*(?:" + _NO_LEARNING + r")|\[\s*(\w+)\s+(?:setSecureTextEntry"
+                                 r"|setAutocorrectionType\s*:\s*UITextAutocorrectionTypeNo|setKeyboardType)")
+_ALERT_FIELD = re.compile(r"\baddTextField\s*(?:\(\s*configurationHandler\s*:\s*)?\{"
+                          r"|\baddTextFieldWithConfigurationHandler\s*:\s*\^\s*\([^)]{0,80}\)\s*\{")
+_FIELD_LABEL = re.compile(r"\b(?:placeholder|accessibilityIdentifier|accessibilityLabel)\s*=\s*@?\"([^\"\n]{1,120})\"")
+_NAMED_FIELD_LABEL = re.compile(r"\b(\w+)\s*[?!]?\s*\.\s*(?:placeholder|accessibilityIdentifier)\s*=\s*@?\"([^\"\n]{1,120})\"")
+_UIKIT_FIELD_DECL = re.compile(
+    r"\b(?:let|var)\s+(\w+)\s*(?::\s*UITextField\s*[!?]?\s*)?=\s*UITextField\s*\("
+    r"|\b(?:let|var)\s+(\w+)\s*:\s*UITextField\s*[!?]?\s*=\s*\{"
+    r"|\bUITextField\s*\*\s*(\w+)\s*=\s*\[\s*\[\s*UITextField\s+alloc\s*\]")
+_SWIFTUI_FIELD = re.compile(r"(?<![\w.])TextField\s*\(\s*(?:\"([^\"\n]{1,120})\"|([^,()\"\n]{0,120}?(?:\([^()\n]{0,160}\))?))"
+                            r"\s*,\s*text\s*:\s*\$([\w.]+)")
+_SECURE_FIELD_BINDING = re.compile(r"(?<![\w.])SecureField\s*\([^\n]{0,240}?\btext\s*:\s*\$([\w.]+)")
+_SWIFTUI_NO_LEARNING = re.compile(r"\.autocorrectionDisabled\s*\(\s*(?!false\b)|\.disableAutocorrection\s*\(\s*true\b"
+                                  r"|\.keyboardType\s*\(\s*\.(?:numberPad|decimalPad|phonePad|asciiCapableNumberPad)\b")
+_IB_FIELD = re.compile(r"<textField\b([^>]{0,4000})>")
+_IB_ATTR = re.compile(r"\b(placeholder|userLabel|customClass|id)=\"([^\"]{0,200})\"")
+_IB_ACCESSIBILITY = re.compile(r"<accessibility\b[^>]{0,400}?\b(?:identifier|label)=\"([^\"]{1,120})\"")
+_IB_NO_LEARNING = re.compile(r"\bsecureTextEntry=\"YES\"|\bautocorrectionType=\"no\""
+                             r"|\bkeyboardType=\"(?:numberPad|decimalPad|phonePad|asciiCapableNumberPad)\"")
+_IB_OUTLET = re.compile(r"<outlet\s+property=\"(\w+)\"\s+destination=\"([^\"]+)\"")
+
+
+def _keyboard_message(label: str, kind: str) -> str:
+    return (f"The field \"{label}\" takes {kind}, but it isn't a secure field and keeps autocorrection on, so the "
+            "keyboard can learn what is typed and suggest it later.")
+
+
+def _configured_fields(ctx: Context) -> Set[str]:
+    """Names of text fields whose code sets secure entry, autocorrection off or a number pad somewhere."""
+    cache = _cache(ctx)
+    if "no_learning_fields" not in cache:
+        names: Set[str] = set()
+        for path in ctx.files(*CODE_SUFFIXES):
+            if not holds_any(ctx, path, ("ecureTextEntry", "utocorrectionType", "eyboardType")):
+                continue
+            for m in _NO_LEARNING_TARGET.finditer(ctx.code(path, keep_strings=False) or ""):
+                names.add(m.group(1) or m.group(2))
+        cache["no_learning_fields"] = names
+    return cache["no_learning_fields"]
+
+
+@detector("ios_keyboard_cache")
+def keyboard_cache(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    configured = _configured_fields(ctx)
+    for path in ctx.files(*CODE_SUFFIXES):
+        if _is_test_path(path) or not holds_any(ctx, path, ("TextField", "addTextField")):
+            continue
+        code = _release_code(ctx, path, keep_strings=True)
+        if code is None:
+            continue
+        # Alert text fields configured in a closure: the closure holds the whole configuration.
+        for m in _ALERT_FIELD.finditer(code):
+            end = bracket_match(code, m.end() - 1, "{", "}")
+            body = code[m.end():min(end, m.end() + 3000)]
+            labels = [lb.group(1) for lb in _FIELD_LABEL.finditer(body)]
+            kind = next((k for k in map(_secret_field_kind, labels) if k), None)
+            if kind and not _NO_LEARNING_RX.search(body):
+                line = ctx.line_of(code, m.start())
+                label = next(lb for lb in labels if _secret_field_kind(lb))
+                yield Hit(path, line, ctx.snippet(path, line), _keyboard_message(label, kind))
+        # UIKit fields created in code.
+        assigned: Dict[str, List[str]] = {}
+        for lb in _NAMED_FIELD_LABEL.finditer(code):
+            assigned.setdefault(lb.group(1), []).append(lb.group(2))
+        for m in _UIKIT_FIELD_DECL.finditer(code):
+            name = m.group(1) or m.group(2) or m.group(3)
+            if name in configured:
+                continue
+            labels = [name] + assigned.get(name, [])
+            if m.group(2):          # `var field: UITextField = { ... }()`: the closure configures it
+                end = bracket_match(code, m.end() - 1, "{", "}")
+                body = code[m.end():min(end, m.end() + 3000)]
+                if _NO_LEARNING_RX.search(body):
+                    continue
+                labels += [lb.group(1) for lb in _FIELD_LABEL.finditer(body)]
+            label = next((lb for lb in labels if _secret_field_kind(lb)), None)
+            if label is not None:
+                line = ctx.line_of(code, m.start())
+                yield Hit(path, line, ctx.snippet(path, line), _keyboard_message(label, _secret_field_kind(label)))
+        # SwiftUI: a plain TextField for a secret, with no autocorrection modifier anywhere in the file
+        # (the modifier is inherited from a parent container).
+        if "TextField" in code and not _SWIFTUI_NO_LEARNING.search(code):
+            # A "show password" toggle swaps a SecureField for a TextField bound to the same value: the user
+            # chose to reveal it.
+            revealed = set(_SECURE_FIELD_BINDING.findall(code))
+            for m in _SWIFTUI_FIELD.finditer(code):
+                if m.group(3) in revealed:
+                    continue
+                title, binding = m.group(1) or m.group(2) or "", m.group(3).rsplit(".", 1)[-1]
+                label = title.strip() if _secret_field_kind(title) else binding
+                kind = _secret_field_kind(label)
+                if kind:
+                    line = ctx.line_of(code, m.start())
+                    yield Hit(path, line, ctx.snippet(path, line), _keyboard_message(label, kind))
+    # Storyboards and XIBs.
+    for path in ctx.files(".storyboard", ".xib"):
+        if _is_test_path(path) or not holds_any(ctx, path, ("<textField",)):
+            continue
+        text = ctx.text(path) or ""
+        outlets = {dest: prop for prop, dest in _IB_OUTLET.findall(text)}
+        for m in _IB_FIELD.finditer(text):
+            inner = ""
+            if not m.group(0).endswith("/>"):           # text fields don't nest: the next close is this one's
+                end = text.find("</textField>", m.end())
+                inner = text[m.end():end if end != -1 else m.end()]
+            attrs = dict(_IB_ATTR.findall(m.group(1)))
+            if attrs.get("customClass") or _IB_NO_LEARNING.search(m.group(1) + inner):
+                continue
+            outlet = outlets.get(attrs.get("id", ""), "")
+            if outlet in configured:
+                continue
+            labels = [attrs.get("placeholder", ""), attrs.get("userLabel", ""), outlet]
+            labels += _IB_ACCESSIBILITY.findall(inner)
+            label = next((lb for lb in labels if lb and _secret_field_kind(lb)), None)
+            if label is not None:
+                line = ctx.line_of(text, m.start())
+                yield Hit(path, line, ctx.snippet(path, line), _keyboard_message(label, _secret_field_kind(label)))
 
 
 _SWITCHER_EVIDENCE = re.compile(

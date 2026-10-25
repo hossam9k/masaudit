@@ -1677,6 +1677,114 @@
       ],
       "confidence": "medium",
       "detector": "android_high_risk_permissions"
+    },
+    {
+      "id": "AND-073",
+      "title": "SSLSocket doesn't check the server's host name",
+      "platform": "android",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "An SSLSocket checks that the certificate is valid, but not that it belongs to the host you connected to. An attacker with a valid certificate for any other site can then read and change the traffic.",
+      "fix": "After the handshake, check the session with `HttpsURLConnection.getDefaultHostnameVerifier().verify(host, socket.session)` and close the socket if it fails. Or set `endpointIdentificationAlgorithm = \"HTTPS\"` on the socket's `SSLParameters`. Better still, use HttpsURLConnection or OkHttp, which do this check for you.",
+      "verify": "Connect the app to a server that presents a valid certificate for a different host name (for example wrong.host.badssl.com) and confirm the connection fails.",
+      "effort": "hours",
+      "book": "§7.1",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline",
+      "maswe": "MASWE-0027",
+      "masvs": "MASVS-NETWORK-1",
+      "mastg": [
+        "MASTG-TEST-0234",
+        "MASTG-DEMO-0048"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "val socket = factory.createSocket(host, 443) as SSLSocket\nsocket.startHandshake()\nif (!HttpsURLConnection.getDefaultHostnameVerifier().verify(host, socket.session)) {\n    socket.close()\n    throw SSLPeerUnverifiedException(\"Certificate doesn't match $host\")\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_sslsocket_hostname"
+    },
+    {
+      "id": "AND-074",
+      "title": "Keystore key stays unlocked long after authentication",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "A key with a long validity window can be used for that whole time after one fingerprint or PIN check. Someone who picks up the unlocked phone, or malware on it, can use the key without the user.",
+      "fix": "Use `setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)` so every use of the key needs a new authentication, and pass a `CryptoObject` to the prompt. If you need a window, keep it to a few seconds.",
+      "verify": "Authenticate once, wait longer than the window you chose, then try the protected action and confirm the app asks for the biometric again.",
+      "effort": "hours",
+      "book": "§11.3",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/04-proving-who-is-calling.md#113-the-enrollment-problem-nobody-thinks-about",
+      "maswe": "MASWE-0020",
+      "masvs": "MASVS-AUTH-2",
+      "mastg": [
+        "MASTG-TEST-0330",
+        "MASTG-DEMO-0093"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)\n    .setUserAuthenticationRequired(true)\n    .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)\n    .setInvalidatedByBiometricEnrollment(true)\n    .build()"
+      },
+      "confidence": "high",
+      "detector": "android_auth_validity_long"
+    },
+    {
+      "id": "AND-075",
+      "title": "WebView opens any URL with no allowlist",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L1"
+      ],
+      "why": "The WebView follows every link and redirect without checking where it goes. A link or a hijacked redirect can load an attacker's page into a WebView that runs JavaScript inside your app.",
+      "fix": "In `shouldOverrideUrlLoading`, parse the URL and allow only https and the hosts you own. Open anything else in the browser, or block it. Run the same check before your own `loadUrl` calls.",
+      "verify": "Tap a link in the WebView that points to a host outside your allowlist and confirm it opens in the browser or is blocked.",
+      "effort": "hours",
+      "book": "§16.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#164-loading-untrusted-content",
+      "maswe": "MASWE-0035",
+      "masvs": "MASVS-PLATFORM-2",
+      "mastg": [
+        "MASTG-TEST-0398",
+        "MASTG-DEMO-0157"
+      ],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "private val allowedHosts = setOf(\"www.example.com\")\n\noverride fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {\n    val url = request.url\n    if (url.scheme == \"https\" && url.host in allowedHosts) return false\n    view.context.startActivity(Intent(Intent.ACTION_VIEW, url))\n    return true\n}"
+      },
+      "confidence": "medium",
+      "detector": "android_webview_no_url_check"
+    },
+    {
+      "id": "AND-076",
+      "title": "Sensitive field lets the keyboard learn what is typed",
+      "platform": "android",
+      "severity": "medium",
+      "profiles": [
+        "L2"
+      ],
+      "why": "Keyboards learn the words typed into normal text fields and suggest them later. A password, one-time code, or card number typed there can show up as a suggestion, and keyboard apps can keep it.",
+      "fix": "Give secrets a password input type (`textPassword`, `numberPassword`). For other sensitive fields, add `textNoSuggestions` (`TYPE_TEXT_FLAG_NO_SUGGESTIONS`) and `imeOptions=\"flagNoPersonalizedLearning\"`.",
+      "verify": "Type a test value into the field, then start typing it again in another app and confirm the keyboard doesn't suggest it.",
+      "effort": "minutes",
+      "book": "§6.5",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption",
+      "maswe": "MASWE-0036",
+      "masvs": "MASVS-PLATFORM-3",
+      "mastg": [
+        "MASTG-TEST-0258",
+        "MASTG-DEMO-0064"
+      ],
+      "fix_code": {
+        "lang": "xml",
+        "code": "<EditText\n    android:id=\"@+id/otp\"\n    android:inputType=\"number|textNoSuggestions\"\n    android:imeOptions=\"flagNoPersonalizedLearning\" />"
+      },
+      "confidence": "medium",
+      "detector": "android_keyboard_cache"
     }
   ]
 }

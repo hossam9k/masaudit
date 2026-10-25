@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <p id="username"></p>
+    <div id="list"></div>
+    <script>
+        const name = new URLSearchParams(window.location.search).get('username');
+        document.getElementById('username').textContent = name;
+        const safe = DOMPurify.sanitize(location.hash.slice(1));
+        document.getElementById('list').innerHTML = safe;
+        document.getElementById('list').innerHTML = '<li>' + 'static' + '</li>';
+    </script>
+</body>
+</html>

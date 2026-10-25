@@ -67,7 +67,8 @@ the version comments.
 - Results appear in the repository's **Security** tab. Pull requests from forks skip the upload.
 - File paths in results and annotations are relative to the repository root, even when `path` is a
   subfolder.
-- It also writes `SECURITY-AUDIT.md` in the job's working folder.
+- It writes `SECURITY-AUDIT.md` in the job's working folder, and puts the verdict and top fixes in
+  the job summary, on the run's page.
 - If the scan itself fails (exit code 2), the step fails with an error annotation.
 - It runs with the runner's `python3` (3.9 or later); GitHub-hosted runners include it.
 - If the code suggests a riskier app type than the one set, the run shows a

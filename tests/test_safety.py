@@ -62,6 +62,17 @@ class Safety(unittest.TestCase):
         self.assertIsNone(safety.read_text(self.root, "pipe.kt"))
         self.assertIsNone(safety.read_bytes(self.root, "Link.kt"))
 
+    def test_skipped_files_are_reported_not_hidden(self):
+        # A skipped manifest must not look like a clean one: the report lists what wasn't scanned.
+        self._write(os.path.join(self.root, "Big.kt"), "x" * (safety.MAX_FILE_BYTES + 1))
+        self._write(os.path.join(self.root, "notes.png"), "x" * (safety.MAX_FILE_BYTES + 1))
+        skipped = []
+        self.assertEqual(safety.walk(self.root, skipped), [])
+        self.assertEqual(skipped, [("Big.kt", "larger than 2 MiB")])      # not the image: never scanned
+        from masaudit import cli
+        result = cli.scan(self.root, cli_type="general", cfg={}, allow_prompt=False)
+        self.assertIn("Not scanned (larger than 2 MiB): Big.kt.", result.project.unknowns)
+
     def test_large_file_is_skipped(self):
         big = os.path.join(self.root, "big.xml")
         with open(big, "wb") as fh:

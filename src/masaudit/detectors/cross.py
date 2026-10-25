@@ -10,6 +10,7 @@ imports a test framework is reported with that scope, so it is lowered rather th
 from __future__ import annotations
 
 import bisect
+import itertools
 import re
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Pattern, Sequence, Set, Tuple
 
@@ -116,7 +117,7 @@ def _is_function_head(head: str, path: str) -> bool:
     if path.endswith((".m", ".mm", ".h")) and re.match(r"\s*[-+]\s*\(", h):
         return True
     m = _TRAILER.search(h)
-    h = h[:m.start()] if m else h
+    h = h[:m.start()].rstrip() if m else h        # `throws` may sit on its own line
     if not h.endswith(")"):
         return path.endswith(".dart") and bool(re.search(r"\b(?:get|set)\s+\w+\s*$", h))
     depth = 0
@@ -442,6 +443,29 @@ def secret_assignment(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield Hit(path, line, _mask_in(ctx.snippet(path, line), value),
                       f"`{m.group(1)}` is set to a literal value, so it ships inside the app.",
                       _hit_scope(ctx, path, m.start()))
+    yield from _c_define_secrets(ctx)
+
+
+# C and Objective-C: `#define VENDORKEY "olsdfgad;lh"`.
+C_DEFINE_SECRET = re.compile(r"(?m)^[ \t]*#[ \t]*define[ \t]+(\w*(?:SECRET|PASSWORD|PASSWD|PASSPHRASE|KEY|Secret|Password|"
+                             r"Passphrase|Key))[ \t]+@?\"([^\"\s]{6,})\"")
+# A define that names a key's location or label, not the key.
+_DEFINE_LABEL = {"name", "file", "filename", "path", "url", "uri", "tag", "id", "pref", "prefs", "notification",
+                 "defaults", "header", "field", "param", "column", "table", "dir", "ext", "type", "attr", "attribute",
+                 "keychain", "service", "account", "label", "length", "len", "size", "public"}
+
+
+def _c_define_secrets(ctx: Context) -> Iterable[Hit]:
+    for path, code, blank in _files_with(ctx, (".c", ".cc", ".cpp", ".cxx", ".m", ".mm", ".h", ".hpp"), ("define",)):
+        for m in C_DEFINE_SECRET.finditer(code):
+            name, value = m.group(1), m.group(2)
+            if _identifier_words(name) & _DEFINE_LABEL or not _real_secret_value(value, name) or \
+                    re.search(r"\.[A-Za-z]{2,4}$|^[a-z]+://|/", value):
+                continue
+            line = ctx.line_of(code, m.start())
+            yield Hit(path, line, _mask_in(ctx.snippet(path, line), value),
+                      f"`{name}` is defined as a literal value, so it ships inside the app.",
+                      _hit_scope(ctx, path, m.start(), blank))
 
 
 # ---------------------------------------------------------------------------- XPL-004
@@ -696,7 +720,16 @@ def static_iv(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield Hit(path, line, ctx.snippet(path, line), msg, _hit_scope(ctx, path, m.start(), blank))
         for m in IV_CALL_VAR.finditer(code):
             line = ctx.line_of(code, m.start())
-            if line in seen or not _var_is_literal(code, m.group(1), m.start(), path, blank):
+            if line in seen:
+                continue
+            if not _var_is_literal(code, m.group(1), m.start(), path, blank):
+                for call in _literal_arg_callers(code, blank, m.group(1), m.start(), path):
+                    call_line = ctx.line_of(code, call)  # a helper whose callers in this file pass a fixed IV
+                    if call_line not in seen:
+                        seen.add(call_line)
+                        yield Hit(path, call_line, _mask_literals(ctx.snippet(path, call_line)),
+                                  msg[:-1] + "; it reaches the cipher through a helper in this file.",
+                                  _hit_scope(ctx, path, call, blank))
                 continue
             seen.add(line)
             if _per_message_key(code, blank, m.start(), path):
@@ -851,6 +884,28 @@ def _rng_security_words(blank: str, idx: int, path: str) -> List[str]:
     return []
 
 
+_RNG_ASSIGNED = re.compile(r"\b([A-Za-z_]\w*)\s*(?::\s*[\w.]+\??)?\s*=\s*(?:java\.util\.|kotlin\.random\.)?$")
+
+
+def _rng_variable_uses(code: str, line_start: int, idx: int, path: str, followed: Set[tuple]) -> List[int]:
+    """When the generator made at `idx` is assigned to a variable (`val random = Random()`), the offsets
+    of each `random.next…(` in its function, or in the file for a field."""
+    m = _RNG_ASSIGNED.search(code[line_start:idx])
+    if not m:
+        return []
+    start, end, _head = _enclosing_function(code, idx, path)
+
+    def uses_by_name() -> Dict[str, List[int]]:     # one pass per scope, however many generators it makes
+        found: Dict[str, List[int]] = {}
+        for u in re.finditer(r"(?<![\w.])([A-Za-z_]\w*)\s*\.\s*next\w*\s*\(", code[start:end]):
+            found.setdefault(u.group(1), []).append(start + u.start())
+        return found
+    if (m.group(1), start, end) in followed:
+        return []                             # this name in this scope was followed already
+    followed.add((m.group(1), start, end))
+    return text_memo(code, ("rng_uses", start, end), uses_by_name).get(m.group(1), [])
+
+
 @detector("xpl_insecure_random")
 def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*JVM):
@@ -865,6 +920,7 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
             yield Hit(path, line, ctx.snippet(path, line), "A SecureRandom seeded by the caller.",
                       _hit_scope(ctx, path, m.start(), code))
         pats = list(RNG_JVM)
+        followed: Set[tuple] = set()      # (variable, scope) pairs whose uses were judged
         for (imp, message), needle in zip(RNG_IMPORTS, _RNG_IMPORT_NEEDLES):
             if needle in code and imp.search(code):
                 pats.append((RNG_IMPORTED_USE, message))
@@ -880,6 +936,16 @@ def insecure_random(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 if line in seen:
                     continue
                 words = _rng_security_words(code, m.start(), path)
+                # Tests seed a plain generator for repeatable data; their uses are not followed.
+                uses = [] if words or regex is RNG_JVM[2][0] or scope_of(path) == "test" or \
+                    _test_file(ctx, path) else _rng_variable_uses(code, s, m.start(), path, followed)
+                for use in uses:               # `val random = Random()`, then `random.nextInt(...)` per use
+                    use_line = ctx.line_of(code, use)
+                    use_words = [] if use_line in seen else _rng_security_words(code, use, path)
+                    if use_words:
+                        seen.add(use_line)
+                        yield Hit(path, use_line, ctx.snippet(path, use_line),
+                                  f"{message[:-1]}, and it produces a `{use_words[0]}`.", _hit_scope(ctx, path, use, code))
                 if not words:
                     continue
                 seen.add(line)
@@ -949,6 +1015,10 @@ _BROWSER_OPEN = re.compile(r"\b(?:launchUri|launchUrl|launchUrlString|launchBrow
                            r"\bSFSafariViewController\s*\(|\buriHandler\s*\.\s*openUri\b")
 
 
+# A scheme constant (`String protocol = "http://"`) that URLs are built from.
+HTTP_SCHEME_CONST = re.compile(r"\b([A-Za-z_]\w*)\s*(?::\s*String\??)?\s*=\s*@?\"http://\"")
+
+
 @detector("xpl_http_url")
 def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE):
@@ -987,6 +1057,17 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     hit.severity = "low"
                     hit.message += " It's opened in the browser rather than fetched by the app; still link to https."
                 yield hit
+        # The scheme-constant regex has no literal to anchor on; run it only where the bare scheme is.
+        names = HTTP_SCHEME_CONST.findall(code) if '"http://"' in code else []
+        for name in sorted(set(names)):
+            # `String protocol = "http://"`, then `new HttpPost(protocol + serverip + ...)`.
+            for use in re.finditer(r"(?<![\w.])" + re.escape(name) + r"\s*\+\s*(?:this\s*\.\s*)?[A-Za-z_]", blank):
+                line = ctx.line_of(code, use.start())
+                if line not in seen:
+                    seen.add(line)
+                    yield Hit(path, line, ctx.snippet(path, line), f"A URL is built from `{name}`, which holds "
+                              "`http://`, so the request goes out in plain HTTP.",
+                              _hit_scope(ctx, path, use.start(), blank))
 
 
 # ---------------------------------------------------------------------------- XPL-010
@@ -1000,7 +1081,10 @@ DART_LOG_CALL = re.compile(r"(?<![\w.])(?:print|debugPrint|debugPrintSynchronous
 # `debugPrintSynchronously`); every match therefore contains one of them.
 _STARTS[LOG_CALL] = ("Log.", "Timber.", "System.", "print", "debugPrint", "NSLog", "os_log")
 _STARTS[DART_LOG_CALL] = ("print", "debugPrint", "log", "developer.")
-SENSITIVE_WORD = re.compile(r"(?i)token|passw(?:or)?d|passwd|secret|authorization|bearer")
+SENSITIVE_WORD = re.compile(r"(?i)token|passw(?:or)?d|passwd|secret|authorization|bearer|card_?number|credit_?card|"
+                            r"(?<![a-z])cvv|(?<![a-z])cvc(?![a-z])")
+# A log message that labels the value it prints as card data: "... credit card: " + field.getText().
+CARD_LABEL = re.compile(r"(?i)(?:credit|debit)\s*card|card\s*(?:number|no\b)|\bcvv\b|\bcvc\b")
 SENSITIVE_IDENT = re.compile(r"\b[A-Za-z_]\w*\b")
 INTERP = re.compile(r"\$\{([^}]*)\}|\$([A-Za-z_]\w*)|\\\(([^)]*)\)")
 # Derived values that reveal nothing: a length, a null check, a masked tail, an expiry date.
@@ -1060,6 +1144,41 @@ def _secret_expr(expr: str, before: str) -> bool:
     return True
 
 
+def _labelled_card_values(full: str, bare: str, open_at: int, close: int) -> List[str]:
+    """Values concatenated right after a literal that names card data (`"credit card: " + cc.getText()`)."""
+    out = []
+    for lit in re.finditer(r"\"([^\"\n]*)\"\s*\+\s*([A-Za-z_][\w.]*(?:\(\s*\))?(?:\.[\w]+(?:\(\s*\))?)*)",
+                           full[open_at:close]):
+        expr = lit.group(2)
+        if CARD_LABEL.search(lit.group(1)) and not _NON_SECRET_ANYWHERE.search(expr) and not _SAFE_SUFFIX.search(expr) \
+                and not expr.isupper() and not re.search(r"(?i)message|stacktrace|getenv", expr):
+            out.append(expr)
+    return out
+
+
+# `user["password"] = …` or `user.password = …`: the object now holds a secret.
+_HOLDS_SECRET = r"\s*(?:\[\s*\"[^\"\n]*(?:password|passwd|token|secret)[^\"\n]*\"\s*\]|\.\s*\w*(?:[Pp]assword|[Tt]oken|[Ss]ecret)\w*)\s*=(?!=)"
+
+
+def _objects_holding_secrets(full: str, bare: str, open_at: int, close: int, path: str) -> List[str]:
+    """Whole objects logged (`\\(user)`, `user.description`, `"$user"`) after the same function stored a
+    password or token in them."""
+    exprs = [next(x for x in g.groups() if x is not None) for g in INTERP.finditer(full[open_at:close])]
+    exprs += re.findall(r"(?<![\w.\"])([A-Za-z_]\w*(?:\.(?:description|debugDescription|toString\(\s*\)))?)\s*[,)]",
+                        bare[open_at:close + 1])
+    out = []
+    start = -1
+    for expr in exprs:
+        m = re.fullmatch(r"\s*([A-Za-z_]\w*)(?:\s*\.\s*(?:description|debugDescription|toString\(\s*\)))?\s*", expr)
+        if not m or SENSITIVE_WORD.search(m.group(1)):
+            continue                          # a sensitive name is the other check's job
+        if start < 0:                         # the function, at most the 4,000 characters before the call
+            start = max(_enclosing_function(bare, open_at, path)[0], open_at - 4000)
+        if re.search(r"(?<![\w.])" + re.escape(m.group(1)) + _HOLDS_SECRET, full[start:open_at]):
+            out.append(m.group(1))
+    return out
+
+
 @detector("xpl_sensitive_log")
 def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE):
@@ -1068,7 +1187,8 @@ def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue                                        # no log call in the file
         low = ctx.lower(path)
         # Every SENSITIVE_WORD match contains one of these (passw covers passw(or)d and passwd).
-        if low is None or not any(w in low for w in ("token", "passw", "secret", "authorization", "bearer")):
+        if low is None or not any(w in low for w in ("token", "passw", "secret", "authorization", "bearer", "card",
+                                                     "cvv", "cvc")):
             continue
         bare = ctx.code(path, keep_strings=False) or ""     # string contents blanked
         full = ctx.code(path, keep_strings=True) or ""      # same offsets, strings kept
@@ -1096,6 +1216,8 @@ def sensitive_log(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 expr = next(x for x in g.groups() if x is not None)
                 if SENSITIVE_WORD.search(expr) and _secret_expr(expr, ""):
                     names.append(expr.strip())
+            names += _labelled_card_values(full, bare, open_at, close)
+            names += _objects_holding_secrets(full, bare, open_at, close, path)
             if names and all(n in ("token", "tokens") for n in names):
                 if lexical is None:
                     lexical = bool(_LEXICAL_TOKEN_FILE.search(bare))
@@ -1151,6 +1273,88 @@ def _string_constant(code: str, name: str, *_args) -> bool:
         + r"\s*(?::\s*String)?\s*=\s*\"[^\"\n]+\"", code)))
 
 
+# A key made from a variable: `SecKeyCreateWithData(privateKeyData as CFData, …)`,
+# `P256.Signing.PrivateKey(rawRepresentation: privateKeyData)`, `SymmetricKey(data: keyData)`.
+SWIFT_KEY_FROM_VAR = re.compile(
+    r"\bSecKeyCreateWithData\(\s*([A-Za-z_]\w*)\s*(?:as\s+CFData\s*)?,"
+    r"|\b(?:P256|P384|P521|Curve25519)\.(?:Signing|KeyAgreement)\.PrivateKey\(\s*rawRepresentation:\s*([A-Za-z_]\w*)\s*\)"
+    r"|\bSymmetricKey\(\s*data:\s*([A-Za-z_]\w*)\s*\)")
+# RNCryptor with a literal password: Swift `password: "…"`/`withPassword: "…"`, Objective-C `password:@"…"`.
+RNCRYPTOR_PASSWORD = re.compile(r"\bRN(?:En|De)cryptor\b[^;\n]{0,200}?\b(?:withPassword|password)\s*:\s*@?\"([^\"\n]{4,})\"")
+
+
+def _swift_literal_bytes(code: str, blank: str, name: Optional[str], idx: int, path: str, depth: int = 0) -> bool:
+    """Is the Swift variable `name` a byte-array, base64, or string literal, directly or through
+    `Data(otherName)`? Looked for in the function around `idx`, then in the file."""
+    if not name or depth > 2:
+        return False
+    start, end, _head = _enclosing_function(blank, idx, path)
+    decl = re.compile(r"\b(?:let|var)\s+" + re.escape(name) + r"\s*(?::\s*[\w\[\]]+)?\s*=\s*")
+    m = decl.search(code, start, end) or text_memo(code, ("swift_decl", name), lambda: decl.search(code))
+    if not m:
+        return False
+    init = code[m.end():m.end() + 200]
+    if re.match(r"\[\s*(?:0x[0-9A-Fa-f]+|\d+)\s*,(?:\s*(?:0x[0-9A-Fa-f]+|\d+)\s*,){14}|Data\(\s*\[\s*(?:0x|\d)|"
+                r"Data\(\s*base64Encoded:\s*\"|\"[^\"\n]{16,}\"\s*\.data\(|Data\(\s*\"[^\"\n]{16,}\"\.utf8", init):
+        return True
+    inner = re.match(r"Data\(\s*([A-Za-z_]\w*)\s*\)", init)
+    return bool(inner) and _swift_literal_bytes(code, blank, inner.group(1), m.start(), path, depth + 1)
+
+
+def _param_index(head: str, name: str) -> int:
+    """Position of parameter `name` in a Java or Kotlin function head, or -1."""
+    open_paren = head.rfind("(", 0, head.rfind(")") + 1) if ")" in head else -1
+    if open_paren < 0:
+        return -1
+    params = head[open_paren + 1:head.rfind(")")]
+    for i, p in enumerate(params.split(",")):
+        if re.search(r"(?:^|\s)" + re.escape(name) + r"\s*(?::|$)", p.strip()):
+            return i
+    return -1
+
+
+def _literal_arg_callers(code: str, blank: str, name: str, idx: int, path: str) -> List[int]:
+    """`SecretKeySpec(keyBytes, …)` or `IvParameterSpec(ivBytes)` where the argument is a parameter of the
+    enclosing function: the offsets of the calls in the same file that pass a literal there, directly or
+    as `keyString.getBytes()` of a string constant."""
+    start, _end, head = _enclosing_function(blank, idx, path)
+    pos = _param_index(head, name)
+    fn = _function_name(head)
+    if pos < 0 or not fn:
+        return []
+    return text_memo(code, ("key_callers", fn, pos, start),
+                     lambda: _literal_arg_calls(code, blank, fn, pos, start - len(head), start, path))
+
+
+def _literal_arg_calls(code: str, blank: str, fn: str, pos: int, decl_start: int, decl_end: int,
+                       path: str) -> List[int]:
+    out = []
+    for call in re.finditer(r"(?<![\w$])" + re.escape(fn) + r"\s*\(", blank):
+        if decl_start <= call.start() < decl_end:
+            continue                          # the declaration itself
+        args = _args_of(blank, call.end() - 1)
+        if len(args) <= pos:
+            continue
+        arg = code[args[pos][0]:args[pos][1]].strip()
+        lit = re.match(r"\"[^\"\n]+\"\s*\.\s*(?:getBytes|toByteArray|encodeToByteArray)\s*\(", arg)
+        var = re.fullmatch(r"([A-Za-z_]\w*)", arg)
+        if not lit and var:
+            n = re.escape(var.group(1))
+            if _var_is_literal(code, var.group(1), call.start(), path, blank) or re.search(
+                    r"(?:byte\s*\[\s*\]\s*" + n + r"|\b(?:val|var)\s+" + n + r"(?:\s*:\s*ByteArray)?)\s*=\s*"
+                    r"(?:\{|byteArrayOf\()", code[max(0, call.start() - 3000):call.start()]):
+                # (the second test: a literal in the enclosing function of an inner listener or lambda)
+                lit = var
+            else:
+                c_start, _c_end, _c_head = _enclosing_function(blank, call.start(), path)
+                src = re.search(r"\b" + re.escape(var.group(1)) + r"\s*=\s*(?:this\.)?([A-Za-z_]\w*)\s*\.\s*"
+                                r"(?:getBytes|toByteArray|encodeToByteArray)\s*\(", code[c_start:call.start()])
+                lit = src if src and _string_constant(code, src.group(1)) else None
+        if lit:
+            out.append(call.start())
+    return out
+
+
 @detector("xpl_hardcoded_key")
 def hardcoded_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*JVM):
@@ -1169,6 +1373,14 @@ def hardcoded_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG,
                           _hit_scope(ctx, path, m.start(), blank))
+        for m in KEY_CALL_VAR.finditer(code):
+            for call in _literal_arg_callers(code, blank, m.group(1), m.start(), path):
+                line = ctx.line_of(code, call)
+                if line not in seen:
+                    seen.add(line)
+                    yield Hit(path, line, _mask_literals(ctx.snippet(path, line)),
+                              _KEY_MSG[:-1] + ": it reaches `SecretKeySpec` through a helper in this file.",
+                              _hit_scope(ctx, path, call, blank))
     for path in ctx.files(".swift"):
         raw = ctx.text(path) or ""
         if not any(p in raw for p in ("SymmetricKey", "PrivateKey(", "SecKeyCreateWithData")):
@@ -1185,6 +1397,26 @@ def hardcoded_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG,
                           _hit_scope(ctx, path, m.start()))
+        blank = ctx.code(path, keep_strings=False) or ""
+        for m in SWIFT_KEY_FROM_VAR.finditer(code):
+            line = ctx.line_of(code, m.start())
+            name = m.group(1) or m.group(2) or m.group(3)
+            if line in seen or not _swift_literal_bytes(code, blank, name, m.start(), path):
+                continue
+            if m.group(0).startswith("SecKey"):
+                start, end, _head = _enclosing_function(blank, m.start(), path)
+                if "kSecAttrKeyClassPrivate" not in code[start:end]:
+                    continue                  # a public key ships by design
+            seen.add(line)
+            yield Hit(path, line, _mask_literals(ctx.snippet(path, line)), _KEY_MSG,
+                      _hit_scope(ctx, path, m.start(), blank))
+    for path, code, blank in _files_with(ctx, APPLE, ("RNEncryptor", "RNDecryptor", "RNCryptor")):
+        for m in RNCRYPTOR_PASSWORD.finditer(code):
+            value = m.group(1)                # `$` is not interpolation in Swift or Objective-C strings
+            if "\\(" not in value and not _FAKE_VALUE.match(value) and not _placeholder(value):
+                yield _hit_at(ctx, path, code, m.start(), "RNCryptor encrypts with a password written in the code, "
+                                                          "so anyone who unpacks the app can decrypt the data.",
+                              blank, mask=True)
     for path in ctx.files(*DART):
         raw = ctx.text(path) or ""
         if "Key" not in raw:
@@ -1370,6 +1602,19 @@ APPLE_KEY_SIZE = re.compile(r"\bkSecAttrKeySizeInBits\b[^\n,;\]]{0,40}?(\d{2,5})
 DART_RSA_SIZE = re.compile(r"\bRSAKeyGeneratorParameters\s*\(\s*[^,()]+(?:\([^()]*\))?\s*,\s*(\d+)")
 
 
+def _keygen_algorithm(code: str, body: str, idx: int) -> Optional[str]:
+    """The algorithm argument of the `KeyPairGenerator.getInstance(...)` that the receiver of the
+    `initialize(...)` at `idx` was assigned, looked for in the function and then the file; None when the
+    call has no receiver or its declaration isn't found."""
+    recv = re.search(r"([A-Za-z_]\w*)\s*\.\s*$", code[max(0, idx - 120):idx])
+    if not recv:
+        return None
+    decl = re.compile(r"\b" + re.escape(recv.group(1)) + r"\s*(?::\s*[\w.]+\??)?\s*=\s*(?:[\w.]+\.)?"
+                      r"KeyPairGenerator\s*\.\s*getInstance\s*\(\s*([^,()]+)")
+    m = decl.search(body) or text_memo(code, ("kpg_decl", recv.group(1)), lambda: decl.search(code))
+    return m.group(1) if m else None
+
+
 @detector("xpl_small_key")
 def small_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, JVM, ("initialize", "setKeySize", "RSAKeyGenParameterSpec",
@@ -1384,7 +1629,11 @@ def small_key(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if n is None or n >= 2048 or line in seen:
                 continue
             body = _local_body(code, blank, m.start(), path)
-            if not m.group(0).startswith("RSAKeyGen") and (not _RSA_IN.search(body) or _NOT_RSA_IN.search(body)):
+            algo = _keygen_algorithm(code, body, m.start())
+            if algo is not None:
+                if not _RSA_IN.search(algo) or _NOT_RSA_IN.search(algo):
+                    continue
+            elif not m.group(0).startswith("RSAKeyGen") and (not _RSA_IN.search(body) or _NOT_RSA_IN.search(body)):
                 continue
             seen.add(line)
             yield _hit_at(ctx, path, code, m.start(), f"An RSA, DSA, or DH key of {n} bits; use at least 2048.", blank)
@@ -1442,6 +1691,67 @@ def _named_arg(blank: str, code: str, args: List[Tuple[int, int]], name: str) ->
     return None
 
 
+def _params(head: str, path: str) -> List[Tuple[str, str]]:
+    """(call label, name) of each parameter in a function head; the label is "" for a positional one.
+    Swift `salt: Data` and `with salt: Data` and `_ salt: Data`, Kotlin `salt: ByteArray`, Java
+    `byte[] salt`."""
+    close = head.rfind(")")
+    name_at = re.search(r"([A-Za-z_]\w*)\s*(?:<[^<>]*>)?\s*\(", head)
+    if close < 0 or not name_at:
+        return []
+    inner = head[name_at.end():close]
+    out: List[Tuple[str, str]] = []
+    for p in inner.split(","):
+        p = re.sub(r"@\w+(?:\([^)]*\))?|\b(?:final|vararg|inout)\b", " ", p).strip()
+        if path.endswith(".swift"):
+            m = re.match(r"(?:(\w+)\s+)?(\w+)\s*:", p)
+            if m:
+                label = m.group(1) if m.group(1) else m.group(2)
+                out.append(("" if label == "_" else label, m.group(2)))
+        elif path.endswith(".kt"):
+            m = re.match(r"(?:va[lr]\s+)?(\w+)\s*:", p)
+            if m:
+                out.append(("", m.group(1)))
+        else:
+            m = re.search(r"(\w+)\s*$", p)
+            if m:
+                out.append(("", m.group(1)))
+    return out
+
+
+def _forwarded(code: str, blank: str, path: str, span: Optional[Tuple[int, int]]) -> Optional[Dict[int, Tuple[int, int]]]:
+    """When the KDF argument at `span` is a parameter of its function (through a cast such as
+    `UInt32(rounds)` or a `salt.withUnsafeBytes { saltBytes in` alias), {call start: argument span} for
+    each call of that function in the file. None when the argument is not a parameter."""
+    if span is None:
+        return None
+    expr = code[span[0]:span[1]].strip()
+    cast = re.fullmatch(r"(?:UInt32|Int32|UInt|Int|CUnsignedInt|UInt64|Int64)\s*\(\s*(\w+)\s*\)|&?\s*(\w+)", expr)
+    if not cast:
+        return None
+    name = cast.group(1) or cast.group(2)
+    start, _end, head = _enclosing_function(blank, span[0], path)
+    alias = re.search(r"\b(\w+)\s*\.\s*withUnsafe(?:Mutable)?Bytes\s*\{\s*\(?\s*" + re.escape(name) + r"\b",
+                      code[start:span[0]])
+    if alias:
+        name = alias.group(1)
+    params = _params(head, path)
+    pos = next((i for i, (_label, n) in enumerate(params) if n == name), -1)
+    fn = _function_name(head)
+    if pos < 0 or not fn:
+        return None
+    label = params[pos][0]
+    out: Dict[int, Tuple[int, int]] = {}
+    for call in re.finditer(r"(?<![\w$.])" + re.escape(fn) + r"\s*\(", blank):
+        if start - len(head) <= call.start() < start:
+            continue                          # the declaration itself
+        args = _args_of(blank, call.end() - 1)
+        arg = _named_arg(blank, code, args, label) if label else (args[pos] if len(args) > pos else None)
+        if arg is not None:
+            out[call.start()] = arg
+    return out
+
+
 def _kdf_calls(ctx: Context) -> Iterable[Tuple[str, str, str, int, Optional[Tuple[int, int]],
                                               Optional[Tuple[int, int]], str]]:
     """(path, code, blank, call start, iterations span, salt span, prf) for every password KDF call."""
@@ -1471,7 +1781,15 @@ def _kdf_calls(ctx: Context) -> Iterable[Tuple[str, str, str, int, Optional[Tupl
                             salt = (s0, e0)
                 elif len(args) >= 2:          # Pbkdf2Parameters(salt, iterations, length)
                     salt, it = args[0], args[1]
-                yield path, code, blank, m.start(), it, salt, prf
+                fw_it, fw_salt = _forwarded(code, blank, path, it), _forwarded(code, blank, path, salt)
+                if not fw_it and not fw_salt:     # not a parameter, or no caller in this file
+                    yield path, code, blank, m.start(), it, salt, prf
+                    continue
+                # A same-file wrapper (`func pbkdf2(password:salt:rounds:)`) passes its parameters on: judge
+                # each call of the wrapper by the arguments it gets.
+                for call in sorted(set(fw_it or {}) | set(fw_salt or {})):
+                    yield (path, code, blank, call, (fw_it or {}).get(call) if fw_it is not None else it,
+                           (fw_salt or {}).get(call) if fw_salt is not None else salt, prf)
 
 
 # A derivation timed to calibrate the real iteration count derives no key.
@@ -1585,7 +1903,7 @@ def pbkdf2_iterations(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 _DART_LITERAL_SALT = re.compile(r"^\s*(?:const\s+)?(?:utf8\.encode\s*\(\s*r?[\"']|" + _DART_LITERAL_BYTES
                                 + r"|\[\s*\d|r?[\"']|SecretKey\s*\(\s*(?:utf8\.encode|const\s*\[|\[))")
-_APPLE_LITERAL_SALT = re.compile(r"^\s*&?\s*(?:\"[^\"\n]*\"|Array\s*\(\s*\"|\[\s*(?:0x)?\d|Data\s*\(\s*(?:\"|\[)|"
+_APPLE_LITERAL_SALT = re.compile(r"^\s*&?\s*(?:\"[^\"\n]*\"|Array\s*\(\s*\"|\[\s*(?:0x)?\d|Data\s*\(\s*(?:bytes\s*:\s*)?(?:\"|\[)|"
                                  r"\(\s*\"[^\"\n]*\"\s*as\s+NSString\)|@\")")
 
 
@@ -1606,7 +1924,7 @@ def _salt_is_literal(path: str, code: str, blank: str, span: Tuple[int, int]) ->
         return True
     name = re.match(r"\s*&?\s*([A-Za-z_]\w*)\s*(?:\.bytes|\.utf8)?\s*$", expr)
     return bool(name and re.search(r"\b(?:let|var)\s+" + re.escape(name.group(1)) + r"\s*(?::\s*[\w\[\]]+)?\s*=\s*"
-                                   r"(?:\"|Array\s*\(\s*\"|\[\s*(?:0x)?\d|Data\s*\(\s*\")", code))
+                                   r"(?:\"|Array\s*\(\s*\"|\[\s*(?:0x)?\d|Data\s*\(\s*(?:\"|bytes\s*:\s*\[))", code))
 
 
 @detector("xpl_fixed_salt")
@@ -2298,7 +2616,9 @@ def secrandom_unchecked(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 # ---------------------------------------------------------------------------- XPL-029
 
-_DOM_SINK = re.compile(r"innerHTML|outerHTML|textContent|innerText|\.value\s*=|document\.write|insertAdjacentHTML")
+# Writes only: `el.textContent` alone reads the DOM, it doesn't put a secret there.
+_DOM_SINK = re.compile(r"(?:innerHTML|outerHTML|textContent|innerText|\.value)\s*\+?=(?!=)|document\.write|"
+                       r"insertAdjacentHTML|\.setAttribute\s*\(\s*\\?[\"']value")
 _DOM_SECRET = {"otp", "token", "password", "passcode", "pin", "balance", "card", "cardnumber", "iban", "account",
                "accountnumber", "ssn", "cvv", "secret"}
 JS_EVAL = re.compile(r"\bevaluateJavaScript\s*\(|\bevaluateJavascript\s*\(|\bloadUrl\s*\(\s*\"javascript:|"
@@ -2311,7 +2631,9 @@ def webview_dom_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                                     "runJavaScript")):
         for m in JS_EVAL.finditer(code):
             open_paren = code.index("(", m.start())
-            close = bracket_match(blank, open_paren, "(", ")")
+            args = _args_of(blank, open_paren)
+            # The script is the first argument; a completion handler after it only receives a result.
+            close = args[0][1] if args else bracket_match(blank, open_paren, "(", ")")
             text = code[open_paren:min(close, open_paren + 800)]
             if not _DOM_SINK.search(text):
                 continue
@@ -2364,8 +2686,58 @@ _DB_ENCRYPTED = re.compile(r"SupportOpenHelperFactory\s*\(|SupportFactory\s*\(|n
                            r"sqflite_sqlcipher|encrypted_shared|EncryptedRealm|NSPersistentStoreFileProtectionKey")
 
 
+_DB_SECRET_NAMES = {"password", "passwd", "passcode", "pin", "pincode", "accesstoken", "refreshtoken", "authtoken",
+                    "sessiontoken", "token", "apikey", "secret", "clientsecret", "privatekey", "cardnumber",
+                    "creditcard", "cvv", "cvc", "iban", "ssn", "useraccesstoken", "appaccesstoken"}
+# Whose credential it is: a bare `token` or `secret` in a SQL table, and any field of a Realm or Core Data
+# model, counts only on a user, account, or session record (a share link's password or a password-history
+# entry the app encrypted first are not the user's login).
+_DB_OWNER = {"account", "user", "session", "auth", "authentication", "credential", "credentials", "login",
+             "profile", "member", "customer"}
+# Realm models: Swift `class User: Object {`, Objective-C `@interface User : RLMObject`.
+REALM_MODEL = re.compile(r"\bclass\s+(\w+)\s*:\s*(?:Realm\w*\.)?Object\b[^{\n]*\{|@interface\s+(\w+)\s*:\s*RLMObject\b")
+REALM_SECRET_FIELD = re.compile(r"(?m)^[ \t]*(?:@\w+(?:\([^)\n]*\))?\s+)*(?:(?:private|public|internal|fileprivate|"
+                                r"dynamic)\s+)*var\s+(\w+)\s*[:=]|^[ \t]*@property\b[^;\n]*?\*?\s*(\w+)\s*;")
+# A literal `CREATE TABLE name (col TYPE, ...)` handed to SQLite.
+SQL_CREATE = re.compile(r"(?i)\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?[`\"]?(\w+)[`\"]?\s*\(([^)\"\n]{1,600})\)")
+
+
+def _db_secret_name(name: str, owner: Set[str]) -> bool:
+    norm = re.sub(r"[_\-]", "", name).lower()
+    if norm not in _DB_SECRET_NAMES:
+        return False
+    return norm not in ("token", "secret") or bool(owner & _DB_OWNER)
+
+
+def _current_core_data_models(ctx: Context) -> List[str]:
+    """The `contents` file of each Core Data model, newest version only: `Model 10.xcdatamodel` over
+    `Model 9.xcdatamodel` over `Model.xcdatamodel` (old versions stay in the bundle for migration)."""
+    newest: Dict[str, Tuple[int, str]] = {}
+    for path in ctx.files(name="contents"):
+        parts = path.split("/")
+        if len(parts) < 2 or not parts[-2].endswith(".xcdatamodel"):
+            continue
+        group = "/".join(parts[:-2])
+        num = re.search(r"(\d+)\.xcdatamodel$", parts[-2])
+        rank = int(num.group(1)) if num else 1
+        if group not in newest or rank > newest[group][0]:
+            newest[group] = (rank, path)
+    return [p for _r, p in newest.values()]
+
+
+def _core_data_created(ctx: Context) -> Set[str]:
+    """Entity and class names the app's code creates: `insertNewObject(forEntityName: "User", …)`,
+    `NSEntityDescription.entity(forEntityName: "User", …)`, `User(context: …)`."""
+    names: Set[str] = set()
+    for _path, code, _blank in _files_with(ctx, APPLE, ("forEntityName", "(context:")):
+        names.update(re.findall(r"forEntityName\s*:\s*@?\"(\w+)\"", code))
+        names.update(re.findall(r"\b([A-Z]\w*)\s*\(\s*context\s*:", code))
+    return names
+
+
 @detector("xpl_db_plain_credentials")
 def db_plain_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    yield from _db_plain_native(ctx)
     if _found(ctx, _DB_ENCRYPTED):
         return
     for path, code, blank in _files_with(ctx, JVM, ("@Entity", "RealmObject")):
@@ -2395,6 +2767,73 @@ def db_plain_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
         for m in re.finditer(r"\bRealm\s*\.\s*Configuration\s*\(", blank):
             yield _hit_at(ctx, path, code, m.start(), "A Realm that stores a token or password is configured "
                                                       "without an `encryptionKey`.", blank)
+
+
+_VENDORED = re.compile(r"(?i)/(?:vendor|vendors|third[_-]?party|3rdparty)/")
+
+
+def _db_encryption_evidence(ctx: Context) -> Set[str]:
+    """Which local stores the app encrypts: "sql" (SQLCipher), "realm" (an `encryptionKey` in a file that
+    uses Realm), "coredata" (a file-protection class on the store or app-wide). Looked for per store, so
+    an unrelated `encryptionKey` (a crypto library's parameter) doesn't hide every database."""
+    found: Set[str] = set()
+    for path, code, _blank in _files_with(ctx, CODE + NATIVE + (".gradle", ".kts", ".toml", ".entitlements"),
+                                          ("sqlcipher", "zetetic", "SupportFactory", "loadLibs", "PRAGMA key",
+                                           "sqlite3_key", "encryptionKey", "FileProtection", "data-protection")):
+        if _VENDORED.search("/" + path):
+            continue                          # a bundled library's own code (YapDatabase calls sqlite3_key)
+        if re.search(r"(?i)sqlcipher|net\.zetetic|SQLiteDatabase\.loadLibs|SupportOpenHelperFactory|"
+                     r"SupportFactory\s*\(|PRAGMA\s+key\b|sqlite3_key\b", code):
+            found.update(("sql", "coredata"))
+        if "Realm" in code and re.search(r"\bencryptionKey\s*[:=(]", code):
+            found.add("realm")
+        if re.search(r"NSPersistentStoreFileProtectionKey|SQLITE_OPEN_FILEPROTECTION_|"
+                     r"com\.apple\.developer\.default-data-protection", code):
+            found.add("coredata")
+    return found
+
+
+def _db_plain_native(ctx: Context) -> Iterable[Hit]:
+    """Raw SQLite tables, Realm models, and Core Data entities that hold a password or token."""
+    encrypted = _db_encryption_evidence(ctx)
+    for path, code, blank in _files_with(ctx, APPLE, ("Object", "RLMObject")):
+        if "realm" in encrypted or ("import RealmSwift" not in code and "Realm/" not in code
+                                    and "RLMObject" not in code):
+            continue
+        for m in REALM_MODEL.finditer(blank):
+            owner = _words_of(code[m.start():m.end()])
+            body_end = bracket_match(blank, m.end() - 1, "{", "}") if blank[m.end() - 1] == "{" else \
+                blank.find("@end", m.end())
+            for f in REALM_SECRET_FIELD.finditer(code, m.end(), body_end if body_end > 0 else len(code)):
+                name = f.group(1) or f.group(2)
+                if owner & _DB_OWNER and _db_secret_name(name, owner):
+                    yield _hit_at(ctx, path, code, f.start(), f"Realm field `{name}` is stored without an "
+                                                              "`encryptionKey`.", blank)
+    for path, code, blank in _files_with(ctx, CODE, ("CREATE TABLE", "create table")):
+        if "sql" in encrypted:
+            break
+        for m in SQL_CREATE.finditer(code):
+            owner = _words_of(m.group(1))
+            for col in re.split(r",", m.group(2)):
+                name = col.split()[0] if col.split() else ""
+                if _db_secret_name(name, owner):
+                    yield _hit_at(ctx, path, code, m.start(), f"Table `{m.group(1)}` stores a `{name}` column "
+                                                              "without database encryption.", blank)
+                    break
+    models = [] if "coredata" in encrypted else _current_core_data_models(ctx)
+    created = _core_data_created(ctx) if models else set()
+    for path in models:
+        text = ctx.text(path) or ""
+        for e in re.finditer(r"<entity\b([^>]*)>(.*?)</entity>", text, re.DOTALL):
+            names = set(re.findall(r"\b(?:name|representedClassName)=\"\.?(\w+)\"", e.group(1)))
+            if not names & created:
+                continue                      # an entity no code makes any more (kept for migration)
+            owner = _words_of(" ".join(names))
+            for a in re.finditer(r"<attribute\b[^>]*\bname=\"([^\"]+)\"[^>]*attributeType=\"String\"", e.group(2)):
+                if owner & _DB_OWNER and _db_secret_name(a.group(1), owner):
+                    line = ctx.line_of(text, e.start(2) + a.start())
+                    yield Hit(path, line, ctx.snippet(path, line), f"Core Data attribute `{a.group(1)}` is stored "
+                              "in a plain SQLite file.")
 
 
 # ---------------------------------------------------------------------------- XPL-032
@@ -2449,7 +2888,9 @@ def notification_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
 _FIELD_SECRET = re.compile(r"(?i)pass(?:word|code|wd)|(?<![a-z])pin(?![a-z])|(?<![a-z])pin(?=[A-Z_]|code)")
 _XML_FIELD = re.compile(r"<(?:[\w.]+\.)?(?:EditText|TextInputEditText|AppCompatEditText|MaterialAutoCompleteTextView)"
                         r"\b[^>]*>")
-_MASKED_TYPE = re.compile(r"android:inputType\s*=\s*\"[^\"]*(?:textPassword|numberPassword|textWebPassword)")
+# The deprecated `android:password="true"` masks the input too.
+_MASKED_TYPE = re.compile(r"android:inputType\s*=\s*\"[^\"]*(?:textPassword|numberPassword|textWebPassword)|"
+                          r"android:password\s*=\s*\"true\"")
 COMPOSE_FIELD = re.compile(r"(?<![\w.])(?:OutlinedTextField|TextField|BasicTextField)\s*\(")
 DART_FIELD = re.compile(r"(?<![\w.])(?:TextField|TextFormField|CupertinoTextField)\s*\(")
 SWIFTUI_FIELD = re.compile(r"(?<![\w.])TextField\s*\(\s*(?:String\s*\(\s*localized:\s*)?\"([^\"\n]*)\"")
@@ -2458,6 +2899,50 @@ SWIFTUI_FIELD = re.compile(r"(?<![\w.])TextField\s*\(\s*(?:String\s*\(\s*localiz
 def _field_label_secret(args_code: str) -> bool:
     labels = re.findall(r"(?:label|placeholder|hint|labelText|hintText|helperText)\s*[=:]\s*([^,\n]{0,120})", args_code)
     return any(_FIELD_SECRET.search(lbl) for lbl in labels)
+
+
+# UIKit: `field.isSecureTextEntry = false`, `field.secureTextEntry = NO`, `[field setSecureTextEntry:NO]`.
+UIKIT_UNMASKED = re.compile(r"(?<![\w.$])([$\w][\w.$]*?)\s*\.\s*(?:isSecureTextEntry|secureTextEntry)\s*=\s*"
+                            r"(?:false|NO)\b|\[\s*([$\w][\w.$]*)\s+setSecureTextEntry\s*:\s*NO\s*\]")
+# A show-password toggle turns masking off on purpose, after the user asks.
+_REVEAL_NAME = re.compile(r"(?i)toggle|reveal|show|hide|visib|unmask|eye|peek")
+
+
+def _innermost_block(blank: str, idx: int, limit: int = 4000) -> Tuple[int, int]:
+    """(start, end) of the innermost `{ }` block around `idx`, looked for within `limit` characters,
+    or (-1, -1)."""
+    depth = 0
+    for i in range(idx - 1, max(0, idx - limit) - 1, -1):
+        c = blank[i]
+        if c == "}":
+            depth += 1
+        elif c == "{":
+            if depth == 0:
+                return i, bracket_match(blank, i, "{", "}")
+            depth -= 1
+    return -1, -1
+
+
+def _uikit_field_is_secret(code: str, blank: str, idx: int, receiver: str, path: str) -> bool:
+    """Is the UIKit field whose masking is turned off at `idx` a password or PIN field? Its name, or the
+    placeholder, accessibility ID, or content type set on it in the same block, must say so. A switch
+    made in a branch or a show-password function is a toggle, not a field that never masks."""
+    start, end = _innermost_block(blank, idx)
+    if start < 0:
+        return False
+    head = blank[max(0, start - 200):start]
+    head = head[max(head.rfind(";"), head.rfind("}"), head.rfind("{")) + 1:]
+    if re.search(r"\b(?:if|else|guard|switch|case|while|for)\b|\?", head):
+        return False
+    _s, _e, fn_head = _enclosing_function(blank, idx, path)
+    if _REVEAL_NAME.search(_function_name(fn_head)) or _REVEAL_NAME.search(receiver):
+        return False
+    name = receiver.rsplit(".", 1)[-1]
+    if _FIELD_SECRET.search(name):
+        return True
+    props = re.finditer(re.escape(receiver) + r"\s*\.\s*(?:placeholder|accessibilityIdentifier|accessibilityLabel|"
+                        r"textContentType)\s*=\s*([^;\n]{1,120})", code[start:end])
+    return any(_FIELD_SECRET.search(p.group(1)) for p in props)
 
 
 @detector("xpl_unmasked_secret_field")
@@ -2503,12 +2988,26 @@ def unmasked_secret_field(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if _FIELD_SECRET.search(m.group(1)):
                 yield _hit_at(ctx, path, code, m.start(), "A password or PIN is typed into a `TextField`; use "
                                                           "`SecureField`.", blank)
+    for path, code, blank in _files_with(ctx, APPLE, ("SecureTextEntry",)):
+        for m in UIKIT_UNMASKED.finditer(blank):
+            receiver = m.group(1) or m.group(2)
+            if _uikit_field_is_secret(code, blank, m.start(), receiver, path):
+                yield _hit_at(ctx, path, code, m.start(), "A password or PIN text field turns off "
+                                                          "`isSecureTextEntry`, so it shows what's typed.", blank)
 
 
 # ---------------------------------------------------------------------------- XPL-034
 
 _PII_WORDS = {"email", "phone", "msisdn", "username", "fullname", "nationalid", "ssn", "iban", "phonenumber",
-              "emailaddress", "mobilenumber", "displayname", "dob", "birthdate", "address"}
+              "emailaddress", "mobilenumber", "displayname", "dob", "birthdate", "address",
+              # Health data (MASWE-0108): a bare "health" is left out, it names server health checks too.
+              "blood", "bloodtype", "diagnosis", "medication", "medical", "pregnancy", "disease", "symptom",
+              "symptoms"}
+# Event calls whose parameters reach the analytics vendor: Firebase `logEvent("e") { param("k", v) }`,
+# `logEvent("e", bundle)`, and Mixpanel/Segment/Amplitude `track("e", properties)`.
+ANALYTICS_EVENT = re.compile(r"\b(?:logEvent|trackEvent|track|logCustomEvent|recordEvent)\s*\(")
+_EVENT_KEY = re.compile(r"\b(?:param|put\w*|setProperty)\s*\(\s*(?:key\s*=\s*)?[\"']([^\"'\n]{1,60})[\"']|"
+                        r"[\"']([^\"'\n]{1,60})[\"']\s*(?:\bto\b|:)")
 ANALYTICS_ID = re.compile(r"\b(?:setUserId|setUserID|identify|setUserIdentifier|setCustomerUserId)\s*\(")
 ANALYTICS_KEYED = re.compile(r"\b(?:setUserProperty|setCustomKey|setCustomValue|setUserProperties|setAttribute)\s*\(\s*"
                              r"(?:forName\s*:\s*|key\s*:\s*|name\s*:\s*)?[\"']\$?(email|phone|msisdn|name|full_?name|"
@@ -2518,11 +3017,37 @@ _ANALYTICS_FILE = re.compile(r"Analytics|Crashlytics|Amplitude|Mixpanel|Segment|
                              r"Bugsnag|Datadog|PostHog|Countly")
 
 
+def _event_pii(code: str, blank: str, open_paren: int, path: str) -> List[str]:
+    """PII words in an analytics event's parameter keys and values: the call's arguments, a trailing
+    `{ param(...) }` block, and the `put…("key", …)` calls on a bundle or map variable it passes."""
+    close = bracket_match(blank, open_paren, "(", ")")
+    if close - open_paren > 1500:
+        return []
+    end = close + 1
+    after = re.match(r"\s*\{", blank[end:end + 40])
+    if after:
+        brace = end + after.end() - 1
+        end = min(bracket_match(blank, brace, "{", "}"), brace + 1500)
+    args = _args_of(blank, open_paren)
+    if len(args) < 2 and not after:
+        return []                             # an event name alone carries no user data
+    region_code, region_blank = code[open_paren:end], blank[open_paren:end]
+    keys = [k1 or k2 for k1, k2 in _EVENT_KEY.findall(region_code)]
+    var = re.fullmatch(r"\s*([A-Za-z_]\w*)\s*", blank[args[-1][0]:args[-1][1]]) if len(args) >= 2 else None
+    if var:
+        start = max(_enclosing_function(blank, open_paren, path)[0], open_paren - 4000)
+        put = re.compile(r"\b" + re.escape(var.group(1)) + r"\s*(?:\.\s*put\w*\s*\(|\[)\s*[\"']([^\"'\n]{1,60})[\"']")
+        keys += put.findall(code, start, open_paren)
+    words = _words_of(" ".join(keys)) | _words_of(region_blank)
+    return sorted(words & _PII_WORDS)
+
+
 @detector("xpl_analytics_pii")
 def analytics_pii(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, CODE, ("setUserId", "setUserID", "identify", "setUserProperty",
                                                     "setCustomKey", "setCustomValue", "setAttribute",
-                                                    "setUserIdentifier", "setCustomerUserId")):
+                                                    "setUserIdentifier", "setCustomerUserId", "logEvent",
+                                                    "trackEvent", "track(", "logCustomEvent", "recordEvent")):
         if not _ANALYTICS_FILE.search(code):
             continue
         seen: Set[int] = set()
@@ -2540,6 +3065,12 @@ def analytics_pii(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 seen.add(line)
                 yield _hit_at(ctx, path, code, m.start(), f"An analytics or crash SDK receives the user's "
                                                           f"`{m.group(1)}`.", blank)
+        for m in ANALYTICS_EVENT.finditer(blank):
+            line = ctx.line_of(code, m.start())
+            found = _event_pii(code, blank, m.end() - 1, path)
+            if found and line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, m.start(), f"An analytics event sends the user's `{found[0]}`.", blank)
 
 
 # ---------------------------------------------------------------------------- XPL-035
@@ -2754,3 +3285,399 @@ def shell_command(ctx: Context, rule: Rule) -> Iterable[Hit]:
             args = _args_of(blank, m.end() - 1)
             if args and _shell_risk(code, blank, path, call, m.start(), args):
                 yield _hit_at(ctx, path, code, m.start(), msg, blank)
+
+
+# ---------------------------------------------------------------------------- XPL-043
+
+# `password.equals("…")`, `"…".equals(username)`, `hckey.getText().toString().equals("…")`, `pin == "…"`.
+# Each pattern anchors on the comparison; the operand before it is read from a short window.
+_EQ_CALL = re.compile(r"\.\s*(?:equals|equalsIgnoreCase|contentEquals)\s*\(\s*\"([^\"\n]*)\"\s*\)")
+_EQ_OP = re.compile(r"(?<![!<>=])===?\s*@?\"([^\"\n]*)\"")
+_OPERAND = r"((?:[A-Za-z_]\w*(?:\(\s*\))?[?!]?\s*\.\s*)*[A-Za-z_]\w*(?:\(\s*\))?[?!]?)"
+_OPERAND_BEFORE = re.compile(_OPERAND + r"\s*$")
+_EQ_CALL_REV = re.compile(r"\"([^\"\n]*)\"\s*\.\s*(?:equals|equalsIgnoreCase)\s*\(\s*" + _OPERAND + r"\s*\)")
+_EQ_OP_REV = re.compile(r"@?\"([^\"\n]*)\"\s*===?\s*" + _OPERAND + r"(?![\w(])")
+# The compared value names a credential; input-field wrappers (`text`, `getText().toString()`) are dropped first.
+_CRED_NAMES = {"password", "passwd", "pwd", "passcode", "pin", "pincode", "passphrase", "secret", "otp", "username",
+               "credential", "credentials", "hckey", "vendorkey", "secretkey", "licensekey", "masterkey"}
+_INPUT_WRAPPERS = re.compile(r"(?:\s*\.\s*(?:getText|toString|text|trim|trimmed|lowercase|uppercase|toLowerCase|"
+                             r"toUpperCase|stringValue|getValue|orEmpty)\b(?:\s*\(\s*\))?[?!]?)+$")
+_FIELD_SUFFIX = re.compile(r"(?:TextField|Field|EditText|Input|Text|Txt|Tf|Et|Box|Entry)$")
+# A literal that names a field or a state, not a credential value.
+_NOT_CRED_VALUE = {"null", "nil", "true", "false", "none", "undefined", "password", "username", "user", "pin",
+                   "passcode", "login", "secret", "otp"}
+
+
+def _credential_operand(expr: str) -> str:
+    """The credential a compared expression names (`password` from `passwordTextField.text`), or "" when
+    its last name is something else (`user.role`, `field.type`)."""
+    base = _INPUT_WRAPPERS.sub("", expr.strip().rstrip("?!"))
+    parts = [re.sub(r"\(\s*\)$", "", p.strip()) for p in re.split(r"[.?!]", base) if p.strip()]
+    if not parts or (len(parts) > 1 and _identifier_words(parts[-2]) & {"url", "uri", "components", "link"}):
+        return ""                             # `proxyUrl.user` is part of an address
+    stem = _FIELD_SUFFIX.sub("", parts[-1]) or parts[-1]
+    # The name must end with the credential: `passwordField` yes, `showUsernamePreference` no.
+    words = re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+", stem)
+    joined = stem.lower().replace("_", "")
+    tail = words[-1].lower() if words else ""
+    for cred in sorted(_CRED_NAMES):
+        if tail == cred or (joined.endswith(cred) and (len(words) < 2 or words[-1].lower() in cred)):
+            return cred
+    return ""
+
+
+# Every name in _CRED_NAMES contains one of these (lower case), so an operand with none of them can't match.
+# Plain substring tests: a case-insensitive alternation over every file is several times slower.
+_CRED_HINTS = ("pass", "pwd", "pin", "secret", "otp", "username", "credential", "hckey", "vendorkey", "licensekey",
+               "masterkey")
+
+
+def _has_cred_hint(text: str) -> bool:
+    low = text.lower()
+    return any(h in low for h in _CRED_HINTS)
+
+
+def _credential_compares(code: str, blank: str) -> Iterator[Tuple[int, str]]:
+    """(offset, credential) of each comparison of a credential-named value with a literal."""
+    found: List[Tuple[int, str, str]] = []            # (operand offset, operand, literal)
+    for regex in (_EQ_CALL, _EQ_OP):
+        for m in regex.finditer(code):
+            window = code[max(0, m.start() - 150):m.start()]
+            if not _has_cred_hint(window):
+                continue                      # no credential word in the operand's window
+            before = _OPERAND_BEFORE.search(window)
+            if before:
+                found.append((m.start() - len(before.group(0)), before.group(1), m.group(1)))
+    for regex in (_EQ_CALL_REV, _EQ_OP_REV):
+        for m in regex.finditer(code):
+            found.append((m.start(2), m.group(2), m.group(1)))
+    for at, expr, value in sorted(found):
+        if blank[at:at + len(expr)] != expr:
+            continue                          # the operand sits inside a string literal
+        v = value.strip()
+        if len(v) < 3 or v.lower() in _NOT_CRED_VALUE or "\\(" in v or re.search(r"\$[A-Za-z_{]", v):
+            continue                          # empty, a type name, or an interpolated string
+        cred = _credential_operand(expr)
+        if cred:
+            yield at, cred
+
+
+@detector("xpl_hardcoded_credential_check")
+def hardcoded_credential_check(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, code, blank in _files_with(ctx, CODE, ("equals", "==")):
+        if scope_of(path) == "test" or not _has_cred_hint(code) or _test_file(ctx, path):
+            continue                          # tests compare against fixed values on purpose
+        seen: Set[int] = set()
+        for at, cred in _credential_compares(code, blank):
+            line = ctx.line_of(code, at)
+            if line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, at, f"The `{cred}` is checked against a value written in the code; "
+                                                   "anyone who unpacks the app can read it.", blank, mask=True)
+
+
+# ---------------------------------------------------------------------------- XPL-045
+
+# Readings of the clock. Each one starts with one of _CLOCK_STARTS.
+CLOCK = re.compile(r"\bSystem\s*\.\s*(?:currentTimeMillis|nanoTime)\s*\(\s*\)|\bSystemClock\s*\.\s*\w+\s*\(\s*\)|"
+                   r"\b(?:new\s+)?Date\s*\(\s*\)\s*\.\s*(?:time\b|getTime\s*\(\s*\)|timeIntervalSince1970\b)|"
+                   r"\bNSDate\s*\(\s*\)\s*\.\s*timeIntervalSince1970\b|\[\s*(?:\[\s*NSDate\s+date\s*\]|NSDate\s+date)\s+"
+                   r"timeIntervalSince1970\s*\]|\bCalendar\s*\.\s*(?:getInstance\s*\(\s*\)\s*\.\s*(?:timeInMillis|"
+                   r"getTimeInMillis\s*\(\s*\))|MILLISECOND\b)|\bInstant\s*\.\s*now\s*\(\s*\)\s*\.\s*(?:toEpochMilli|"
+                   r"epochSecond|getEpochSecond)\b|\bDateTime\s*\.\s*now\s*\(\s*\)\s*\.\s*(?:millisecondsSinceEpoch|"
+                   r"microsecondsSinceEpoch)\b|\bCFAbsoluteTimeGetCurrent\s*\(\s*\)")
+_CLOCK_STARTS = ("System", "SystemClock", "Date", "new", "NSDate", "[", "Calendar", "Instant", "DateTime",
+                 "CFAbsoluteTimeGetCurrent")
+# The assigned name says the value must be unguessable.
+_UNGUESSABLE = {"token", "nonce", "otp", "secret", "salt", "iv", "csrf", "xsrf", "verifier", "password", "passcode",
+                "sessionid", "sessiontoken", "sessionkey", "random", "rand", "rnd", "challenge", "pin"}
+# ...unless it names a time: an expiry, a creation date, a cache stamp.
+_TIME_NAME = {"expiry", "expires", "expiration", "expire", "expired", "time", "timestamp", "ts", "date", "created",
+              "updated", "issued", "ttl", "age", "last", "at", "since", "until", "duration", "elapsed", "start", "end",
+              "deadline", "millis", "ms", "seconds", "valid", "validity", "lifetime", "now", "seed", "refreshed",
+              "fetched", "saved", "stored", "request", "requested", "sent", "received"}
+_ASSIGNED_NAME = re.compile(r"(?:\b(?:val|var|let|final|String|long|Long|int|Int|double|NSString\s*\*|NSTimeInterval|"
+                            r"TimeInterval)\s+)?\b([A-Za-z_]\w*)\s*(?::\s*[\w.?]+)?\s*=(?!=)[^=;\n]*$")
+
+
+@detector("xpl_time_based_token")
+def time_based_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, code, blank in _files_with(ctx, CODE, ("currentTimeMillis", "nanoTime", "SystemClock", "Date", "Calendar",
+                                                    "Instant", "CFAbsoluteTimeGetCurrent")):
+        if scope_of(path) == "test" or _test_file(ctx, path):
+            continue
+        seen: Set[int] = set()
+        for m in finditer_lit(CLOCK, blank, _CLOCK_STARTS):
+            s, e = _line_span(blank, m.start())
+            target = _ASSIGNED_NAME.search(blank[max(s, m.start() - 200):m.start()])
+            if not target:
+                continue
+            words = _words_of(target.group(1))
+            found = sorted(words & _UNGUESSABLE)
+            rhs = blank[m.start():e]          # other entropy mixed in (`time + random`) is not this rule's case
+            if not found or words & _TIME_NAME or re.search(r"(?i)random|uuid", rhs):
+                continue
+            if re.search(r"(?i)random|seed|srand", _enclosing_call(blank, m.start())):
+                continue                      # a generator seeded with the time: XPL-008's case
+            line = ctx.line_of(code, m.start())
+            if line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, m.start(), f"`{target.group(1)}` comes from the clock, so anyone who "
+                                                          "knows roughly when it was made can guess it.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-047
+
+C_SUFFIXES = (".c", ".cc", ".cpp", ".cxx")
+# Unbounded copies into a buffer: the destination is the first argument.
+UNBOUNDED_COPY = re.compile(r"(?<![\w.>])(strcpy|strcat|sprintf|vsprintf|gets|wcscpy|wcscat)\s*\(")
+# Java strings and arrays handed to native code through JNI.
+_JNI_INPUT = re.compile(r"\b(\w+)\s*=\s*(?:\([^()]*\)\s*)?(?:\(\s*\*\s*env\s*\)\s*->|env\s*->)\s*"
+                        r"(?:GetStringUTFChars|GetStringChars|GetByteArrayElements|GetStringCritical|"
+                        r"GetPrimitiveArrayCritical)\s*\(")
+
+
+@detector("xpl_native_buffer_overflow")
+def native_buffer_overflow(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, code, blank in _files_with(ctx, C_SUFFIXES, ("strcpy", "strcat", "sprintf", "gets", "wcscpy",
+                                                          "wcscat")):
+        for m in UNBOUNDED_COPY.finditer(blank):
+            args = _args_of(blank, m.end() - 1)
+            if not args:
+                continue
+            start, end, _head = _enclosing_function(blank, m.start(), path)
+            body = blank[start:end]
+            dest = re.fullmatch(r"\s*([A-Za-z_]\w*)\s*", blank[args[0][0]:args[0][1]])
+            arrays = text_memo(blank, ("char_arrays", start, end), lambda b=body: set(
+                re.findall(r"\bchar\s+([A-Za-z_]\w*)\s*\[\s*[\w+*\s-]+\]", b)))
+            if not dest or dest.group(1) not in arrays:
+                continue                      # not a fixed-size array declared in this function
+            fn = m.group(1)
+            if fn == "gets":
+                tainted = ["stdin"]
+            else:
+                inputs = text_memo(blank, ("jni_inputs", start, end), lambda b=body: set(_JNI_INPUT.findall(b)))
+                sources = " ".join(blank[s:e] for s, e in args[1:])
+                tainted = sorted(inputs & set(re.findall(r"[A-Za-z_]\w*", sources)))
+            if tainted:
+                yield _hit_at(ctx, path, code, m.start(), f"`{fn}` copies `{tainted[0]}`, a value of any length "
+                                                          f"from Java or input, into the fixed buffer "
+                                                          f"`{dest.group(1)}`.", blank)
+
+
+
+# ---------------------------------------------------------------------------- XPL-046
+
+# Page-controlled values: the URL's query and fragment, the referrer, the window name.
+_JS_SOURCE = r"(?:location\s*\.\s*(?:search|hash|href)\b|\bURLSearchParams\b|document\s*\.\s*(?:URL|documentURI|referrer|" \
+             r"baseURI)\b|window\s*\.\s*name\b)"
+_JS_TAINT = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([^;\n]{0,300})")
+# HTML sinks: assigning markup, writing the document, inserting markup.
+_JS_SINK = re.compile(r"\.\s*(?:innerHTML|outerHTML)\s*\+?=(?!=)\s*([^;\n]{1,300})|\bdocument\s*\.\s*write(?:ln)?\s*\("
+                      r"([^;\n]{1,300})|\binsertAdjacentHTML\s*\(\s*[^,\n]{1,40},([^;\n]{1,300})")
+_SAFE_JS = re.compile(r"\b(?:DOMPurify\s*\.\s*sanitize|escapeHtml|escapeHTML|encodeURIComponent|sanitize\w*)\s*\(")
+_BUNDLED_WEB = (".html", ".htm", ".js")
+_NOT_BUNDLED = re.compile(r"(?i)(?:^|/)(?:docs?|website|site|fastlane|scripts?|tools?|\.github|node_modules|"
+                          r"benchmarks?|e2e|cypress|playwright|coverage|vendor|third[_-]?party)/")
+# Native HTML loads: iOS `loadHTMLString("…\(name)…")`, Android `loadData`/`loadDataWithBaseURL(…, "…" + name, …)`.
+NATIVE_HTML_LOAD = re.compile(r"\bloadHTMLString\s*\(|\bloadData(?:WithBaseURL)?\s*\(")
+
+
+def _dom_xss(text: str, in_string: Callable[[int], bool]) -> Iterator[Tuple[int, str]]:
+    """(offset, source) of each HTML sink fed by the page URL, directly or through up to two variables."""
+    source = re.compile(_JS_SOURCE)
+    tainted: Dict[str, str] = {}
+    for _ in range(2):                         # `params = new URLSearchParams(…)`, then `name = params.get(…)`
+        for m in _JS_TAINT.finditer(text):
+            rhs = m.group(2)
+            if _SAFE_JS.search(rhs):
+                continue                      # escaped or sanitized on the way in
+            hit = source.search(rhs)
+            if hit:
+                tainted.setdefault(m.group(1), hit.group(0))
+            else:
+                for name in re.findall(r"[A-Za-z_$][\w$]*", rhs):
+                    if name in tainted:
+                        tainted.setdefault(m.group(1), tainted[name])
+                        break
+    for m in _JS_SINK.finditer(text):
+        if not in_string(m.start()):
+            continue
+        rhs = next(g for g in m.groups() if g is not None)
+        if _SAFE_JS.search(rhs):
+            continue
+        direct = source.search(rhs)
+        if direct:
+            yield m.start(), direct.group(0)
+            continue
+        names = [n for n in re.findall(r"[A-Za-z_$][\w$]*", rhs) if n in tainted]
+        if names:
+            yield m.start(), tainted[names[0]]
+
+
+def _input_interpolated(code: str, blank: str, args_code: str, idx: int, path: str) -> str:
+    """A value typed by the user (`field.text`, `getText()`) placed into an HTML string, or ""."""
+    exprs = [next(x for x in g.groups() if x is not None) for g in INTERP.finditer(args_code)]
+    exprs += re.findall(r"\+\s*([A-Za-z_][\w.()]*)", args_code)
+    start, _end, _head = _enclosing_function(blank, idx, path)
+    for expr in exprs:
+        if re.search(r"\.\s*(?:text|getText\s*\(\s*\))\b", expr):
+            return expr.strip()
+        name = re.fullmatch(r"\s*([A-Za-z_]\w*)\s*", expr)
+        if name and re.search(r"\b" + re.escape(name.group(1)) + r"\s*(?::\s*[\w?]+)?\s*=\s*[\w.?]+\s*\.\s*"
+                              r"(?:text|getText\s*\(\s*\))\b", code[max(start, idx - 3000):idx]):
+            return name.group(1)
+    return ""
+
+
+@detector("xpl_dom_injection")
+def dom_injection(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path in ctx.files(*_BUNDLED_WEB):
+        if _NOT_BUNDLED.search(path) or scope_of(path) == "test" or path.endswith(".min.js"):
+            continue
+        if not holds_any(ctx, path, ("innerHTML", "outerHTML", "document.write", "insertAdjacentHTML")):
+            continue
+        text = ctx.text(path) or ""
+        for at, src in _dom_xss(text, lambda _i: True):
+            line = ctx.line_of(text, at)
+            yield Hit(path, line, ctx.snippet(path, line), f"Markup built from `{src}` is written into the page, so a "
+                                                           "crafted link runs its own script.")
+    for path, code, blank in _files_with(ctx, CODE, ("innerHTML", "outerHTML", "document.write", "insertAdjacentHTML")):
+        # HTML and scripts kept in string literals of the app's code.
+        for at, src in _dom_xss(code, lambda i, c=code, b=blank: c[i] != b[i]):
+            yield _hit_at(ctx, path, code, at, f"A bundled page writes markup built from `{src}` into the DOM, so a "
+                                               "crafted link runs its own script.", blank)
+    for path, code, blank in _files_with(ctx, CODE, ("loadHTMLString", "loadData")):
+        for m in NATIVE_HTML_LOAD.finditer(blank):
+            args = _args_of(blank, m.end() - 1)
+            if not args:
+                continue
+            html = args[0] if m.group(0).startswith("loadHTMLString") or "WithBaseURL" not in m.group(0) else \
+                (args[1] if len(args) > 1 else args[0])
+            value = _input_interpolated(code, blank, code[html[0]:html[1]], m.start(), path)
+            if value:
+                yield _hit_at(ctx, path, code, m.start(), f"Text the user typed (`{value}`) is placed into HTML "
+                                                          "without escaping, so it can add its own script.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-044
+
+_FILE_SECRET_WORDS = _SECRET_WORDS | {"pwd", "credential", "credentials", "creds"}
+# Opening a file for writing in the JVM; the writes that follow go to that file.
+_JVM_FILE_OPEN = re.compile(r"\b(?:FileWriter|FileOutputStream|PrintWriter|BufferedWriter|OutputStreamWriter|"
+                            r"RandomAccessFile)\s*\(|\bopenFileOutput\s*\(")
+_JVM_FILE_WRITE = re.compile(r"\.\s*(?:write|append|print|println)\s*\(|\.\s*(?:writeText|writeBytes|appendText)\s*\(|"
+                             r"\bFiles\s*\.\s*(?:write|writeString)\s*\(")
+# Kotlin and java.nio writes that name their file themselves: `File(dir, "x").writeText(token)`.
+_JVM_DIRECT_WRITE = re.compile(r"\.\s*(?:writeText|writeBytes|appendText)\s*\(|\bFiles\s*\.\s*(?:write|writeString)\s*\(")
+# Apple: a plist, data, or string written to a path; Yap and Couchbase documents; cookies.
+_APPLE_FILE_WRITE = re.compile(r"\.\s*write\s*\(\s*to(?:File)?\s*:|\bwriteToFile\s*:|\bwriteToURL\s*:|"
+                               r"\bcreateFile\s*\(\s*atPath\s*:|\bputProperties\s*\(|\bHTTPCookie\s*\(\s*properties\s*:|"
+                               r"\bsetObject\s*\([^;\n]{0,120}\binCollection\s*:")
+_DART_FILE_WRITE = re.compile(r"\.\s*writeAs(?:String|Bytes)(?:Sync)?\s*\(")
+# The value is protected first, or the "secret" is about it rather than it.
+_FILE_PROTECTED = re.compile(r"(?i)encrypt|cipher|\bseal|aead|tink|EncryptedFile|keystore|keychain|hash|digest|sha\d|"
+                             r"\bmac\b|wrap")
+_NOT_A_FILE_WRITE = re.compile(r"UserDefaults|SharedPreferences|\bprefs?\b|\bLog\b|\bSystem\s*\.\s*out|\bresponse\b|"
+                               r"\bsocket\b|\bhttp|\bconnection\b|\boutputStream\s*\(\s*\)|\bconsole\b")
+
+
+def _key_literals(text: str) -> str:
+    """Dictionary keys and names given as literals: `forKey: "password"`, `"password": x`, `.name: "token"`."""
+    keys = re.findall(r"forKey\s*:\s*@?\"([^\"\n]{1,60})\"|@?\"([^\"\n]{1,60})\"\s*:|\.name\s*:\s*\"([^\"\n]{1,60})\"|"
+                      r"\[\s*\"([^\"\n]{1,60})\"\s*\]\s*=", text)
+    return " ".join(k for group in keys for k in group if k)
+
+
+def _file_secret(ctx: Context, path: str, code: str, blank: str, idx: int, call_end: int) -> List[str]:
+    """Secret words in what a file write stores: its arguments and receiver, the keys set on the receiver in
+    the same function, or the file's own name (`File(dir, "secret.txt")`)."""
+    start, end, _head = _enclosing_function(blank, idx, path)
+    start = max(start, idx - 3000)
+    line_s, _line_e = _line_span(blank, idx)
+    stmt_blank = blank[line_s:call_end]
+    if _FILE_PROTECTED.search(blank[start:min(end, idx + 600)]) or _NOT_A_FILE_WRITE.search(stmt_blank):
+        return []
+    found = set(_words_of(stmt_blank)) & _FILE_SECRET_WORDS
+    recv = re.search(r"([A-Za-z_]\w*)\s*\??\s*\.\s*\w+\s*\($|([A-Za-z_]\w*)\s*$", blank[line_s:idx].rstrip(" ."))
+    names = [n for n in (recv.groups() if recv else ()) if n]
+    args_names = re.findall(r"[A-Za-z_]\w*", blank[idx:call_end])
+    scope = code[start:idx]
+    for name in set(names + args_names):
+        # Keys stored on the object (`data.setValue(password, forKey: "password")`), or the literal it holds.
+        for m in re.finditer(r"\b" + re.escape(name) + r"\b[^\n]{0,200}", scope):
+            if re.match(re.escape(name) + r"\s*(?:\??\.\s*(?:setValue|setObject|set|put\w*)\s*\(|\[|:\s*\[|=\s*\[|"
+                        r"(?::\s*[\w\[\]: ?]+)?\s*=\s*\[)", m.group(0)):
+                found |= _words_of(_key_literals(m.group(0))) & _FILE_SECRET_WORDS
+    for lit in re.findall(r"\b(?:File|openFileOutput|appendingPathComponent|appendingFormat|appending)\s*\([^;\n]{0,120}?"
+                          r"\"([^\"\n]{1,60})\"", scope):
+        found |= _words_of(lit) & _FILE_SECRET_WORDS
+    return sorted(found)
+
+
+@detector("xpl_plaintext_secret_file")
+def plaintext_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    # Each language needs its own literal before its write regex can match: a JVM file must open a file.
+    candidates = itertools.chain(
+        _files_with(ctx, JVM, ("FileWriter", "FileOutputStream", "PrintWriter", "BufferedWriter",
+                               "OutputStreamWriter", "RandomAccessFile", "openFileOutput", "writeText", "writeBytes",
+                               "appendText", "Files")),
+        _files_with(ctx, APPLE, ("write", "createFile", "putProperties", "HTTPCookie", "inCollection")),
+        _files_with(ctx, DART, ("writeAs",)))
+    for path, code, blank in candidates:
+        if scope_of(path) == "test" or _test_file(ctx, path):
+            continue
+        if path.endswith(JVM):
+            if not (_JVM_FILE_OPEN.search(blank) or _JVM_DIRECT_WRITE.search(blank)):
+                continue
+            regex = _JVM_FILE_WRITE
+        elif path.endswith(".dart"):
+            regex = _DART_FILE_WRITE
+        else:
+            regex = _APPLE_FILE_WRITE
+        seen: Set[int] = set()
+        for m in regex.finditer(blank):
+            if path.endswith(JVM) and not re.search(r"writeText|writeBytes|appendText|Files", m.group(0)):
+                start = _enclosing_function(blank, m.start(), path)[0]
+                if not _JVM_FILE_OPEN.search(blank, max(start, m.start() - 3000), m.start()):
+                    continue                  # a write to something other than a file opened here
+            open_paren = blank.find("(", m.start())
+            call_end = bracket_match(blank, open_paren, "(", ")") if open_paren >= 0 else m.end()
+            found = _file_secret(ctx, path, code, blank, m.start(), min(call_end, m.start() + 600))
+            line = ctx.line_of(code, m.start())
+            if found and line not in seen:
+                seen.add(line)
+                yield _hit_at(ctx, path, code, m.start(), f"A `{found[0]}` is written to a file in plain text.", blank)
+
+
+# ---------------------------------------------------------------------------- XPL-048
+
+SWIFT_EVAL_JS = re.compile(r"\b(?:evaluateJavaScript|callAsyncJavaScript)\s*\(")
+# A script that reads the page: a DOM lookup whose text or value is taken, not set.
+_DOM_READ = re.compile(r"(?:querySelector(?:All)?|getElementById|getElementsBy\w+)\s*\([^()]*\)\s*(?:\[\s*\d+\s*\]\s*)?"
+                       r"\.\s*(?:textContent|innerText|innerHTML|value|getAttribute\s*\([^()]*\))(?!\s*\+?=(?!=))")
+_DOM_READ_SENSITIVE = {"account", "accountnumber", "balance", "amount", "iban", "recipient", "payee", "card",
+                       "cardnumber", "otp", "token", "password", "passcode", "pin", "total", "price", "beneficiary"}
+
+
+@detector("xpl_webview_page_world_read")
+def webview_page_world_read(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    for path, code, blank in _files_with(ctx, (".swift",), ("evaluateJavaScript", "callAsyncJavaScript")):
+        for m in SWIFT_EVAL_JS.finditer(blank):
+            args = _args_of(blank, m.end() - 1)
+            if not args:
+                continue
+            script = code[args[0][0]:args[0][1]]
+            read = _DOM_READ.search(script)
+            if not read:
+                continue
+            rest = blank[args[0][1]:bracket_match(blank, m.end() - 1, "(", ")") + 1]
+            if re.search(r"\bin\s*:\s*(?!nil\b)|\bcontentWorld\s*:|\.defaultClient\b|WKContentWorld\s*\.\s*world", rest):
+                if not re.search(r"\.page\b", rest):
+                    continue                  # run in an isolated content world
+            words = _words_of(" ".join(re.findall(r"['\"]([^'\"\n]{1,80})['\"]", script)) + " " + read.group(0))
+            found = sorted(words & _DOM_READ_SENSITIVE)
+            if found:
+                yield _hit_at(ctx, path, code, m.start(), f"The app reads a `{found[0]}` from the page in the page's "
+                                                          "own JavaScript world, where the page can fake the answer.",
+                              blank)
