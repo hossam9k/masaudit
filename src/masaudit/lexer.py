@@ -182,15 +182,52 @@ def _regex_allowed(code: str, i: int) -> bool:
     return code[k + 1:j + 1] in _REGEX_KEYWORDS and not (k >= 0 and _ident(code[k]))
 
 
+_BODY_STOP = re.compile(r"[/\[\\\n]")
+_CLASS_STOP = re.compile(r"[\]\\\n]")
+
+
 def _regex_end(code: str, i: int) -> int:
     """The index just past the regex literal whose `/` is at i, or -1 when none closes within MAX_REGEX
-    characters on the same line (then the `/` is division or stray text)."""
-    window = code[i + 1:i + 1 + MAX_REGEX]
-    cut = window.find("\n")
-    if cut >= 0:
-        window = window[:cut]
-    m = _REGEX_BODY.match(window)
-    return i + 1 + m.end() if m and m.end() > 1 else -1
+    characters on the same line (then the `/` is division or stray text). The same answer as matching
+    _REGEX_BODY on that window, but it jumps between the characters that matter instead of stepping
+    the regex engine through every class item, which made a file of unclosed `/[` slow."""
+    limit = min(len(code), i + 1 + MAX_REGEX)
+    j = i + 1
+    while True:
+        m = _BODY_STOP.search(code, j, limit)
+        if m is None:
+            return -1
+        j = m.start()
+        c = code[j]
+        if c == "/":
+            return j + 1 if j > i + 1 else -1           # `//` is a comment, not an empty regex
+        if c == "\n":
+            return -1
+        if c == "\\":
+            if j + 1 >= limit or code[j + 1] == "\n":
+                return -1
+            j += 2
+            continue
+        # A [...] class of at most MAX_CLASS items, each one character or an escape of two, so its `]`
+        # comes within 2 * MAX_CLASS + 1 characters or not at all.
+        if code.find("]", j + 1, min(limit, j + 2 + 2 * MAX_CLASS)) < 0:
+            return -1
+        k, items = j + 1, 0
+        while True:
+            m = _CLASS_STOP.search(code, k, min(limit, k + 2 * MAX_CLASS + 1))
+            if m is None:
+                return -1
+            p = m.start()
+            items += p - k
+            if items > MAX_CLASS:
+                return -1
+            if code[p] == "]":
+                j = p + 1
+                break
+            if code[p] == "\n" or p + 1 >= limit or code[p + 1] == "\n":
+                return -1
+            items += 1
+            k = p + 2
 
 
 def _template(code: str, i: int, keep: bool, out: list, stack: list) -> int:
