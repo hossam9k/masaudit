@@ -154,19 +154,51 @@ def _args(blank: str, open_paren: int) -> List[Tuple[int, int]]:
     if close >= len(blank):
         return []
     close = min(close, open_paren + _MAX_ARGS_SPAN)
-    spans, depth, start = [], 0, open_paren + 1
-    for j in range(open_paren + 1, close):
-        c = blank[j]
-        if c in "([{":
-            depth += 1
-        elif c in ")]}":
-            depth -= 1
-        elif c == "," and depth == 0:
+    # A comma separates this call's arguments when the bracket level there (openers minus closers so far,
+    # every kind) is one above the level at the "(": the same as counting depth from the "(", but worked
+    # out once per file, so thousands of nested calls don't each walk their whole span.
+    level_at, commas = text_memo(blank, ("arg_levels",), lambda: _bracket_levels(blank))
+    spans, start = [], open_paren + 1
+    if open_paren in level_at:
+        row = commas.get(level_at[open_paren] + 1, [])
+        for j in row[bisect.bisect_right(row, open_paren):bisect.bisect_left(row, close)]:
             spans.append((start, j))
             start = j + 1
+    else:                                   # not a "(" of this text: count depth from it, as before
+        depth = 0
+        for j in range(open_paren + 1, close):
+            c = blank[j]
+            if c in "([{":
+                depth += 1
+            elif c in ")]}":
+                depth -= 1
+            elif c == "," and depth == 0:
+                spans.append((start, j))
+                start = j + 1
     if blank[start:close].strip() or spans:
         spans.append((start, close))
     return spans
+
+
+_BRACKET_OR_COMMA = re.compile(r"[()\[\]{},]")
+
+
+def _bracket_levels(blank: str) -> Tuple[Dict[int, int], Dict[int, List[int]]]:
+    """({offset of each "(": the level before it}, {level: offsets of commas at that level}), in one pass."""
+    level_at: Dict[int, int] = {}
+    commas: Dict[int, List[int]] = {}
+    level = 0
+    for m in _BRACKET_OR_COMMA.finditer(blank):
+        c = m.group()
+        if c == ",":
+            commas.setdefault(level, []).append(m.start())
+        elif c in "([{":
+            if c == "(":
+                level_at[m.start()] = level
+            level += 1
+        else:
+            level -= 1
+    return level_at, commas
 
 
 def _debug_guarded(blank: str, idx: int) -> bool:
