@@ -11,7 +11,7 @@ import bisect
 import re
 from typing import Callable, List, Optional, Pattern
 
-from masaudit.textscan import bracket_match, match
+from masaudit.textscan import bracket_match, match, matches_in
 
 _IF = re.compile(r"\bif\s*\(")
 _SWIFT_IF = re.compile(r"^[ \t]*#if\b([^\n]*)$|^[ \t]*#(?:else|elseif|endif)\b", re.MULTILINE)
@@ -92,8 +92,9 @@ def _preprocessor_once(blank: str, idx: int) -> bool:
 
 
 def guarded_by(blank: str, idx: int, is_debug) -> bool:
-    """guarded_by (its _guarded_by, step for step), with bracket_match for match."""
-    for m in _IF.finditer(blank, max(0, idx - _LOOKBACK), idx):
+    """guarded_by (its _guarded_by, step for step), with bracket_match for match, and the `if (` positions
+    in the window looked up from one pass per file rather than scanned per hit."""
+    for m in matches_in(blank, _IF, max(0, idx - _LOOKBACK), idx):
         open_paren = m.end() - 1
         close = bracket_match(blank, open_paren, "(", ")")
         if close >= idx or not is_debug(re.sub(r"\s+", "", blank[open_paren + 1:close])):

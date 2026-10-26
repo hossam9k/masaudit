@@ -127,7 +127,7 @@ In GitHub Actions, the step looks like this; the [CI guide](https://github.com/h
 has the complete workflow:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.6.2
+- uses: hossam9k/masaudit@<commit-sha> # v0.6.3
   with:
     app-type: banking
     fail-on: high
