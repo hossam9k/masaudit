@@ -1,0 +1,7 @@
+name: bank
+# The screen cover lives in a package next to the app, outside the folder being scanned.
+dependencies:
+  flutter:
+    sdk: flutter
+  bank_screen_cover:
+    path: ../../packages/screen_cover

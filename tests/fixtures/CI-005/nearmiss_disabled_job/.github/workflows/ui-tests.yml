@@ -1,0 +1,12 @@
+# The full test job is switched off with `if: false`, so GitHub never runs its checkout.
+name: ui-tests
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  full-tests:
+    runs-on: macos-14
+    if: false
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - run: xcodebuild test

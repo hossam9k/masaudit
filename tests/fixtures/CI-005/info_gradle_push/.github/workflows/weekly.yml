@@ -1,0 +1,16 @@
+# The job pushes a tag through a Gradle task, so it keeps the token on purpose and says so.
+name: weekly
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true # needed to push the new tag
+      - run: ./gradlew :reckonTagPush -Preckon.stage=final

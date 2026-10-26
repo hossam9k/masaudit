@@ -16,7 +16,7 @@ import os
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from masaudit import lexer, safety
 from masaudit.detect import scope_of
@@ -63,6 +63,7 @@ class Context:
         self.current_rule: Optional[str] = None
         self._text: Dict[str, Optional[str]] = {}
         self._stripped: Dict[tuple, str] = {}
+        self._previews: Dict[str, List[Tuple[int, int]]] = {}
         self._lower: Dict[str, str] = {}
         self._listing: Dict[tuple, List[str]] = {}
         self._all_names: Optional[tuple] = None
@@ -282,7 +283,7 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                                       snippet=safety.clean_text(safety.mask_names(h.snippet)),
                                       fingerprint_text=h.snippet),
                     message=safety.clean_text(h.message),
-                    scope=h.scope or (scope_of(h.path) if h.path else "main"),
+                    scope=h.scope or (_scope_at(ctx, h.path, h.line) if h.path else "main"),
                     acknowledged=h.acknowledged,
                     severity=h.severity,
                 )
@@ -292,6 +293,56 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                 ctx.note_unknown(f"{rule.id} matched {n:,} times in {path}; the report lists the first "
                                  f"{MAX_HITS_PER_FILE}.")
     return _dedupe(findings)
+
+
+# Code that only runs in the IDE's preview pane: a Jetpack Compose function annotated @Preview (or a
+# multi-preview annotation such as @PreviewLightDark, @ThemePreviews), a SwiftUI #Preview block, or a
+# PreviewProvider. It compiles into the app but nothing calls it.
+# Bounded throughout (annotations per function, spaces, argument length), so a file of thousands of
+# annotations with no function after them costs a short attempt per annotation, not a pass to the end.
+_KT_PREVIEW = re.compile(r"@\w{0,60}Preview\w{0,60}(?:\s{0,40}\((?:[^()]|\([^()]{0,200}\)){0,400}\))?"
+                         r"(?:\s{0,40}@\w{1,60}(?:\s{0,40}\([^()]{0,300}\))?){0,8}\s{0,40}"
+                         r"(?:(?:private|internal|public)\s{1,40})?fun\s{1,40}(?:<[^<>{}]{0,200}>\s{0,40})?\w{1,200}\s{0,40}\(")
+_SWIFT_PREVIEW = re.compile(r"#Preview\b(?:\s*\([^()]*\))?\s*\{|\bstruct\s+\w+\s*:[^{]{0,300}?\bPreviewProvider\b[^{]{0,300}?\{")
+
+
+def _preview_spans(blank: str, kotlin: bool) -> List[Tuple[int, int]]:
+    """(start, end) offsets of the preview-only blocks in a Kotlin or Swift file (strings blanked)."""
+    from masaudit.textscan import bracket_match
+    spans: List[Tuple[int, int]] = []
+    for m in (_KT_PREVIEW if kotlin else _SWIFT_PREVIEW).finditer(blank):
+        at = m.end() - 1
+        if kotlin:                                   # past the parameters and the return type, to `{` or `=`
+            close = bracket_match(blank, at, "(", ")")
+            body = re.compile(r"\s*(?::[^{=\n]*)?\s*([{=])").match(blank, close + 1)
+            if not body:
+                continue
+            at = body.start(1)
+        if blank[at] == "{":
+            end = bracket_match(blank, at, "{", "}")
+        else:                                        # `fun X() = expr`: to the end of that line
+            nl = blank.find("\n", at)
+            end = len(blank) if nl == -1 else nl
+        spans.append((m.start(), min(end, len(blank))))
+    return spans
+
+
+def _preview_lines(ctx: Context, path: str) -> List[Tuple[int, int]]:
+    """(first, last) lines of the preview-only blocks in a Kotlin or Swift file, once per file."""
+    if path not in ctx._previews:
+        blank = ctx.code(path, keep_strings=False) or ""
+        spans = _preview_spans(blank, path.endswith(".kt")) if "Preview" in blank else []
+        ctx._previews[path] = [(ctx.line_of(blank, a), ctx.line_of(blank, max(a, b - 1))) for a, b in spans]
+    return ctx._previews[path]
+
+
+def _scope_at(ctx: Context, path: str, line: int) -> str:
+    """scope_of(path), or "debug" for a line inside a preview-only block of production code."""
+    scope = scope_of(path)
+    if scope == "main" and line > 0 and path.endswith((".kt", ".swift")):
+        if any(a <= line <= b for a, b in _preview_lines(ctx, path)):
+            return "debug"
+    return scope
 
 
 def run_pattern(ctx: Context, rule: Rule) -> Iterable[Hit]:

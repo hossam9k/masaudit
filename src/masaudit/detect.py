@@ -161,6 +161,7 @@ _JS_STORY_FILE = re.compile(r"\.stories\.(?:js|jsx|ts|tsx)$")
 _JS_BUILD_FILE = re.compile(r"^(?:metro|babel|react-native|webpack|rollup|vite|eslint|prettier)\.config\.(?:js|cjs|mjs|ts)$"
                             r"|^\.babelrc(?:\.js)?$")
 _PREVIEW_FILE = re.compile(r"(?:Preview|Previews|PreviewParam\w*|PreviewProvider|StateProvider)\.kt$")
+_MOCK_DIRS = {"mock", "mocks", "fake", "fakes", "stub", "stubs"}
 _TOOLING_TOP = {"build-logic", "buildsrc", "scripts", "tools", "fastlane"}
 
 
@@ -183,6 +184,9 @@ def scope_of(path: str) -> str:
                                        and any(seg in _JS_STORY_DIRS for seg in low.split("/")[:-1])):
         return "debug"
     if any(d in low for d in ("/src/debug/", "/src/mock/", "/src/internal/")) or _PREVIEW_FILE.search(base):
+        return "debug"
+    # Mock and fake data kept in a shipping source set for previews and tests (com/acme/mock/factories/).
+    if any(seg in _MOCK_DIRS for seg in low.split("/")[:-1]):
         return "debug"
     # Sample, demo, catalog, and internal-build modules (sync-internal, settings/internal) count as debug
     # code, but only as module directories: a package such as src/main/java/com/example/... is production.

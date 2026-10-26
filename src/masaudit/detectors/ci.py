@@ -38,7 +38,14 @@ def _workflows(ctx: Context) -> Iterable[Tuple[str, Workflow]]:
         if wf is None:
             ctx.note_unknown(f"Couldn't read {path} as a GitHub workflow.")
             continue
+        wf.jobs = [j for j in wf.jobs if not _never_runs(j)]
         yield path, wf
+
+
+def _never_runs(job) -> bool:
+    """A job switched off with `if: false` (or `${{ false }}`): GitHub never runs it."""
+    cond = str(job.if_ or "").strip().lower().replace(" ", "")
+    return cond in ("false", "${{false}}", "0", "${{0}}")
 
 
 def _hit(ctx: Context, path: str, line: int, message: str, severity: str = "", acknowledged: str = "") -> Hit:
@@ -385,6 +392,8 @@ def script_injection(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 # ---------------------------------------------------------------------------- CI-005
 
+# A Gradle task that pushes git refs: reckon's `reckonTagPush`, gradle-git's `gitPush`, `pushTag`.
+GRADLE_PUSH = re.compile(r"\bgradlew?\b[^\n]*?\s:?(?:[\w-]+:)*\w*(?:[a-z]Push|pushTags?|[Pp]ushTag)\b")
 PUSHING_ACTIONS = {
     "stefanzweifel/git-auto-commit-action", "endbug/add-and-commit", "ad-m/github-push-action",
     "korthout/backport-action", "tibdex/backport", "sqren/backport-github-action",
@@ -435,7 +444,7 @@ def _pushes(text: str) -> bool:
     for line in text.split("\n"):
         if len(line) > MAX_SCRIPT_LINE:
             continue
-        if GIT_PUSH.search(line) or _fastlane_pushes(line) or TOKEN_REMOTE.search(line):
+        if GIT_PUSH.search(line) or _fastlane_pushes(line) or TOKEN_REMOTE.search(line) or GRADLE_PUSH.search(line):
             return True
         tag = GIT_TAG.search(line)
         rest = line[tag.end():] if tag else ""

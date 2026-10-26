@@ -64,6 +64,8 @@ CASES = [  # (what, {path: text}); each was 25 s to hours at this size
                                                       + "level = LogLevel.BODY" + "}" * (N // 19)}),
     ("AND putString with many constants", {**ANDROID, "app/src/main/java/a/A.kt": "class A { fun f(p: Prefs) {\n"
                                            + "".join(f"p.putString(k{i}.v{i}, x)\n" for i in range(N // 28)) + "} }"}),
+    ("thousands of @Preview with no function", {**ANDROID, "app/src/main/java/a/A.kt":
+                                                 'val c = Cipher.getInstance("AES/ECB/PKCS5Padding")\n' + rep("@Preview\n")}),
     ("KMP-006 settings writes", {**KMP, COMMON: "import com.russhwolf.settings.Settings\nval s = Settings()\n"
                                                 + rep("prefs.putString(kToken, v)\n")}),
 ]

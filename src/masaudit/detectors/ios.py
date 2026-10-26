@@ -393,6 +393,9 @@ def _kmp_scaffold(ctx: Context, proj: pbxproj.Project) -> bool:
     return 0 < len(swift) <= 3 and names <= {"iOSApp.swift", "ContentView.swift", "App.swift"}
 
 
+_DEMO_NAME = re.compile(r"^(?:Sample|Example|Demo|Showcase)|(?:Sample|Example|Demo|Showcase)(?:App)?$")
+
+
 def _demo_project(ctx: Context, proj: pbxproj.Project) -> bool:
     """Projects that don't ship: a demo or showcase app inside a Swift package (when another
     project in the repo holds the real app), or the KMP wizard's unconfigured iosApp shell."""
@@ -414,6 +417,10 @@ def _demo_project(ctx: Context, proj: pbxproj.Project) -> bool:
             if others:
                 result = True
                 break
+    if not result and _DEMO_NAME.search(proj.path.split(".xcodeproj")[0].rsplit("/", 1)[-1]):
+        # SampleBrowser.xcodeproj, ExampleApp.xcodeproj next to the real app's project.
+        result = any(p is not proj and not _DEMO_NAME.search(p.path.split(".xcodeproj")[0].rsplit("/", 1)[-1])
+                     and any(t.is_app for t in p.targets()) for p in _projects(ctx))
     cache[proj.path] = result
     return result
 
@@ -1551,6 +1558,10 @@ _HANDLER_SINK = re.compile(r"(?i)URLSession|NextcloudKit|download|upload|keychai
                            r"\bsend\s*\(|\bpost\w*\s*\(|request|account|session")
 
 
+_STUB_BODY = re.compile(r"(?:(?:Logger\b[\w.]*|os_log|NSLog|print|debugPrint|assertionFailure|fatalError|"
+                        r"logger\b[\w.]*|log\b[\w.]*)\s*\([^;{}]{0,400}\)\s*;?\s*)*")
+
+
 @detector("ios_message_handler_origin")
 def message_handler_origin(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, line, body, code, m, start in _functions(ctx, _MESSAGE_HANDLER):
@@ -1563,6 +1574,9 @@ def message_handler_origin(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if direct.search(body):
             continue
         inner = body[1:-1].strip()
+        # A stub that does nothing with the message, or only logs it (the reply-handler overload does the work).
+        if _STUB_BODY.fullmatch(inner):
+            continue
         # A trampoline that only forwards the message: the real handler is reported on its own.
         if re.fullmatch(rf"(?:return\s+)?(?:(?:self|[\w]+)[?!]?\s*\.\s*)*userContentController\s*\("
                         rf"[^()]{{0,200}}didReceive\s*:\s*{p}\s*(?:,[^()]{{0,200}})?\)\s*;?", inner):
@@ -1932,6 +1946,12 @@ def _resolve_scheme(expr: str, code_by_path: Dict[str, str], schemes: Set[str]) 
     return None
 
 
+# The session receives its own callback, so no other app gets the code through the OS; what remains is an app
+# starting sign-in with your client ID and scheme (low).
+_IN_SESSION = (" The session receives the callback itself, so the code doesn't pass through the OS; another app "
+               "can still start sign-in with your client ID and scheme.")
+
+
 @detector("ios_custom_scheme_auth")
 def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
     schemes = {s for s in _url_schemes(ctx) if not _SDK_SCHEMES.match(s)}
@@ -1956,6 +1976,8 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
             order.append(key)
         groups[key].append((rank, path, line, message))
 
+    # The app's own WKWebView catches the redirect (a navigation delegate that looks at it and cancels).
+    captured = any("decidePolicyFor" in code and re.search(r"(?i)redirect", code) for code in files.values())
     for path, code in files.items():
         seen_lines: Set[int] = set()
         dead = _unreachable_else_spans(code)
@@ -1984,6 +2006,8 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
                        "iOS before 17.4; any app can register that scheme.")
             else:
                 msg = "The sign-in session returns through a custom URL scheme, which isn't tied to your app."
+            msg += _IN_SESSION
+            low.add((path, line))
             # A session that only shares Safari cookies (a browser sync) returns no authorization code.
             surround = code[max(0, fstart - 600):_fend]
             if _COOKIE_SYNC_CTX.search(surround) and not _CODE_FLOW_CTX.search(surround):
@@ -1999,8 +2023,12 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if line in seen_lines or any(s <= m.start() < e for s, e in dead):
                 continue
             seen_lines.add(line)
-            add(scheme, 1, path, line,
-                f"Auth redirect {scheme}://{rest} uses a custom URL scheme registered in CFBundleURLTypes.")
+            message = f"Auth redirect {scheme}://{rest} uses a custom URL scheme registered in CFBundleURLTypes."
+            if captured:
+                message += (" A web view navigation delegate in the app catches the redirect, so it may never "
+                            "reach the OS; another app can still start sign-in with your client ID and scheme.")
+                low.add((path, line))
+            add(scheme, 1, path, line, message)
     for path, code in _flutter_web_auth_files(ctx):
         for m in _FLUTTER_WEB_AUTH.finditer(code):
             close = _paren_end(code, m.end() - 1, limit=1200)
@@ -2018,9 +2046,10 @@ def custom_scheme_auth(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if scheme == "https":
                 continue
             line = ctx.line_of(code, m.start())
+            low.add((path, line))
             add(scheme or ("flutter", path, line), 0, path, line,
                 "FlutterWebAuth2 opens ASWebAuthenticationSession on iOS and returns through the custom URL scheme "
-                f"`{scheme or expr}`, which isn't tied to your app.")
+                f"`{scheme or expr}`, which isn't tied to your app." + _IN_SESSION)
     for key in order:
         items = sorted(groups[key], key=lambda x: x[0])
         _rank, path, line, message = items[0]

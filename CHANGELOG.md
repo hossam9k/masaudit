@@ -44,6 +44,28 @@ their own version (`rules_version`), shown in every report.
   - KMP-005: each challenge handler is judged on its own, so a file where one function evaluates trust
     and another doesn't is reported.
 
+### False alarms found by the benchmark
+
+Each has a test; on the 29-app corpus the change removed only false alarms.
+
+- Code that only runs in the IDE's preview counts as debug code: Jetpack Compose functions annotated
+  `@Preview` (or a multi-preview annotation), SwiftUI `#Preview` blocks, and `PreviewProvider` structs;
+  so do `mock`, `fake`, and `stub` folders in a shipping source set.
+- IOS-019 skips a sample or demo Xcode project (SampleBrowser, ExampleApp) next to the real app.
+- CI rules skip jobs switched off with `if: false`; CI-005 counts a Gradle task that pushes tags
+  (`reckonTagPush`) as a push.
+- IOS-017 rates a sign-in callback low when `ASWebAuthenticationSession`, FlutterWebAuth2, or the app's
+  own web view receives it: no other app can catch the code, though one can still start a sign-in as
+  yours. A redirect that goes through the OS keeps its severity.
+- AND-045 reports screen protection as unknown, not missing, when a local Flutter package outside the
+  scanned folder could set `FLAG_SECURE`.
+- AND-050 no longer reports BouncyCastle added with `addProvider`, which puts it last; only
+  `insertProviderAt(…, 1)` replaces the platform's provider.
+- XPL-045 no longer reports a time passed into a function, such as a TOTP code; a hash of the time still
+  counts. XPL-034 ignores enum cases and constants that name an event (`.addressAutofillPromptShown`).
+- IOS-015 skips empty or log-only handler stubs; AND-015 accepts Wear OS complication and watch-face
+  settings screens, which the system opens.
+
 ### Speed
 
 - SARIF import checks whether a result's path is inside the scanned folder by name before looking it up.

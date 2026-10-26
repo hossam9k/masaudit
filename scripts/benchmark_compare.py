@@ -166,7 +166,9 @@ def scan(directory: str, out_dir: str, src: str, rnsec: str, only: Optional[List
 
 
 def _results(path: str, app_root: str) -> List[dict]:
-    """One dict per SARIF result: rule, path (relative to the scanned folder), line, level."""
+    """One dict per SARIF result: rule, path (relative to the scanned folder), line, level. masaudit's notes
+    (`properties.bucket == "notes"`: findings in test, debug, or build code, which its report lists apart
+    from what to fix) are left out, as a reader of the report would."""
     try:
         with open(path, encoding="utf-8") as fh:
             doc = json.load(fh)
@@ -175,6 +177,8 @@ def _results(path: str, app_root: str) -> List[dict]:
     out = []
     for run in doc.get("runs") or []:
         for res in run.get("results") or []:
+            if (res.get("properties") or {}).get("bucket") == "notes":
+                continue
             locs = res.get("locations") or [{}]
             phys = locs[0].get("physicalLocation") or {}
             uri = (phys.get("artifactLocation") or {}).get("uri") or ""

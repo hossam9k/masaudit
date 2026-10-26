@@ -45,6 +45,24 @@ def _pubspec_deps(ctx: Context) -> str:
     return "\n".join(re.sub(r"#[^\n]*", "", ctx.text(p) or "") for p in ctx.files(name="pubspec.yaml"))
 
 
+_PATH_DEP = re.compile(r"^[ \t]+([\w-]+)[ \t]*:[ \t]*\n[ \t]+path[ \t]*:[ \t]*['\"]?([^'\"\n#]+?)['\"]?[ \t]*$", re.MULTILINE)
+
+
+def outside_packages(ctx: Context) -> list:
+    """Local packages a pubspec.yaml takes from outside the scanned folder (`path: ../../packages/x`).
+    masaudit never reads outside the folder, so a protection set there can't be seen."""
+    import posixpath
+    out = []
+    for p in ctx.files(name="pubspec.yaml"):
+        folder = p.rsplit("/", 1)[0] if "/" in p else ""
+        text = re.sub(r"#[^\n]*", "", ctx.text(p) or "")
+        for m in _PATH_DEP.finditer(text):
+            target = posixpath.normpath(posixpath.join(folder, m.group(2).strip()))
+            if target == ".." or target.startswith("../") or target.startswith("/"):
+                out.append(m.group(1))
+    return sorted(set(out))
+
+
 # ---------------------------------------------------------------------------- pinning evidence
 
 # Identifiers only (strings and comments blanked), so a TODO that mentions pinning doesn't count.
