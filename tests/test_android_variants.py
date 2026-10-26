@@ -6,6 +6,8 @@ import shutil
 import tempfile
 import unittest
 
+import helpers
+
 from helpers import ALL_PLATFORMS  # noqa: F401  (sets sys.path)
 from masaudit import engine, lexer, profile, safety
 from masaudit.detectors import android
@@ -155,6 +157,14 @@ class KeepRules(unittest.TestCase):
         self.assertEqual([(o.line, o.name) for o in opts], [(2, "dontobfuscate"), (3, "keep"), (6, "keepnames")])
         self.assertEqual(proguard.class_pattern(opts[1].spec), "com.x.**")
         self.assertEqual(opts[1].spec, "class com.x.** { *; }")
+
+
+class ExportedActivityThatReadsNothing(unittest.TestCase):
+    def test_keeps_its_severity(self):
+        # DIVA's APICredsActivity and InsecureBankv2's DoTransfer read nothing from their intent, yet starting
+        # them shows credentials or moves money: an exported screen is not safe just because it takes no input.
+        hits = helpers.scan_dir(os.path.join(helpers.FIXTURES, "AND-015", "vulnerable_reads_no_intent"), {"AND-015"})
+        self.assertEqual([h.severity for h in hits], [""])
 
 
 class Findings(unittest.TestCase):

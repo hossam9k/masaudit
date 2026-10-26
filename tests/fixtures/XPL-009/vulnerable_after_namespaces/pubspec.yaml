@@ -1,0 +1,4 @@
+name: photos
+dependencies:
+  flutter:
+    sdk: flutter

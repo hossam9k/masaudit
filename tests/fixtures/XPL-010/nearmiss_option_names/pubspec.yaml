@@ -1,0 +1,4 @@
+name: remote
+dependencies:
+  flutter:
+    sdk: flutter

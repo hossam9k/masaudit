@@ -5,6 +5,24 @@ their own version (`rules_version`), shown in every report.
 
 ## Unreleased
 
+### False alarms found by benchmark round 2
+
+Each has a fixture that 0.6.3 gets wrong.
+
+- XPL-009 skips XML and XMP namespace URLs (a type named for namespaces, `ns.` hosts), captive-portal
+  checks that are plain HTTP by design (`generate_204`, captive.apple.com), and placeholder hosts
+  (`not.required`).
+- IOS-019 skips unit-test host apps and Mac apps (SDKROOT macosx, a Flutter `macos/` runner).
+- AND-015 skips AndroidX's MediaTransferReceiver, which the system output switcher needs exported. An
+  exported screen that reads nothing from its intent keeps its severity: DIVA's and InsecureBankv2's show
+  credentials or move money without any input.
+- RN-008 accepts a WebView limited by `originWhitelist` to named https origins.
+- XPL-010 skips constants that name an option (`$kOptionAllowDeepLinkPassword`).
+- XPL-017 skips files whose gRPC channels all go to the device itself (127.0.0.1).
+- XPL-040 counts a version-blocking screen (`AppVersionBlocker`, `useAppVersionBlockCheck`).
+- AND-031 skips loaders that unpack native libraries from the app's own APK.
+- AND-047 skips keep rules in a module where minify is only ever set to false.
+
 ### Docs
 
 - [Benchmark on unseen apps](docs/benchmark.md), round 2: 0.6.3 on 18 more apps no rule was tuned on.

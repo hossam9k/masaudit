@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AndroidX's MediaTransferReceiver must be exported so the system output switcher can reach it. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.podcasts">
+    <application android:label="Podcasts">
+        <receiver android:name="androidx.mediarouter.media.MediaTransferReceiver" android:exported="true" />
+    </application>
+</manifest>

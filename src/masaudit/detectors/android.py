@@ -2145,6 +2145,8 @@ def exported_components(ctx: Context, rule: Rule) -> Iterable[Hit]:
         for c in manifest.components(root):
             name = c.get("android:name") or c.tag
             exported = c.get("android:exported")
+            if name in _SYSTEM_EXPORTED:
+                continue              # a library component the system has to reach (output switcher)
             if manifest.is_placeholder(exported):
                 ctx.note_unknown(f"{path}: {name} sets android:exported from a placeholder.")
                 continue
@@ -2203,6 +2205,12 @@ def exported_components(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 how = "exported" if exported is not None else "exported (it has an intent filter)"
                 msg = f"The {c.tag} {name} is {how} with no permission: " + "; ".join(why) + "."
             yield _hit(ctx, path, c.line, msg, ack=ack, severity=severity)
+
+
+# Library components that must be exported for the system to reach them.
+_SYSTEM_EXPORTED = frozenset({
+    "androidx.mediarouter.media.MediaTransferReceiver",     # the system output switcher
+})
 
 
 def _referenced_xml(ctx: Context, meta_name: str) -> Set[str]:
@@ -4794,14 +4802,22 @@ _KEEP_MODEL = re.compile(r"(?i)\.(?:model|models|dto|dtos|data|entity|entities|a
 _PROGUARD_REF = re.compile(r"(?<![\w.])(?:(?P<kind>test|consumer)P|p)roguardFiles?\b[ \t]*\(?")
 
 
+_MINIFY_VALUE = re.compile(r"\b(?:isMinifyEnabled|minifyEnabled)\s*=?\s*(true|false)\b"
+                           r"|\bsetMinifyEnabled\s*\(\s*(true|false)\s*\)")
+
+
 @detector("android_keep_rules")
 def keep_rules(ctx: Context, rule: Rule) -> Iterable[Hit]:
     kinds = _module_kinds(ctx)
     ids = [i.lower() for i in _app_id_prefixes(ctx)]
     referenced_release: Set[str] = set()
     referenced_other: Set[str] = set()
+    unminified: Set[str] = set()              # modules whose build file only ever sets minify to false
     for path, code, blank in _build_files(ctx, ("app",)):
         module = posixpath.dirname(path)
+        values = {v.lower() for pair in _MINIFY_VALUE.findall(blank) for v in pair if v}
+        if values == {"false"}:
+            unminified.add(module)
         types = _build_types_of(ctx, path, code, blank)
         per_type: Dict[str, Set[str]] = {}
         inherits: Set[str] = set()
@@ -4831,7 +4847,8 @@ def keep_rules(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 referenced_release.update(files)
             else:
                 referenced_other.update(files)
-        for m in re.finditer(r"getDefaultProguardFile\s*\(\s*[\"']proguard-android\.txt[\"']", code):
+        for m in (re.finditer(r"getDefaultProguardFile\s*\(\s*[\"']proguard-android\.txt[\"']", code)
+                  if module not in unminified else ()):
             in_release = any(bt.block.body_start <= m.start() < bt.block.body_end for n, bt in types.items()
                              if _variant_kind(ctx, module, n) == "release")
             if in_release:
@@ -4852,6 +4869,8 @@ def keep_rules(ctx: Context, rule: Rule) -> Iterable[Hit]:
         norm = posixpath.normpath(path)
         if norm in referenced_other and norm not in referenced_release:
             continue
+        if module in unminified:
+            continue                          # R8 never runs on this module, so its keep rules change nothing
         for opt in proguard.parse(ctx.text(path) or ""):
             msg = None
             if opt.name == "dontobfuscate":

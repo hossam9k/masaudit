@@ -1,0 +1,5 @@
+name: vpn
+dependencies:
+  flutter:
+    sdk: flutter
+  grpc: any
