@@ -49,6 +49,8 @@ their own version (`rules_version`), shown in every report.
 - SARIF import checks whether a result's path is inside the scanned folder by name before looking it up.
   Another machine's paths (`/home/runner/...`, an automount on macOS) cost about 2 ms a result to look
   up, so a 20,000-result file took about 40 seconds.
+- AND-046 and AND-076 look up a button's or field's later settings from one pass per file. A file with
+  thousands of buttons or text fields took 0.7 to 0.8 s (4 s on a slow CI runner); it now takes 0.2 s.
 
 ### Docs
 
