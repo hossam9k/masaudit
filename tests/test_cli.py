@@ -287,6 +287,17 @@ class ImportSarif(unittest.TestCase):
                                     "--import-sarif", path)
             self.assertIn(code, (0, 1), err)
 
+    def test_outside_paths_need_no_file_system_lookup(self):
+        # Resolving another machine's path (/home/runner/... is an automount on macOS) cost ~2 ms a result.
+        from masaudit import importers
+
+        real = os.path.realpath
+        seen = []
+        with mock.patch.object(importers.os.path, "realpath", side_effect=lambda p: seen.append(p) or real(p)):
+            self.assertIsNone(importers._rel_path("file:///home/runner/work/r/r/A.kt", None, self.dir))
+            self.assertIsNone(importers._rel_path("/home/runner/work/r/r/B.kt", None, self.dir))
+        self.assertFalse([p for p in seen if p.startswith("/home")], seen)
+
     def test_result_cap_covers_all_runs(self):
         from masaudit import engine, importers
 

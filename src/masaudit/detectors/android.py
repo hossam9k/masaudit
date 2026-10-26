@@ -4334,11 +4334,7 @@ def keyboard_cache(ctx: Context, rule: Rule) -> Iterable[Hit]:
             var = re.search(r"\b(?:val|var)\s+(\w+)\s*(?::\s*\w+\s*)?=\s*$|\b(?:EditText|\w*EditText)\s+(\w+)\s*=\s*$",
                             blank[max(lo, m.start() - 80):m.start()])
             name = (var.group(1) or var.group(2)) if var else None
-            later = ""
-            if name:
-                later = " ".join(x.group(0) for x in re.finditer(
-                    r"\b" + re.escape(name) + r"\s*\.\s*(?:hint\s*=|setHint\s*\(|inputType\s*=|setInputType\s*\("
-                    r"|imeOptions\s*=|setImeOptions\s*\()[^\n;]*", code[region_end + 1:hi]))
+            later = " ".join(_field_settings(code, name, region_end + 1, hi)) if name else ""
             hint = re.search(r"(?:\bhint\s*=|\bsetHint\s*\()\s*\"([^\"\n]*)\"", region + " " + later)
             kind = _field_kind(hint.group(1)) if hint else ""
             if not kind or re.search(r"(?:imeOptions\s*=|setImeOptions\s*\()[^\n;]*NO_PERSONALIZED_LEARNING",
@@ -5164,6 +5160,49 @@ def _string_res(ctx: Context) -> Dict[str, str]:
     return _memo(ctx, "string_res", compute)
 
 
+_FIELD_SETTING = re.compile(r"(?=(\b(\w+)\s*\.\s*(hint\s*=|setHint\s*\(|inputType\s*=|setInputType\s*\("
+                            r"|imeOptions\s*=|setImeOptions\s*\()[^\n;]*))")
+
+
+def _field_settings(code: str, name: str, lo: int, hi: int) -> List[str]:
+    """The `name.hint = ...`, `name.inputType = ...` (and set...) statements in code[lo:hi], each cut at `hi`,
+    as a search of that slice finds them, from one pass over the file (one per field was quadratic)."""
+    if not re.fullmatch(r"\w+", name):
+        return [x.group(0) for x in re.finditer(
+            r"\b" + re.escape(name) + r"\s*\.\s*(?:hint\s*=|setHint\s*\(|inputType\s*=|setInputType\s*\("
+            r"|imeOptions\s*=|setImeOptions\s*\()[^\n;]*", code[lo:hi])]
+
+    def build() -> Dict[str, Tuple[List[int], List["re.Match[str]"]]]:
+        out: Dict[str, Tuple[List[int], List["re.Match[str]"]]] = {}
+        for m in _FIELD_SETTING.finditer(code):
+            starts, found = out.setdefault(m.group(2), ([], []))
+            starts.append(m.start(1))
+            found.append(m)
+        return out
+    starts, found = text_memo(code, ("and_field_settings",), build).get(name, ([], []))  # type: ignore[union-attr]
+    texts, taken = [], lo                       # a search finds matches that don't overlap: skip those inside one
+    for k in range(bisect.bisect_left(starts, lo), len(starts)):
+        m = found[k]
+        if m.start(1) >= hi:
+            break
+        if m.start(1) < taken or m.end(3) > hi:
+            continue
+        taken = min(m.end(1), hi)
+        texts.append(code[m.start(1):taken])
+    return texts
+
+
+_FILTERS_TOUCHES = r"\s*\.\s*(?:filterTouchesWhenObscured\s*=\s*true|setFilterTouchesWhenObscured\s*\(\s*true)"
+
+
+def _filters_touches(blank: str, name: str) -> bool:
+    """Does `name.filterTouchesWhenObscured = true` appear anywhere in the file? One pass per file for every
+    name (a search of the file per button made a file of buttons quadratic)."""
+    if re.fullmatch(r"[A-Za-z_]\w*", name):
+        return name in name_index(blank, _FILTERS_TOUCHES)
+    return re.search(r"\b" + re.escape(name) + _FILTERS_TOUCHES, blank) is not None
+
+
 def _unprotected_sensitive_buttons(ctx: Context) -> Iterator[Hit]:
     """The app filters obscured touches on some views only: report buttons for sensitive actions (pay, confirm,
     transfer) that don't, in code (`Button(context).apply { text = ... }`) and in layout XML."""
@@ -5188,8 +5227,7 @@ def _unprotected_sensitive_buttons(ctx: Context) -> Iterator[Hit]:
             var = re.search(r"\b(?:val|var)\s+(\w+)\s*(?::\s*\w+\s*)?=\s*$|\b(\w+)\s*=\s*$",
                             blank[max(0, m.start() - 80):m.start()])
             name = (var.group(1) or var.group(2)) if var else None
-            if name and re.search(r"\b" + re.escape(name) + r"\s*\.\s*(?:filterTouchesWhenObscured\s*=\s*true|"
-                                  r"setFilterTouchesWhenObscured\s*\(\s*true)", blank):
+            if name and _filters_touches(blank, name):
                 continue
             yield _hit(ctx, path, ctx.line_of(blank, m.start()), msg)
     strings = None

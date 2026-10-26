@@ -9,6 +9,7 @@ SARIF file is untrusted: it is masked, shortened to one line, and never executed
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import posixpath
@@ -123,6 +124,12 @@ def _book() -> Tuple[str, str]:
         return "Chapter 23", BOOK_URL
 
 
+@functools.lru_cache(maxsize=8)
+def _root_forms(root: str) -> Tuple[str, ...]:
+    """The scanned folder as given and with its links resolved (macOS /tmp is /private/tmp)."""
+    return tuple(dict.fromkeys((os.path.normpath(os.path.abspath(root)), os.path.realpath(root))))
+
+
 def _rel_path(uri: str, base: Optional[str], root: str) -> Optional[str]:
     """The result's file, relative to `root`; None when it lies outside `root` (another checkout, a build
     machine's absolute path), which would otherwise be reported as if it were part of this project. A
@@ -139,8 +146,14 @@ def _rel_path(uri: str, base: Optional[str], root: str) -> Optional[str]:
         local = unquote(uri if drive else parsed.path)
         if os.name == "nt" and re.match(r"^/[A-Za-z]:", local):
             local = local[1:]
+        # By name first: a path that isn't under the folder (as given, or with its links resolved) is outside,
+        # with no file-system lookup. Resolving every result's path cost a lookup per result, which is slow
+        # for another machine's paths (`/home/runner/...` is an automount on macOS).
+        local_abs = os.path.normpath(os.path.abspath(local))
+        if not any(local_abs == r or local_abs.startswith(r + os.sep) for r in _root_forms(root)):
+            return None
         root_real = os.path.realpath(root)
-        local_real = os.path.realpath(local)
+        local_real = os.path.realpath(local_abs)    # inside by name: its links must not lead out
         if local_real == root_real or local_real.startswith(root_real + os.sep):
             return os.path.relpath(local_real, root_real).replace(os.sep, "/")
         return None
