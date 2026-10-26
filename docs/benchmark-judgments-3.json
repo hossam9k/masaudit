@@ -1,0 +1,2418 @@
+{
+ "round": 3,
+ "seed": 20261028,
+ "supplementary_seed": 20261029,
+ "masaudit": "0.6.4 (each app's own type)",
+ "judged": [
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-002",
+   "path": ".github/workflows/driver_test.yml",
+   "line": 12,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No permissions block on push/pull_request test workflow; fork PRs get read-only token; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-001",
+   "path": ".github/workflows/driver_test.yml",
+   "line": 81,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party futureware-tech/simulator-action pinned to mutable tag v4 in a workflow that uses secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-005",
+   "path": ".github/workflows/integration_test.yml",
+   "line": 90,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Checkout persists token, deliberately reused for submodules; PR tokens read-only, job already holds SOPS secret."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-002",
+   "path": ".github/workflows/main.yml",
+   "line": 15,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No top-level permissions on CI build workflow; PR tokens read-only; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-001",
+   "path": ".github/workflows/main.yml",
+   "line": 59,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party gradle/actions/setup-gradle@v4 tag runs in job that later decrypts signing keystores with SOPS_AGE_KEY."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-001",
+   "path": ".github/workflows/make_deb.yaml",
+   "line": 18,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v3 tag; GitHub-owned, low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "CI-001",
+   "path": ".github/workflows/web-gh-pages.yaml",
+   "line": 36,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party peaceiris/actions-gh-pages@v3 tag given GITHUB_TOKEN to push deployment."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "AND-046",
+   "path": "authpass/android/app/src/main/AndroidManifest.xml",
+   "line": 44,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No filterTouchesWhenObscured, but Android 12+ blocks untrusted overlay touches; defense-in-depth for this app."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "AND-048",
+   "path": "authpass/android/app/src/main/AndroidManifest.xml",
+   "line": 44,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "AuthPass is a local KeePass manager; no backend relies on client attestation, so Play Integrity adds little."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "XPL-022",
+   "path": "authpass/android/app/src/main/AndroidManifest.xml",
+   "line": 44,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No debugger detection anywhere in repo, true; release builds aren't debuggable; resilience/defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "AND-036",
+   "path": "authpass/android/app/src/main/AndroidManifest.xml",
+   "line": 44,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No dataExtractionRules so D2D ignores sharedpref exclusion, but biometric prefs are Keystore-wrapped and unusable elsewhere."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "XPL-033",
+   "path": "authpass/lib/ui/screens/create_file.dart",
+   "line": 98,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line 98 TextFormField is the database name field; master password uses PasswordInputField."
+  },
+  {
+   "tool": "masaudit",
+   "app": "authpass",
+   "rule": "XPL-012",
+   "path": "authpass/lib/ui/screens/entry_details.dart",
+   "line": 1838,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "OTP copied without clearing, but TOTP expires within ~30s, limiting exposure."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-android",
+   "rule": "XPL-012",
+   "path": "app/src/main/java/com/bitchat/android/hotspot/HotspotActivity.kt",
+   "line": 513,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "User taps copy for the local hotspot password, meant for sharing; a missing EXTRA_IS_SENSITIVE only affects the clipboard preview."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-android",
+   "rule": "XPL-011",
+   "path": "app/src/main/java/com/bitchat/android/noise/southernstorm/protocol/AESGCMOnCtrCipherState.java",
+   "line": 80,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "new byte[32] is a dummy key for a 256-bit support probe; the real key is set in initializeKey (line 127)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-android",
+   "rule": "XPL-006",
+   "path": "app/src/main/java/com/bitchat/android/noise/southernstorm/protocol/AESGCMOnCtrCipherState.java",
+   "line": 81,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Zero key/IV at line 80-81 is only a 256-bit AES support probe; the real nonce comes from counter n in setNonce (lines 177-192)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-android",
+   "rule": "XPL-008",
+   "path": "app/src/main/java/com/bitchat/android/nostr/NostrProofOfWork.kt",
+   "line": 100,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Random only seeds PoW nonce search start; nonce needs no unpredictability."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-android",
+   "rule": "XPL-012",
+   "path": "app/src/main/java/com/bitchat/android/ui/MessageComponents.kt",
+   "line": 1224,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Cashu token (bearer ecash) copied without EXTRA_IS_SENSITIVE; none set anywhere in app."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-ios",
+   "rule": "CI-001",
+   "path": ".github/workflows/arti-provenance.yml",
+   "line": 28,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v5 tag in a hash-verification workflow without secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-ios",
+   "rule": "CI-004",
+   "path": ".github/workflows/source-manifest.yml",
+   "line": 45,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Injection via workflow_dispatch input requires write access, so the attacker gains little beyond existing rights."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-ios",
+   "rule": "CI-005",
+   "path": ".github/workflows/swift-tests.yml",
+   "line": 33,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Token persisted in test job; fork PR tokens are read-only, no artifact upload; defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-ios",
+   "rule": "CI-001",
+   "path": ".github/workflows/swift-tests.yml",
+   "line": 191,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v5 tag in a test workflow; first-party tag risk is low."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-ios",
+   "rule": "CI-001",
+   "path": ".github/workflows/swift-tests.yml",
+   "line": 286,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned checkout@v5 in lint job with persist-credentials false, contents: read."
+  },
+  {
+   "tool": "masaudit",
+   "app": "bitchat-ios",
+   "rule": "XPL-027",
+   "path": "bitchat/Nostr/NostrProtocol.swift",
+   "line": 840,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "auxStatus is checked: guard auxStatus == errSecSuccess else throw (line 842)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "breezy-weather",
+   "rule": "CI-005",
+   "path": ".github/workflows/pull-request.yml",
+   "line": 22,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "pull_request trigger: forks get read-only token, no secrets, later steps are PR build code anyway."
+  },
+  {
+   "tool": "masaudit",
+   "app": "breezy-weather",
+   "rule": "AND-021",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 81,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Backup defaults on; data is weather locations/settings, low sensitivity."
+  },
+  {
+   "tool": "masaudit",
+   "app": "breezy-weather",
+   "rule": "XPL-042",
+   "path": "app/src/main/kotlin/org/breezyweather/common/utils/CrashLogUtils.kt",
+   "line": 48,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "exec('logcat ... -f path') uses an app cache-dir path with no external input, and exec(String) doesn't use a shell."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-002",
+   "path": ".github/workflows/are_translations_sane.yml",
+   "line": 5,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "pull_request-only translation check, no secrets; fork PR tokens are read-only; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/are_translations_sane.yml",
+   "line": 10,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Token persisted on self-hosted runner, but later step only runs jq on files; PR token typically read-only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/integration_tests.yml",
+   "line": 19,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v4 tag; low risk, workflow_dispatch only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-002",
+   "path": ".github/workflows/no_print_in_dart.yaml",
+   "line": 5,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No permissions block, but pull_request-only job running git grep with no secrets; fork PRs get read-only token. Hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/no_restricted_imports.yaml",
+   "line": 10,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "pull_request job; only later step is fixed find/grep, nothing can use persisted read-only token."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/pr_test_build_linux.yml",
+   "line": 86,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party docker/login-action@v3 tag gets GITHUB_TOKEN with packages: write in PR workflow."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/pr_test_build_linux.yml",
+   "line": 107,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party docker/login-action pinned to mutable tag v3 and given GITHUB_TOKEN with packages:write."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/pr_test_build_linux.yml",
+   "line": 165,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v4 is GitHub-owned; tag pinning is minor supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/pr_test_build_linux.yml",
+   "line": 240,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v4 is GitHub-owned; tag pinning is minor supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/pr_test_build_linux.yml",
+   "line": 346,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Job deliberately writes github.token into global git config and docker login anyway; fork PRs skipped."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 30,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Token already passed to docker login in same job; packages:write scoped; persisted git creds add little."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 110,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v4 is GitHub-owned; tag pinning is minor supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 110,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Token persisted, but workflow scope is contents:read/packages:write and the same token is already given to docker login in the job."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 117,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party docker/login-action@v3 tag receives GITHUB_TOKEN with packages: write; mutable tag."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 143,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party docker/login-action@v3 tag receives GITHUB_TOKEN with packages: write."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 163,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party docker/login-action@v3 tag handles GITHUB_TOKEN with packages: write."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-build.yml",
+   "line": 439,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v4 tag; low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-integration-test.yml",
+   "line": 125,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party gradle/actions/setup-gradle referenced by mutable tag v3, not SHA."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/reusable-integration-test.yml",
+   "line": 299,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/upload-artifact@v4 is GitHub-owned; tag pinning is minor supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "XPL-015",
+   "path": "ios/CakeWallet/decrypt.swift",
+   "line": 8,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Used only by legacy_wallet_migration channel to read old iOS-format data; iteration count fixed by legacy format, nothing new encrypted."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "XPL-021",
+   "path": "ios/Runner.xcodeproj/project.pbxproj",
+   "line": 249,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "Repo has no jailbreak/attestation detection, confirmed by grep. Wallet hardening only; it can be bypassed and is not an exploitable flaw by itself."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "XPL-009",
+   "path": "lib/core/address_resolver/zano/zano_alias_address_provider.dart",
+   "line": 25,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Zano alias-to-address resolution over plain HTTP to raw IP; MITM can substitute a payment address; iOS allows arbitrary loads."
+  },
+  {
+   "tool": "masaudit",
+   "app": "cake-wallet",
+   "rule": "XPL-015",
+   "path": "macos/CakeWallet/decrypt.swift",
+   "line": 8,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "macos/CakeWallet/decrypt.swift is not in the macOS project.pbxproj, so it doesn't ship. The iOS copy is used only for legacy migration."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "CI-002",
+   "path": ".github/workflows/jest-tests.yml",
+   "line": 13,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No permissions block on jest test workflow; no secrets, hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "AND-027",
+   "path": "android/app/build.gradle",
+   "line": 102,
+   "supplementary": true,
+   "verdict": "real",
+   "reason": "enableProguardInReleaseBuilds = false (line 60) feeds minifyEnabled in the release buildType."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "AND-028",
+   "path": "android/build.gradle",
+   "line": 5,
+   "supplementary": true,
+   "verdict": "real",
+   "reason": "targetSdkVersion = 35 in root build.gradle, used by app; below Play's API 36 requirement in effect since Aug 2026."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "RN-015",
+   "path": "babel.config.js",
+   "line": 2,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "No console stripping is configured and logs ship; a few log URLs/notifications, but no tokens. Logcat is app-private on modern Android."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "AND-013",
+   "path": "js/screens/WebViewScreenComponents/WebViewComponent.js",
+   "line": 205,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "webviewDebuggingEnabled={true} unconditionally on the main forum WebView, enabling remote inspection in release builds."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "IOS-014",
+   "path": "js/screens/WebViewScreenComponents/WebViewComponent.js",
+   "line": 205,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "webviewDebuggingEnabled={true} unconditionally on WebView hosting logged-in Discourse sites in release."
+  },
+  {
+   "tool": "masaudit",
+   "app": "discourse-mobile",
+   "rule": "RN-008",
+   "path": "js/screens/WebViewScreenComponents/WebViewComponent.js",
+   "line": 398,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "appState comes from React Native AppState ('active'/'background'/'inactive'), not user or server input; no injection path."
+  },
+  {
+   "tool": "masaudit",
+   "app": "element-ios",
+   "rule": "XPL-027",
+   "path": "Riot/Managers/EncryptionKeyManager/EncryptionKeyManager.swift",
+   "line": 140,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Unchecked SecRandomCopyBytes status is real but failure is practically never observed."
+  },
+  {
+   "tool": "masaudit",
+   "app": "element-ios",
+   "rule": "IOS-018",
+   "path": "Riot/Modules/Home/AllChats/AllChatsLayoutSettingsManager.swift",
+   "line": 70,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "Deprecated unrestricted unarchiver, but it reads app-written UserDefaults data; no attacker-controlled input."
+  },
+  {
+   "tool": "masaudit",
+   "app": "element-ios",
+   "rule": "IOS-015",
+   "path": "Riot/Modules/MatrixKit/Controllers/MXKWebViewViewController.m",
+   "line": 337,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "jsLog handler only MXLogDebug's message.body; no privileged action an untrusted frame could trigger."
+  },
+  {
+   "tool": "masaudit",
+   "app": "element-ios",
+   "rule": "IOS-018",
+   "path": "Riot/Modules/MatrixKit/Models/Account/MXKAccountManager.m",
+   "line": 760,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "requiresSecureCoding=false is real, but input is the app's own encrypted account file in its container; attacker needs local write access."
+  },
+  {
+   "tool": "masaudit",
+   "app": "element-ios",
+   "rule": "IOS-015",
+   "path": "RiotSwiftUI/Modules/Authentication/ReCaptcha/View/AuthenticationReCaptchaWebView.swift",
+   "line": 121,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "App-generated local reCAPTCHA HTML; handler only forwards a response string that the homeserver validates. A forged message gains nothing."
+  },
+  {
+   "tool": "masaudit",
+   "app": "etar",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 13,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v7 tag in debug-build CI with no secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "etar",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 15,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java@v6 tag in debug-build CI with no secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "etar",
+   "rule": "XPL-010",
+   "path": "app/src/main/java/com/android/calendar/AsyncQueryServiceHelper.java",
+   "line": 106,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Guarded by localLOGV = false (compiled out), and 'token' is an AsyncQueryService operation id, not a secret."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci_build.yml",
+   "line": 155,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/setup-java@v6 tag; GitHub-owned action in job with signing secrets, low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci_build.yml",
+   "line": 208,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party gradle/actions/setup-gradle@v6 tag in job exporting keystore/signing secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci_build.yml",
+   "line": 216,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v7 tag; low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci_build.yml",
+   "line": 230,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v7 tag; low movement risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci_build.yml",
+   "line": 237,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java@v6 tag; low movement risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci_build.yml",
+   "line": 263,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v7 tag; minimal movement risk though job holds signing secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "AND-021",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 41,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "allowBackup=true without rules; data is RSS feeds plus a sync key, low sensitivity."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "XPL-015",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/crypto/AesCbcWithIntegrity.kt",
+   "line": 242,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line is encryptString; PBKDF2 generateKeyFromPassword is never called\u2014sync keys come from random generateKey()."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "XPL-015",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/crypto/AesCbcWithIntegrity.kt",
+   "line": 266,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "PBKDF2 (10k iterations) is only in generateKeyFromPassword, which nothing calls; sync uses random keys. Line 266 is encrypt()."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "XPL-015",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/crypto/AesCbcWithIntegrity.kt",
+   "line": 339,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "generateKeyFromPassword unused; sync keys come from random generateKey(). Line 339 is decrypt overload."
+  },
+  {
+   "tool": "masaudit",
+   "app": "feeder",
+   "rule": "AND-005",
+   "path": "app/src/main/java/com/nononsenseapps/jsonfeed/OkHttpBuilderExtensions.kt",
+   "line": 36,
+   "supplementary": true,
+   "verdict": "real",
+   "reason": "cachingHttpClient defaults trustAllCerts=true; FeederApplication's main client uses the default, giving a no-op TrustManager and an always-true HostnameVerifier."
+  },
+  {
+   "tool": "masaudit",
+   "app": "fossify-messages",
+   "rule": "CI-002",
+   "path": ".github/workflows/image-minimizer.yml",
+   "line": 11,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Triggered by issue_comment/pull_request_target from untrusted users, secrets: inherit to @main reusable workflow, no permissions block."
+  },
+  {
+   "tool": "masaudit",
+   "app": "fossify-messages",
+   "rule": "CI-001",
+   "path": ".github/workflows/no-response.yml",
+   "line": 10,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Reusable workflow from same org pinned to main with secrets: inherit; same trust boundary as org members."
+  },
+  {
+   "tool": "masaudit",
+   "app": "fossify-messages",
+   "rule": "CI-002",
+   "path": ".github/workflows/testing-build.yml",
+   "line": 15,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No permissions block; delegates to org reusable workflow on pull_request. Hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "fossify-messages",
+   "rule": "AND-015",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 51,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Recycle bin activity needlessly exported; callers can only open UI, no data returned or extras processed."
+  },
+  {
+   "tool": "masaudit",
+   "app": "fossify-messages",
+   "rule": "CI-007",
+   "path": "gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, true; download is HTTPS from services.gradle.org with validateDistributionUrl. Hardening."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "CI-002",
+   "path": ".github/workflows/ci-lua.yml",
+   "line": 5,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No permissions block, but pull_request lint job, SHA-pinned checkout, no secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "CI-002",
+   "path": ".github/workflows/stale.yml",
+   "line": 6,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No permissions block, but scheduled-only, SHA-pinned stale action that needs issue/PR write anyway."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "RN-015",
+   "path": "react-native-sdk/package.json",
+   "line": 68,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "console.log calls are in Node CLI scripts (sdk_instructions.js, update_dependencies.js), not shipped in the app bundle."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "XPL-009",
+   "path": "react/features/base/connection/middleware.web.ts",
+   "line": 10,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "'http://jitsi.org/protocol/jibri' is an XMPP disco feature namespace identifier, never fetched."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "RN-010",
+   "path": "react/features/base/lib-jitsi-meet/functions.native.ts",
+   "line": 32,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "eval runs config.js fetched from the user-chosen conference server, by design, inside an isolated worklet runtime; that server is already trusted."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "AND-013",
+   "path": "react/features/etherpad/components/native/SharedDocument.tsx",
+   "line": 64,
+   "supplementary": true,
+   "verdict": "real",
+   "reason": "SharedDocument WebView sets webviewDebuggingEnabled={true} unconditionally, so it is on in release builds."
+  },
+  {
+   "tool": "masaudit",
+   "app": "jitsi-meet",
+   "rule": "AND-013",
+   "path": "react/features/whiteboard/components/native/Whiteboard.tsx",
+   "line": 146,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "webviewDebuggingEnabled = { true } set unconditionally on the shipped whiteboard WebView."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "CI-002",
+   "path": ".github/workflows/new_tag_release.yaml",
+   "line": 8,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Tag-push-only release workflow; key jobs set permissions; third-party actions SHA-pinned; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "CI-005",
+   "path": ".github/workflows/new_tag_release.yaml",
+   "line": 1153,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Job must push to Termux repo with PERSONAL_TOKEN; persisted creds only reachable by pinned, trusted later steps."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-021",
+   "path": "androidApp/src/main/AndroidManifest.xml",
+   "line": 12,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "common module manifest (merged) sets allowBackup=false with extraction rules."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "XPL-009",
+   "path": "buildPlugins/src/main/kotlin/com/artemchep/keyguard/buildplugins/optionalfeatures/WearDependencyCheckPlugin.kt",
+   "line": 151,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "XML parser feature URI in a Gradle build plugin (it hardens XXE); not a network URL and does not ship."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "XPL-039",
+   "path": "common/src/androidMain/AndroidManifest.xml",
+   "line": 74,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No hooking detection in keyguard, but open-source client; anti-instrumentation is resilience defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "XPL-038",
+   "path": "common/src/androidMain/AndroidManifest.xml",
+   "line": 74,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "No emulator detection found, but this is resilience hardening with negligible value for an open-source password manager; not exploitable."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-022",
+   "path": "common/src/androidMain/kotlin/db_key_value/datastore/encrypted/SecureDataStoreKeyValueStore.kt",
+   "line": 6,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Deprecated androidx.security EncryptedFile still provides working encryption; deprecation is maintenance, not a vulnerability."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-003",
+   "path": "common/src/androidMain/res/xml/network_configuration.xml",
+   "line": 12,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Release base-config trusts user CAs (and cleartext) for this password manager; user-installed proxy CA can intercept non-Bitwarden server traffic."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-016",
+   "path": "common/src/androidMain/res/xml/provider_paths.xml",
+   "line": 3,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "files-path '.' shares the whole files dir, but the provider is non-exported and only grants explicit per-URI permissions; defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "XPL-037",
+   "path": "common/src/commonMain/kotlin/com/artemchep/keyguard/provider/bitwarden/api/AuthApi.kt",
+   "line": 111,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "The password grant is required by the Bitwarden API protocol, and the master password hash is sent, not plaintext. It's an inherent protocol choice."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-015",
+   "path": "feature/android-ipc-android/src/main/AndroidManifest.xml",
+   "line": 23,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "OpenPGP API service is exported by design, disabled by default, and gates callers by Binder UID with user approval flow."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-022",
+   "path": "gradle/libs.versions.toml",
+   "line": 246,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "security-crypto is deprecated and used (SecureSharedPrefsKeyValueStore), but still Keystore-backed; maintenance concern, not vulnerability."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "CI-007",
+   "path": "gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but HTTPS URL and CI runs gradle wrapper-validation action; defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-027",
+   "path": "integration/wearCredentialProviderApp/build.gradle.kts",
+   "line": 27,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "integration/wearCredentialProviderApp is a test client app for credential provider, not the shipped product."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "XPL-040",
+   "path": "iosApp/iosApp/Info.plist",
+   "line": 25,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Lacking a forced-update mechanism isn't a vulnerability; the Info.plist line is just CFBundlePackageType."
+  },
+  {
+   "tool": "masaudit",
+   "app": "keyguard",
+   "rule": "AND-072",
+   "path": "wearApp/src/main/AndroidManifest.xml",
+   "line": 49,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Wear manifest declares QUERY_ALL_PACKAGES with tools:node=\"remove\", so the permission is stripped from the merged manifest."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "CI-001",
+   "path": ".github/workflows/github_release.yml",
+   "line": 29,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v4 tag in release workflow; GitHub-owned action, low supply-chain risk though secrets present."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "CI-002",
+   "path": ".github/workflows/test_build.yml",
+   "line": 11,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Build/test workflow without permissions block, no deploy or secrets; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "CI-001",
+   "path": ".github/workflows/test_build.yml",
+   "line": 17,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v4 tag in test build workflow without secrets; GitHub-owned, low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "CI-001",
+   "path": ".github/workflows/test_build.yml",
+   "line": 30,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party subosito/flutter-action@v2 mutable tag; same action used in release workflow with keystore secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "CI-001",
+   "path": ".github/workflows/test_build.yml",
+   "line": 55,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned setup-java@v4 tag in a test-build workflow with no secrets or write permissions."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "AND-021",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 2,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Backup is on by default, but the app stores only a local book list/sqflite DB; no credentials or secrets were found."
+  },
+  {
+   "tool": "masaudit",
+   "app": "openreads",
+   "rule": "XPL-008",
+   "path": "lib/ui/statistics_screen/widgets/read_stats.dart",
+   "line": 39,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Random() makes a UI hero-animation tag, not a security key."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-ios",
+   "rule": "IOS-001",
+   "path": "Pocket%20Casts%20Watch%20App/Info.plist",
+   "line": 29,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Watch app ships NSAllowsArbitraryLoads for podcast feeds/media, but API domains have exceptions requiring HTTPS."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-ios",
+   "rule": "IOS-025",
+   "path": "podcasts.xcodeproj/project.pbxproj",
+   "line": 9033,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "DEBUG=1 is in the 'Prototype' configuration (Enterprise/Firebase internal builds per Fastfile), not the App Store Release config."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-ios",
+   "rule": "IOS-025",
+   "path": "podcasts.xcodeproj/project.pbxproj",
+   "line": 9122,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "DEBUG flag is in the 'Prototype' internal enterprise config (Firebase distribution), not the App Store Release config."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-ios",
+   "rule": "IOS-025",
+   "path": "podcasts.xcodeproj/project.pbxproj",
+   "line": 9151,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Config is 'Prototype' (enterprise Firebase test builds), not App Store Release."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-002",
+   "path": "apps/macos/ProtonVPN-mac-redesign-Info.plist",
+   "line": 49,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "ProtonVPN-mac-redesign-Info.plist isn't any target's INFOPLIST_FILE; main ProtonVPN/Info.plist has no such exception."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-001",
+   "path": "apps/macos/ProtonVPN/Info.plist",
+   "line": 40,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "The shipped macOS Info.plist does set NSAllowsArbitraryLoads, but Proton API traffic is HTTPS with TrustKit pinning; ATS is a fallback layer here."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-017",
+   "path": "apps/macos/ProtonVPN/Scenes/Login/ViewControllers/LoginViewController.swift",
+   "line": 529,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "ASWebAuthenticationSession receives the protonvpn:// callback directly; no OS routing interception. Remaining concern is generic."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-002",
+   "path": "apps/tvos/ProtonVPN-TV-Info.plist",
+   "line": 60,
+   "supplementary": true,
+   "verdict": "overrated",
+   "reason": "ATS HTTP exception for *.compute.amazonaws.com exists in the tvOS plist, but the API stack uses TrustKit-pinned HTTPS; the exception is for alternative routing."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-002",
+   "path": "apps/tvos/ProtonVPN-TV-Info.plist",
+   "line": 69,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "HTTP to protonstatus.com is a connectivity/status check (DoH statusHost); no user data sent."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-019",
+   "path": "apps/tvos/tvOS.xcodeproj/project.pbxproj",
+   "line": 223,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "True no PrivacyInfo.xcprivacy for tvOS target, but this is App Store compliance, not a security weakness."
+  },
+  {
+   "tool": "masaudit",
+   "app": "protonvpn-ios",
+   "rule": "IOS-019",
+   "path": "sampleapps/BugReportSampleiOSApp/BugReportSampleiOSApp.xcodeproj/project.pbxproj",
+   "line": 124,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "BugReportSampleiOSApp is under sampleapps/; not a shipped app."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 129,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v7 tag; first-party tag risk is low."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-001",
+   "path": ".github/workflows/ios.yml",
+   "line": 31,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v7 tag (persist-credentials false); GitHub-owned, low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-001",
+   "path": ".github/workflows/macos.yml",
+   "line": 46,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "setup-flutter-submodule is owned by repo owner adil192; tag move requires owner compromise."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-002",
+   "path": ".github/workflows/onyxsdk_pen_tests.yml",
+   "line": 14,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Test-only workflow, persist-credentials false, fork PRs get read-only token; missing permissions is defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-002",
+   "path": ".github/workflows/snap.yml",
+   "line": 14,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Push-on-any-branch publishing workflow runs third-party snapcore actions with unrestricted default token; no permissions block."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-001",
+   "path": ".github/workflows/windows.yml",
+   "line": 24,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v7 tag with persist-credentials false; low first-party risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "CI-001",
+   "path": ".github/workflows/windows.yml",
+   "line": 91,
+   "supplementary": false,
+   "verdict": "real",
+   "reason": "Third-party svenstaro/upload-release-action@v2 tag given GITHUB_TOKEN to upload release assets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "saber",
+   "rule": "XPL-042",
+   "path": "scripts/bump_version.dart",
+   "line": 270,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Developer bump_version script running local editor; not shipped in app, no untrusted input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/MainActivity.kt",
+   "line": 485,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Static 'Location services not available' message."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/MainActivity.kt",
+   "line": 593,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs onboarding failure message string; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/MainActivity.kt",
+   "line": 711,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Static 'App initialization complete' message; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/favorites/FavoritesPersistenceService.kt",
+   "line": 308,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message on favorites load failure; no keys or data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/features/file/FileUtils.kt",
+   "line": 31,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs a picked content URI on stream-open failure; no secret, token, or message content."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/BluetoothMeshService.kt",
+   "line": 914,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs static string 'Failed to encode file packet'; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/BluetoothMeshService.kt",
+   "line": 1073,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line logs 'Failed to encode private message with TLV' constant; no message content or keys."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/MeshCore.kt",
+   "line": 779,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message on read receipt failure; no keys or message content."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/MeshCore.kt",
+   "line": 828,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Static log message about missing public key; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/MessageHandler.kt",
+   "line": 460,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Logs a truncated 8-char peerID when dropping a message; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/PacketRelayManager.kt",
+   "line": 113,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs packet type number for relay decision; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/mesh/StoreForwardManager.kt",
+   "line": 262,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs count of cleaned cached messages; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/net/ArtiTorManager.kt",
+   "line": 352,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message on Tor stop; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/net/ArtiTorManager.kt",
+   "line": 373,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Constant 'Restarting Arti' status message; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/noise/NoiseEncryptionService.kt",
+   "line": 91,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs truncated fingerprint of the public identity key; private key never logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/noise/NoiseEncryptionService.kt",
+   "line": 489,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs only exception message on signing failure; no key material."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_custom_xor_crypto",
+   "path": "app/src/main/java/com/bitchat/android/noise/southernstorm/crypto/RijndaelAES.java",
+   "line": 224,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "XOR here is standard AES AddRoundKey in a Rijndael reference implementation, not custom crypto."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_custom_xor_crypto",
+   "path": "app/src/main/java/com/bitchat/android/noise/southernstorm/crypto/RijndaelAES.java",
+   "line": 234,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Standard AES encryption rounds using T-tables; not a custom XOR scheme."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_custom_xor_crypto",
+   "path": "app/src/main/java/com/bitchat/android/noise/southernstorm/crypto/RijndaelAES.java",
+   "line": 379,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Standard public-domain table-based AES (Rijndael) implementation; XOR is the AES round function, not custom crypto."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/nostr/NostrDirectMessageHandler.kt",
+   "line": 303,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message on Nostr favorite notification failure; no keys or content."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/nostr/NostrIdentity.kt",
+   "line": 241,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message on load failure, not the private key itself."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/nostr/NostrTransport.kt",
+   "line": 365,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message only; no message content or keys."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/nostr/RelayDirectory.kt",
+   "line": 255,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs relay list count and bundled asset SHA-256; public data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/onboarding/LocationStatusManager.kt",
+   "line": 222,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "getDiagnostics logs only whether location services/providers are enabled and the SDK level, not coordinates."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/onboarding/OnboardingCoordinator.kt",
+   "line": 73,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs onboarding permission status strings only."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/onboarding/OnboardingCoordinator.kt",
+   "line": 138,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs 'Critical permissions denied' constant string."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/onboarding/OnboardingCoordinator.kt",
+   "line": 156,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Logs 'Background location permission granted'; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/protocol/BinaryProtocol.kt",
+   "line": 367,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs packet type and exception message; no payload."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/protocol/BinaryProtocol.kt",
+   "line": 435,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Logs only payload length versus the max limit; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/protocol/CompressionUtil.kt",
+   "line": 210,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs byte count of a fixed test string in an unused testCompression helper."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/services/ConversationRepository.kt",
+   "line": 124,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs generic message plus exception; no conversation content or keys."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/services/MessageRouter.kt",
+   "line": 146,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Logs conversation/peer ID metadata, not message content; logcat not readable by other apps."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/ui/ChatViewModel.kt",
+   "line": 1530,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Static panic-mode error string; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/ui/GeohashViewModel.kt",
+   "line": 108,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs exception message for location channel init failure; no credentials or location data evident."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/util/UniversalApkManager.kt",
+   "line": 841,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs signing certificate fingerprints on mismatch; certificates are public, not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/util/UniversalApkManager.kt",
+   "line": 920,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs name of a deleted cached APK file; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/wifi-aware/WifiAwareController.kt",
+   "line": 328,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs 'Restart already in flight; coalescing request' constant."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/wifi-aware/WifiAwareMeshService.kt",
+   "line": 1116,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs truncated 8-char public mesh peer ID and IOException; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/bitchat/android/wifi-aware/WifiAwareMeshService.kt",
+   "line": 1232,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs truncated public peer IDs on route change refusal; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-android",
+   "rule": "android_kotlin_logging",
+   "path": "wear/src/main/java/com/bitchat/watch/mesh/WearMeshService.kt",
+   "line": 266,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Constant message 'Recreating BluetoothConnectionManager'; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "bitchat-ios",
+   "rule": "ios_insecure_random_no_generator",
+   "path": "bitchat/Services/RelayController.swift",
+   "line": 92,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Int.random for relay jitter delay; non-security use, and Swift uses SystemRandomNumberGenerator (CSPRNG)."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "breezy-weather",
+   "rule": "android_root_detection",
+   "path": "breezy-weather",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Breezy Weather handles no sensitive data; root detection is not a meaningful control here."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "breezy-weather",
+   "rule": "android_kotlin_insecure_random",
+   "path": "ui-weather-view/src/main/kotlin/org/breezyweather/ui/theme/weatherView/materialWeatherView/implementor/RainImplementor.kt",
+   "line": 75,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "java.util.Random for rain animation speed; not security-relevant."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/CalendarController.java",
+   "line": 839,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Log.wtf logs only the event type enum on illegal call; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/DayView.java",
+   "line": 4293,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Line 4293 is a scale-gesture coordinate calculation; no logging call there."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "hardcoded_username",
+   "path": "app/src/main/java/com/android/calendar/EventInfoFragment.java",
+   "line": 174,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Bundle key constant 'key_user_set_attendee_response', not a username."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/alerts/AlertUtils.java",
+   "line": 318,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line 318 is a map value assignment, not a log call."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/alerts/AlertUtils.java",
+   "line": 339,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "DEBUG=true ships, logging fired-alert pref keys (event id/time); minor metadata only."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "hardcoded_api_key",
+   "path": "app/src/main/java/com/android/calendar/alerts/AlertWorker.java",
+   "line": 30,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "KEY_ACTION = \"action\" is a WorkManager data key name, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/calendarcommon2/RecurrenceProcessor.java",
+   "line": 300,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Verbose-guarded log of recurrence rule; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/calendarcommon2/RecurrenceProcessor.java",
+   "line": 812,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line 812 is recurrence arithmetic (bymonthCount); no logging statement there."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/calendarcommon2/RecurrenceProcessor.java",
+   "line": 892,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Guarded by SPEW = false (compiled out); it logs only a month integer."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "hardcoded_api_key",
+   "path": "app/src/main/java/com/android/calendar/colorpicker/ColorPickerDialog.java",
+   "line": 47,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "KEY_COLOR_CONTENT_DESCRIPTIONS is a Bundle argument key name, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "etar",
+   "rule": "android_logging",
+   "path": "app/src/main/java/com/android/calendar/event/EventLocationAdapter.java",
+   "line": 454,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs typed location only inside Log.isLoggable(TAG, DEBUG) guard, off by default."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "feeder",
+   "rule": "android_task_hijacking2",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "minSdk = 29; StrandHogg 2.0 is patched on Android 10+, so no supported device is vulnerable."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "feeder",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/db/room/AppDatabase.kt",
+   "line": 298,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Static Room migration ALTER TABLE; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "feeder",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/model/FullTextParser.kt",
+   "line": 89,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs content length limit message; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "feeder",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/model/html/HtmlLinearizer.kt",
+   "line": 50,
+   "supplementary": true,
+   "verdict": "false",
+   "reason": "Log.e of a generic 'htmlFormattingFailed' message plus parse exception; no sensitive data logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "feeder",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/model/opml/OpmlActions.kt",
+   "line": 92,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Log.e of OPML import failure exception; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "feeder",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/nononsenseapps/feeder/ui/compose/searchfeed/SearchFeedScreen.kt",
+   "line": 441,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Logs 'Can't search' with exception; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "keyguard",
+   "rule": "android_certificate_pinning",
+   "path": "keyguard",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No pinning found (network_configuration.xml only restricts CAs), but app targets user-chosen servers; vault data E2E-encrypted."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "keyguard",
+   "rule": "android_kotlin_logging",
+   "path": "common/src/androidMain/kotlin/com/artemchep/keyguard/android/agentbridge/AgentBridgeService.kt",
+   "line": 273,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "$bridge is an AgentBridge enum name; session secret not logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "keyguard",
+   "rule": "android_kotlin_hardcoded",
+   "path": "common/src/commonMain/kotlin/com/artemchep/keyguard/common/service/export/impl/JsonExportServiceImpl.kt",
+   "line": 120,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "\"collectionIds\" is a JSON field name, not a hardcoded secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "keyguard",
+   "rule": "android_kotlin_hardcoded",
+   "path": "common/src/commonMain/kotlin/com/artemchep/keyguard/common/service/export/impl/JsonExportServiceImpl.kt",
+   "line": 152,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line is JSON key name 'tags' in export serializer; no hardcoded secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "keyguard",
+   "rule": "android_kotlin_logging",
+   "path": "desktopApp/src/jvmMain/kotlin/com/artemchep/keyguard/desktop/nativebundle/NativeBundleSmoke.kt",
+   "line": 62,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Desktop packaging smoke-test prints exception class/message to stderr; not mobile, not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "keyguard",
+   "rule": "android_kotlin_logging",
+   "path": "integration/gpgE2eTest/src/gpgE2eTest/kotlin/com/artemchep/keyguard/gpge2e/TestGpgAgentRequestProcessor.kt",
+   "line": 78,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Test-only gpgE2eTest source set, verbose stderr; not shipped."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "openreads",
+   "rule": "android_prevent_screenshot",
+   "path": "openreads",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Openreads is a book-tracking app; reading list in recents screenshot is not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "openreads",
+   "rule": "android_ssl_pinning",
+   "path": "openreads",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "No pinning found, but the app only fetches public book data; pinning is defense-in-depth here."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-ios",
+   "rule": "ios_keychain_weak_accessibility_value",
+   "path": "Modules/Sources/PocketCastsServer/Public/ServerSettings.swift",
+   "line": 416,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Refresh token uses AfterFirstUnlock (needed for background sync); only lacks ThisDeviceOnly, exposure limited to backups."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "protonvpn-ios",
+   "rule": "ios_load_html_string",
+   "path": "apps/macos/ProtonVPN/Scenes/About/ViewControllers/AcknowledgementsViewController.swift",
+   "line": 46,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "loadHTMLString renders bundled template and Pods metadata plist from app bundle; no user input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "IOS_BACKGROUND_MODES_UNNECESSARY",
+   "path": "ios/Discourse/Info.plist",
+   "line": 106,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Background fetch mode is intentionally used (BackgroundFetch in Discourse.js); no data exposure shown."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "INSECURE_DEEPLINK_HANDLER",
+   "path": "js/Discourse.js",
+   "line": 302,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Handler is in same file; known sites opened, unknown URLs restricted to http(s) and validated via Site.fromTerm."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "js/lib/handleDownload.js",
+   "line": 101,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "console.warn logs generic errors ('Invalid download request' etc.); no sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "js/screens/AddSiteScreen.js",
+   "line": 210,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Site discovery fetch has no timeout; only causes a stalled UI request, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "js/screens/DiscoverScreenComponents/TermBar.js",
+   "line": 30,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "URL is constant Site.discoverUrl()+'/?faq', not user-controlled."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "js/screens/DiscoverScreenComponents/api.js",
+   "line": 18,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Imports ../../../lib/fetch wrapper which sets xhr.timeout = 10000."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "js/screens/DiscoverScreenComponents/api.js",
+   "line": 29,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Missing fetch timeout is a UX/availability issue, not a security weakness."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "js/screens/DiscoverScreenComponents/api.js",
+   "line": 40,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Uses lib/fetch wrapper with xhr.timeout = 10000."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "js/screens/WebViewScreenComponents/WebViewComponent.js",
+   "line": 304,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Intended behavior: external links in forum pages open externally after canOpenURL; scheme restriction via originWhitelist."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "js/screens/WebViewScreenComponents/WebViewComponent.js",
+   "line": 431,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "console.error of addSite failure (site URL lookup error); no credentials or sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "js/screens/WebViewScreenComponents/WebViewComponent.js",
+   "line": 470,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "console.warn logs a JSON.parse SyntaxError for a WebView message; no sensitive data or secrets."
+  },
+  {
+   "tool": "rnsec",
+   "app": "discourse-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "js/site.js",
+   "line": 87,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Missing fetch timeout is a UX/availability issue, not a security weakness."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "EXCESSIVE_PERMISSIONS",
+   "path": "android/sdk/src/main/AndroidManifest.xml",
+   "line": 12,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Jitsi SDK is a video conferencing library; camera, mic and Bluetooth audio are needed."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "ANDROID_BACKUP_ALLOWED",
+   "path": "android/sdk/src/main/AndroidManifest.xml",
+   "line": 42,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "allowBackup=true, but data is settings/recent rooms; targetSdk 35 excludes app data from adb backup on Android 12+."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "IOS_CUSTOM_URL_SCHEME_UNPROTECTED",
+   "path": "ios/app/src/Info.plist",
+   "line": 23,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "org.jitsi.meet scheme opens meeting URLs by design; Google scheme is unused placeholder. Generic advisory."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "TEST_CREDENTIALS_IN_CODE",
+   "path": "modules/API/external/external_api.js",
+   "line": 55,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "'password' is an API command name mapping (password: 'password'), not a credential."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "DEPENDENCY_NONREGISTRY_SOURCE",
+   "path": "package.json",
+   "line": 79,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "First-party jitsi release tarball; package-lock records sha512 integrity hash."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "DEPENDENCY_NONREGISTRY_SOURCE",
+   "path": "package.json",
+   "line": 97,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "First-party jitsi GitHub release tarball; package-lock pins sha512 integrity."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "DEPENDENCY_NONREGISTRY_SOURCE",
+   "path": "package.json",
+   "line": 100,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Git dependency pinned to full commit SHA in jitsi's own fork, with lockfile integrity hash."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "DEPENDENCY_NONREGISTRY_SOURCE",
+   "path": "package.json",
+   "line": 116,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Git dependency pinned to full commit SHA in jitsi's own fork, with lockfile integrity hash."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "pwa-worker.js",
+   "line": 65,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Web service worker navigation fetch; missing timeout is not a security weakness."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "react/features/authentication/actions.native.ts",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Line 1 is imports; meeting auth sessions are server/JWT-controlled, no client session store lacking timeout."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "react/features/authentication/actions.native.ts",
+   "line": 139,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "URL comes from conference server's config.tokenAuthUrl; only server operator controls it, opening browser is intended."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "react/features/authentication/components/web/LoginDialog.tsx",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Login dialog UI; session expiry is enforced server-side by XMPP/JWT, not a client weakness."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "react/features/authentication/functions.native.ts",
+   "line": 1,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "File builds JWT login URL; token lifetime/expiry is server-side, no client session weakness."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "UNSAFE_DANGEROUSLY_SET_INNER_HTML",
+   "path": "react/features/base/icons/components/SvgXmlIcon.web.tsx",
+   "line": 28,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "SVG markup comes from operator branding config and is DOMPurify-sanitized via cleanSvg (functions.web.ts) before rendering."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/file-sharing/middleware.web.ts",
+   "line": 227,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "File download fetch lacks timeout (web code); robustness issue only."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/google-api/googleApi.native.js",
+   "line": 123,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Missing fetch timeout is availability/UX only; no attacker-exploitable security impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/invite/functions.ts",
+   "line": 902,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "fetch without timeout on dial-out request; reliability issue, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/invite/functions.ts",
+   "line": 924,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Missing fetch timeout on SIP invite POST is availability-only."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/invite/functions.ts",
+   "line": 981,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Missing fetch timeout is availability-only for dial-out status polling of operator service."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/jaas/functions.ts",
+   "line": 66,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "fetch without timeout to configured JaaS URL; reliability issue only."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/jaas/functions.ts",
+   "line": 92,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Missing fetch timeout is availability/UX only; endpoint is operator-configured JaaS base URL."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/reactions/functions.any.ts",
+   "line": 86,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "fetch without timeout for reactions POST; reliability only."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "react/features/recording/components/LiveStream/native/StreamKeyForm.tsx",
+   "line": 113,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "URL comes from deployment config and passes sanitizeUrl (functions.ts); not user-controlled."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/recording/functions.ts",
+   "line": 98,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "fetch for recording link lacks timeout; client-side hang/UX issue only, not exploitable."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "react/features/recording/functions.ts",
+   "line": 358,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "fetch without timeout is reliability only; fire-and-forget highlight POST, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "react/features/settings/components/native/LinksSection.tsx",
+   "line": 36,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "Opens legal/help URLs from deployment config on explicit user tap; minimal impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "JAVASCRIPT_ENABLED_BRIDGE",
+   "path": "react/features/toolbox/components/native/ScreenSharingIosButton.tsx",
+   "line": 102,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "Passes findNodeHandle result to own native picker; no untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "jitsi-meet",
+   "rule": "WEBVIEW_POSTMESSAGE_NO_ORIGIN_CHECK",
+   "path": "react/features/whiteboard/components/native/Whiteboard.tsx",
+   "line": 132,
+   "supplementary": false,
+   "verdict": "overrated",
+   "reason": "onShouldStartLoadWithRequest only allows the exact whiteboard URL; handler only sets whiteboard collab details. Iframe messages remain theoretical."
+  },
+  {
+   "tool": "semgrep",
+   "app": "keyguard",
+   "rule": "kotlin.lang.security.use-of-md5.use-of-md5",
+   "path": "buildPlugins/src/main/kotlin/com/artemchep/keyguard/buildplugins/resources/GenerateResHashesTask.kt",
+   "line": 64,
+   "supplementary": false,
+   "verdict": "false",
+   "reason": "MD5 in build plugin hashing resource files for change detection; not security use."
+  }
+ ]
+}

@@ -6,8 +6,8 @@ Developers ignore a scanner that raises many false alarms, so the maintainers me
 real apps before each release.
 
 These numbers come from the apps the rules were tuned on, after their false alarms were fixed, so they
-are the best case. On apps no rule was tuned on, a third or more of app-code findings were false alarms
-(26% for 0.6.2 on 21 apps, 45% for 0.6.3 on 18 more): see [Benchmark on unseen apps](benchmark.md).
+are the best case. On apps no rule was tuned on, about 4 in 10 app-code findings were false alarms
+(26% for 0.6.2, 45% for 0.6.3, 40% for 0.6.4, on 55 apps in all): see [Benchmark on unseen apps](benchmark.md).
 
 ## Method
 

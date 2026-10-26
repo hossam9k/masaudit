@@ -7,7 +7,7 @@
     python3 scripts/benchmark_compare.py summary OUT               # findings per tool and app, shipping code only
     python3 scripts/benchmark_compare.py sample OUT N [--seed S]   # N random findings per tool, to judge by hand
 
-`--round 2` (before the subcommand) uses the second set of apps.
+`--round 2` or `--round 3` (before the subcommand) uses a later set of apps.
 
 The tools: masaudit (this checkout's `src`, or --src), mobsfscan, Semgrep Community Edition with its free
 registry rulesets for the languages each app uses, and rnsec on React Native apps. Each runs with its
@@ -80,7 +80,27 @@ rustdesk             rustdesk/rustdesk                      59f2953c94b8373f124d
 spotube              team-spotube/spotube                   0d5b5b094e9dc8a08a80c88729472a71db4f3d78 .                          kmp           content
 """
 
-ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT}
+# Round 3: 16 more apps, chosen after 0.6.4 was released.
+APPS3_TEXT = """
+feeder               spacecowboy/Feeder                     7fb9e2263afcb750bb07d159cff0a138eb57c6f4 .                          android       content
+fossify-messages     FossifyOrg/Messages                    194fc3a117dca658389e0719ae83cdeb8145b542 .                          android       social
+breezy-weather       breezy-weather/breezy-weather          a4716932d963be09cb121fb9eeacee68ff30f4ea .                          android       general
+etar                 Etar-Group/Etar-Calendar               51bf4ecf0b13659fae753ae6cf129bee1f987d52 .                          android       general
+bitchat-android      permissionlesstech/bitchat-android     b8016545e00cc7317fd9dc938b8cb7796db190ff .                          android       social
+pocket-casts-ios     Automattic/pocket-casts-ios            2fc29b28d3a9a84f93738f9306209ef927774ada .                          ios           content
+bitchat-ios          permissionlesstech/bitchat             04995f68e470a18d1fc99f86fa326c2a87bab4f2 .                          ios           social
+element-ios          element-hq/element-ios                 7ba8beb088978786a6fc0aa3c9324a33ee77c38a .                          ios           social
+protonvpn-ios        ProtonVPN/ios-mac-app                  6973fc1f7703314d80cada3eba377766c55710e5 .                          ios           general
+discourse-mobile     discourse/DiscourseMobile              0e5d85ff18e8cff70b455824b1b9c0991bdc99ca .                          react-native  social
+jitsi-meet           jitsi/jitsi-meet                       3860ada65d279a46492ba8cef0f43557fefaa14b .                          react-native  social
+cake-wallet          cake-tech/cake_wallet                  162a688d103a4f956ec0738f656f53df097db6dd .                          flutter       banking
+saber                saber-notes/saber                      c0af8662b777bd3afa595eb35747c028719f4772 .                          flutter       general
+openreads            mateusz-bak/openreads                  74b613b0b3fc3a6e106fdc5aaede354e45ed4e58 .                          flutter       general
+authpass             authpass/authpass                      ceb3b3ea22f64ead1eb93b31b1f0657b7844631a .                          flutter       identity
+keyguard             AChep/keyguard-app                     cf9538ce4103e7fab247933036db1e88e69b359c .                          kmp           identity
+"""
+
+ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT, "3": APPS3_TEXT}
 _ROUND = ["1"]                                   # the round in use, set from --round
 
 TOOLS = ("masaudit", "mobsfscan", "semgrep", "rnsec")

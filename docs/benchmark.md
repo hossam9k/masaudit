@@ -9,21 +9,17 @@ scanners on the same commits, in two rounds. Losses are included.
 
 **Short version** (October 2026):
 
-- **On code it hasn't seen, expect a third or more of masaudit's app-code findings to be false alarms.**
-  Round 2 measured 0.6.3 on 18 new apps: 45% of the sampled app-code findings were false (33–58%).
-  One file in one app, a list of XMP namespace URLs that XPL-009 read as plain-HTTP traffic, produced 16%
-  of all app-code findings; without it, 35% were false. Round 1 measured 0.6.2 at 26%.
-- **Only about 1 in 11 app-code findings is a vulnerability as described.** Most of the rest are real
-  gaps that matter less than they sound: a missing hardening control, a debug-only setting.
-- **CI findings hold up:** none of the 45 sampled in round 2 was false (11 as serious as stated), and 2 of
-  49 in round 1.
-- **The other free scanners did worse in both rounds.** Round 2: mobsfscan's sampled findings were real
-  or overrated 12% of the time (0 of 60 as serious as stated), rnsec's 8% (0 of 40), Semgrep's free
-  rules 0 of 3. Round 1 was similar.
-- **Fixing one round's false alarms didn't make the next round clean.** After round 1, the same sample
-  fell to about 1 in 18 false; this page said the true figure for 0.6.3 would be between that and 1 in 4.
-  Round 2 found it was higher than both: new apps bring new causes. They are listed below as the next
-  work list.
+- **On code it hasn't seen, expect about 4 in 10 of masaudit's app-code findings to be false alarms.**
+  Three rounds on 55 apps: 26% for 0.6.2 (round 1), 45% for 0.6.3 (round 2; 35% without one outlier
+  file), and 40% for 0.6.4 (round 3, 29–52%). Fixing each round's false alarms didn't lower the next
+  round's rate: the causes are spread over many rules, a few each.
+- **Only about 1 in 7 to 1 in 11 app-code findings is a vulnerability as described.** Most of the rest are
+  real gaps that matter less than they sound: a missing hardening control, a debug-only setting.
+- **CI findings hold up:** 1 of 62 false in round 3, none of 45 in round 2, 2 of 49 in round 1.
+- **The other free scanners did worse in every round.** Round 3: mobsfscan's sampled findings were false
+  93% of the time, rnsec's 52% (none as serious as stated), Semgrep's free rules 1 of 1.
+- **The next step is structural, not another round of fixes:** see
+  [Round 3](#round-3-064-on-16-more-apps).
 
 ## Method
 
@@ -165,6 +161,45 @@ Two are left on purpose:
   another (Simplenote archives Release from its screenshot and intents schemes).
 
 AND-048 for a wallet with no backend is the same judgment call as in round 1.
+
+## Round 3: 0.6.4 on 16 more apps
+
+Chosen after 0.6.4 was released: Feeder, Fossify Messages, Breezy Weather, Etar, bitchat (Android);
+Pocket Casts, bitchat, Element, Proton VPN (iOS); Discourse and Jitsi Meet (React Native); Cake Wallet,
+Saber, Openreads, AuthPass (Flutter); Keyguard (Kotlin Multiplatform). Same method as round 2. The first
+draw held only 38 app-code findings, so 30 more were drawn at random from the rest (and 10 more mobsfscan
+findings, so judges still saw tools mixed); the 68 together are a random sample of the 241. Every verdict
+is in [benchmark-judgments-3.json](benchmark-judgments-3.json).
+
+| Tool | Findings | Total time |
+|---|---|---|
+| masaudit, each app's own type | 659 (418 CI, 241 app code) | 24 s |
+| mobsfscan | 2,591 | 35 min |
+| Semgrep, free registry rules | 1 | 41 s |
+| rnsec | 128 | 21 s |
+
+| Tool | Sample | Real | Overrated | False | Real or overrated |
+|---|---|---|---|---|---|
+| masaudit app code | 68 | 10 (15%, 8–25%) | 31 | 27 (40%, 29–52%) | 60% (48–71%) |
+| masaudit CI | 62 | 14 (23%, 14–34%) | 47 | 1 (2%, 0–9%) | 98% (91–100%) |
+| mobsfscan | 70 | 0 (0–5%) | 5 | 65 | 7% (3–16%) |
+| rnsec | 40 | 0 (0–9%) | 19 | 21 | 48% (33–63%) |
+| Semgrep, free registry rules | 1 | 0 | 0 | 1 | 0% |
+
+**Why fixing round by round didn't help:** the 27 false alarms come from 22 rules, one to three each,
+and fall into three groups:
+
+- **Code that doesn't ship** (about a third): a Gradle build plugin, a `scripts/` tool, a `sampleapps/`
+  app, a test client app, a macOS file in no project, a function nothing calls.
+- **Android manifest merging:** a permission removed with `tools:node="remove"`, and `allowBackup="false"`
+  set in a library module's manifest that the app inherits.
+- **Context a pattern can't see:** `Random()` for a UI animation tag, an all-zero key used only to test
+  for AES-256 support, logging behind a constant `false`, a PBKDF2 function nothing calls.
+
+Matching patterns one file at a time, masaudit can't know which code ships or what a value is for. The
+next releases aim at that rather than at single cases: reading the Gradle and Xcode project structure (which
+modules and targets build the app, and the merged Android manifest) to decide what ships, and marking the
+rules that keep misfiring *Check by hand* until they are reliable.
 
 ## After the round 1 fixes
 
