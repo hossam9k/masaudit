@@ -4,24 +4,26 @@
 
 [Accuracy and speed](precision.md) measures masaudit on the apps its rules were tuned on, after the false
 alarms found there were fixed. That number is optimistic by design. This page measures what a new user
-gets: 21 open-source apps that no rule was written or fixed for, scanned by masaudit and three other
-free scanners on the same commits. Losses are included.
+gets: open-source apps that no rule was written or fixed for, scanned by masaudit and three other free
+scanners on the same commits, in two rounds. Losses are included.
 
-**Short version** (October 2026, masaudit 0.6.2):
+**Short version** (October 2026):
 
-- **masaudit's findings on app code are useful about 3 times in 4, but only about 1 in 11 is a
-  vulnerability as described.** Most are real gaps that matter less than they sound: a missing
-  hardening control, a debug-only setting, a protection the app type doesn't need.
-- **About 1 in 4 of its app-code findings were false alarms.** The tuned corpus suggests 1 in 10, so
-  expect more noise on your code than [Accuracy and speed](precision.md) shows.
-- **Its CI findings hold up much better:** 47 of 49 sampled were real, 17 of them as serious as stated.
-- **The false alarms are fixed on `main`** (not yet released): on the same sample they fall from 1 in 4
-  to about 1 in 18, but that sample is no longer unseen, so the real figure for the next release will
-  be somewhere between. See [After the fixes](#after-the-fixes).
-- **The other free scanners did worse on the same apps.** On the sampled findings: mobsfscan was useful
-  2 times in 10 (1 of 80 serious), rnsec 2 in 10, and Semgrep's free registry rules 0 in 8.
-- **Every real weakness another tool found in the sample, masaudit found too** (2 of 2). The other
-  tools' extra findings were low-impact: debug logging, `allowBackup`, tapjacking.
+- **On code it hasn't seen, expect a third or more of masaudit's app-code findings to be false alarms.**
+  Round 2 measured 0.6.3 on 18 new apps: 45% of the sampled app-code findings were false (33–58%).
+  One file in one app, a list of XMP namespace URLs that XPL-009 read as plain-HTTP traffic, produced 16%
+  of all app-code findings; without it, 35% were false. Round 1 measured 0.6.2 at 26%.
+- **Only about 1 in 11 app-code findings is a vulnerability as described.** Most of the rest are real
+  gaps that matter less than they sound: a missing hardening control, a debug-only setting.
+- **CI findings hold up:** none of the 45 sampled in round 2 was false (11 as serious as stated), and 2 of
+  49 in round 1.
+- **The other free scanners did worse in both rounds.** Round 2: mobsfscan's sampled findings were real
+  or overrated 12% of the time (0 of 60 as serious as stated), rnsec's 8% (0 of 40), Semgrep's free
+  rules 0 of 3. Round 1 was similar.
+- **Fixing one round's false alarms didn't make the next round clean.** After round 1, the same sample
+  fell to about 1 in 18 false; this page said the true figure for 0.6.3 would be between that and 1 in 4.
+  Round 2 found it was higher than both: new apps bring new causes. They are listed below as the next
+  work list.
 
 ## Method
 
@@ -111,6 +113,46 @@ impact, and masaudit leaves out most on purpose, but they are gaps if your threa
 - Read *Fix before release* first. The long tail of hardening findings is advice, not a list of bugs.
 - Report false alarms. Each one in this benchmark became a fix with a test.
 
+## Round 2: 0.6.3 on 18 more apps
+
+Chosen after 0.6.3 was released, so no fix had seen them: Catima, Habitica, WireGuard, Material Files,
+Seal, Nextcloud Notes, Pocket Casts (Android); Ice Cubes, Simplenote, WooCommerce, Wire (iOS); Ledger
+Live and Blixt (React Native); Thunder, Aves, Hiddify, RustDesk (Flutter); Spotube (Kotlin
+Multiplatform). Same tools, scope, and judging as round 1, with one change: masaudit's sample was drawn
+from what a user sees, each app scanned with its own type (the types are in the script). Every verdict
+is in [benchmark-judgments-2.json](benchmark-judgments-2.json).
+
+| Tool | Findings | Total time |
+|---|---|---|
+| masaudit, each app's own type | 609 (318 CI, 291 app code) | 26 s |
+| mobsfscan | 1,793 | 45 min |
+| Semgrep, free registry rules | 3 | 52 s |
+| rnsec | 536 | 21 s |
+
+| Tool | Sample | Real | Overrated | False | Real or overrated |
+|---|---|---|---|---|---|
+| masaudit app code | 55 | 5 (9%, 4–20%) | 25 | 25 (45%, 33–58%) | 55% (42–67%) |
+| masaudit app code, without Aves' XMP file | 46 | 5 | 25 | 16 (35%) | 65% |
+| masaudit CI | 45 | 11 (24%, 14–39%) | 34 | 0 (0–8%) | 100% (92–100%) |
+| mobsfscan | 60 | 0 (0–6%) | 7 | 53 | 12% (6–22%) |
+| rnsec | 40 | 0 (0–9%) | 3 | 37 | 8% (3–20%) |
+| Semgrep, free registry rules | 3 | 0 | 0 | 3 | 0% |
+
+**masaudit's false alarms in round 2,** the work list for the next release:
+
+- XPL-009 reads XMP namespace URLs (`http://ns.google.com/photos/1.0/camera/`), a connectivity-check
+  option, and a placeholder in a demo credentials file as plain-HTTP traffic; none is fetched with user
+  data (11 of the 25).
+- IOS-019 checks Xcode test-host apps (`WireDataModelTestHost`) and a Flutter app's macOS runner, which
+  aren't iOS apps that ship.
+- AND-015 reports exported components that read no input: a settings screen, AndroidX's
+  `MediaTransferReceiver` (exported for the system's output switcher), a Wear OS main activity.
+- One each: IOS-021 on a Release configuration the App Store archive doesn't use, RN-008 on a web view
+  limited by `originWhitelist`, XPL-010 on a log of an option's name, XPL-017 on a loopback gRPC channel
+  that switches to mTLS, XPL-040 when a forced-update screen exists under another name, AND-031 on native
+  libraries unpacked from the app's own APK, AND-047 on R8 keep rules in a module that doesn't minify,
+  and AND-048 for a self-custodial wallet with no backend.
+
 ## After the fixes
 
 On `main` (unreleased), each false alarm in the sample was traced to its cause and fixed with a test,
@@ -134,7 +176,8 @@ rated low with a message that says what risk is left, and 3 are left on purpose:
 | App code | 36 | 4 | 30 | 2 | 94% (82–98%) |
 | CI | 47 | 17 | 30 | 0 | 100% (92–100%) |
 
-These are the same findings that guided the fixes, so they overstate what you'll see on new code. The
+These are the same findings that guided the fixes, so they overstate what you'll see on new code;
+[round 2](#round-2-063-on-18-more-apps) measured 0.6.3 on new apps. The
 three left on purpose question what a rule should report rather than how it reads code: a passcode
 fallback for a kiosk settings screen (XPL-018), Play Integrity for a self-hosted client (AND-048), and
 obfuscation for an open-source app (FLT-008). A new set of unseen apps will measure the next release.

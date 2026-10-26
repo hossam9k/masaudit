@@ -152,9 +152,10 @@ scanned the apps again.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
   about 5 seconds on a laptop, with no crashes on any of the 19.
 
-- **On 21 apps no rule was tuned on, expect more noise.** About 3 in 4 app-code findings were real
-  or real but overrated, and 1 in 4 were false alarms; CI findings held up (47 of 49). mobsfscan,
-  rnsec, and Semgrep's free rules did worse on the same apps. AI reviewers judged a sample:
+- **On apps no rule was tuned on, expect much more noise.** On 18 new apps, 45% of 0.6.3's sampled
+  app-code findings were false alarms (35% without one outlier file), against 1 in 10 on the tuned
+  corpus; CI findings held up (none of 45 false). mobsfscan, rnsec, and Semgrep's free rules did worse
+  on the same apps. AI reviewers judged samples in two rounds:
   [Benchmark on unseen apps](https://github.com/hossam9k/masaudit/blob/main/docs/benchmark.md).
 
 Method and per-rule numbers: [Accuracy and speed](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md).
