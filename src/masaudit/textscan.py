@@ -63,6 +63,24 @@ def first_in_span(text: str, rx: "re.Pattern[str]", start: int, end: int) -> Opt
     return found[k] if k < len(starts) and starts[k] < end else None
 
 
+def matches_in(text: str, rx: "re.Pattern[str]", start: int, end: int) -> List["re.Match[str]"]:
+    """What rx.finditer(text, start, end) yields, from one memoized pass over `text`: the matches that
+    start at or after `start` and end by `end`. Exact for patterns whose matches can't overlap and don't look
+    past their end (no lookahead), such as `\\bif\\s*\\(`: asked once per hit, a window scan was the cost."""
+    def build() -> Tuple[List[int], List["re.Match[str]"]]:
+        found = list(rx.finditer(text))
+        return [m.start() for m in found], found
+    starts, found = text_memo(text, ("matches", rx.pattern, rx.flags), build)  # type: ignore[misc]
+    out = []
+    for k in range(bisect.bisect_left(starts, start), len(starts)):
+        m = found[k]
+        if m.start() >= end:
+            break
+        if m.end() <= end:
+            out.append(m)
+    return out
+
+
 def found_in_span(text: str, rx: "re.Pattern[str]", start: int, end: int) -> bool:
     """rx.search(text[start:end]) is not None; see first_in_span."""
     return first_in_span(text, rx, start, end) is not None

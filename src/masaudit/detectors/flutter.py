@@ -9,13 +9,14 @@ Dart's `HttpClient` brings its own TLS stack, so `<pin-set>` and NSPinnedDomains
 
 from __future__ import annotations
 
+import bisect
 import re
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from masaudit import safety
 from masaudit.detect import scope_of as _scope_of
 from masaudit.guards import dart_debug, guarded_by
-from masaudit.textscan import bracket_match, first_in_span, found_in_span, name_index
+from masaudit.textscan import bracket_match, first_in_span, found_in_span, matches_in, name_index, text_memo
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -193,7 +194,7 @@ def _release_off(blank: str, idx: int) -> bool:
         return True
     if guarded_by(blank, idx, lambda c: "!kReleaseMode" in c and "&&" not in c):
         return True
-    for m in _ASSERT.finditer(blank, max(0, idx - 4000), idx):
+    for m in matches_in(blank, _ASSERT, max(0, idx - 4000), idx):
         if bracket_match(blank, m.end() - 1, "(", ")") > idx:
             return True
     return False
@@ -308,13 +309,37 @@ _JS_UNRESTRICTED = re.compile(r"\bJavaScriptMode\s*\.\s*unrestricted\b")
 
 
 def _enclosing_settings(blank: str, idx: int) -> Tuple[int, int]:
-    """Span of the arguments of the flutter_inappwebview settings call around `idx`; empty when there is none."""
-    best = (idx, idx)
-    for m in _INAPP_SETTINGS.finditer(blank, max(0, idx - 6000), idx):
-        args = _args_span(blank, m.end() - 1)
-        if args[1] > idx:
-            best = args
-    return best
+    """Span of the arguments of the flutter_inappwebview settings call around `idx`; empty when there is none.
+    The innermost such call starting within 6000 characters before `idx`. Argument lists nest, so it is the
+    last call opened before `idx` or the nearest call around that one: a walk up parents found in one pass
+    per file, not a bracket match for every call in the window for every hit."""
+    starts, opens, ends, parents = text_memo(blank, ("flt_settings_calls",), lambda: _settings_calls(blank))
+    lo = max(0, idx - 6000)
+    k = bisect.bisect_left(opens, idx) - 1
+    while k >= 0 and starts[k] >= lo:
+        if ends[k] > idx:
+            return opens[k], ends[k]
+        k = parents[k]
+    return idx, idx
+
+
+def _settings_calls(blank: str) -> Tuple[List[int], List[int], List[int], List[int]]:
+    """For every settings call: where its match starts, its `(`, the end of its arguments, its parent call."""
+    starts: List[int] = []
+    opens: List[int] = []
+    ends: List[int] = []
+    parents: List[int] = []
+    stack: List[int] = []
+    for m in _INAPP_SETTINGS.finditer(blank):
+        open_paren, end = _args_span(blank, m.end() - 1)
+        while stack and ends[stack[-1]] <= open_paren:
+            stack.pop()
+        parents.append(stack[-1] if stack else -1)
+        stack.append(len(opens))
+        starts.append(m.start())
+        opens.append(open_paren)
+        ends.append(end)
+    return starts, opens, ends, parents
 
 
 @detector("flutter_webview_file_access")

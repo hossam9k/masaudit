@@ -3,11 +3,15 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased (0.6.3)
+## 0.6.3 — 2026-10-26
 
-**Detector gaps found while writing the 0.6.2 fixtures.** Each fix has a fixture that 0.6.2 gets wrong.
+**Fewer false alarms and more found, measured on apps no rule was tuned on.** Rules 2.2.3. A new
+[benchmark](docs/benchmark.md) scanned 21 unseen apps with masaudit, mobsfscan, Semgrep, and rnsec: about
+1 in 4 of 0.6.2's app-code findings there were false alarms, against 1 in 10 on the tuned corpus. This
+release fixes the causes it found, and the gaps the 0.6.2 fixtures turned up. Every change has a test;
+on the 29-app corpus it removed only false alarms, and a baseline from 0.6.2 leaves nothing new open.
 
-### False alarms fixed
+### False alarms fixed (from the 0.6.2 fixtures)
 
 - KMP-003 counted only OkHttp's `CertificatePinner` as Android pinning. An unexpired `<pin-set>` in the
   network security config, which Android enforces for OkHttp and Ktor, now counts too.
@@ -71,6 +75,9 @@ Each has a test; on the 29-app corpus the change removed only false alarms.
 - SARIF import checks whether a result's path is inside the scanned folder by name before looking it up.
   Another machine's paths (`/home/runner/...`, an automount on macOS) cost about 2 ms a result to look
   up, so a 20,000-result file took about 40 seconds.
+- Debug-guard checks (`if (kDebugMode)`, `assert(...)`) and FLT-004's settings lookup read an index built
+  once per file instead of rescanning the code before every hit; on crafted Dart files with thousands of
+  hits that took 0.5 to 0.7 s on Python 3.9, and now under 0.1 s.
 - AND-046 and AND-076 look up a button's or field's later settings from one pass per file. A file with
   thousands of buttons or text fields took 0.7 to 0.8 s (4 s on a slow CI runner); it now takes 0.2 s.
 
