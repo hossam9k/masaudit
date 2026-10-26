@@ -3,12 +3,12 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.6.5 — 2026-10-26
 
-**Two new report buckets that never fail CI.** Three benchmark rounds on unseen apps judged 193 app-code
-findings: 52 came from rules that report a protection the app has nowhere, and 1 of those was a real
-vulnerability; four other rules were false alarms in two or more rounds. Fixing them case by case didn't
-carry over to new apps, so they move out of the fix lists.
+**Two new report buckets that never fail CI.** Rules 2.3.0. Three benchmark rounds on unseen apps judged
+193 app-code findings: 52 came from rules that report a protection the app has nowhere, and 1 of those
+was a real vulnerability; four other rules were false alarms in two or more rounds. Fixing them case by
+case didn't carry over to new apps, so they move out of the fix lists.
 
 ### Changed
 
@@ -24,7 +24,8 @@ carry over to new apps, so they move out of the fix lists.
 - **`--fail-on` no longer counts either bucket**, and SARIF reports them at `note` level with a
   security severity of low at most, so GitHub's default code scanning check doesn't fail on them. A
   pipeline that failed on one of these rules before passes now; the findings are still in every report.
-- Severity, fingerprints, and baselines are unchanged. Test and debug code keeps the usual downgrade.
+- Severity, fingerprints, and baselines are unchanged. A missing protection reported from test or debug
+  code keeps the usual downgrade instead of joining the checklist.
 
 **The trade-off.** Re-scored on the findings judged in benchmark rounds 1–3, false alarms in *Fix before
 release* and *Fix soon* drop from 50 to 15, and real findings from 17 to 15 (the other 2 are under *Check
