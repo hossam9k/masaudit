@@ -123,6 +123,89 @@ class Json(unittest.TestCase):
         self.assertNotIn("/tmp/demo-app", json.dumps(data))      # no absolute paths
 
 
+class SoftBuckets(unittest.TestCase):
+    """Hardening checklist items and findings from rules that often misread code: reported, never blockers."""
+
+    def setUp(self):
+        self.absent = rule("AND-048", "high", kind="hardening")
+        self.manual = rule("AND-013", "high", confidence="manual")
+        self.real = rule("AND-011", "medium")
+        self.rules = [self.absent, self.manual, self.real]
+
+    def test_buckets(self):
+        found = [f(self.absent), f(self.manual), f(self.real),
+                 f(self.manual, path="app/src/debug/AndroidManifest.xml", scope="debug"),
+                 f(self.absent, path="app/src/test/AndroidManifest.xml", scope="test")]
+        result(found, self.rules)
+        self.assertEqual([x.bucket for x in found], ["hardening", "check-by-hand", "fix-soon", "check-by-hand", "notes"])
+        # Test code: the usual downgrade, not a checklist item.
+        self.assertIn("banking app", found[0].bucket_reason)
+        self.assertIn("confirm", found[1].bucket_reason)
+        self.assertEqual(found[0].effective_severity, "high")       # the severity stays; only the bucket moves
+        # Not needed beats both.
+        nn = f(rule("AND-007", kind="hardening", app_types=["banking"]))
+        result([nn], self.rules, app_type="content")
+        self.assertEqual(nn.bucket, "not-needed")
+
+    def test_only_soft_findings_point_to_their_sections(self):
+        res = result([f(self.absent), f(self.manual)], self.rules)
+        out = terminal.render(res, report_path="/tmp/demo-app/SECURITY-AUDIT.md")
+        self.assertIn("No open findings to fix. Still: 1 to check by hand and 1 hardening item to consider.", out)
+        self.assertIn("start with Check by hand", out)
+        md = markdown.render(res)
+        self.assertIn("Nothing to fix right now. See Check by hand and Hardening checklist below.", md)
+        only = result([f(self.absent)], self.rules)
+        self.assertIn("start with the Hardening checklist", terminal.render(only, report_path="/tmp/a/SECURITY-AUDIT.md"))
+
+    def test_debug_reason_kept(self):
+        hit = f(self.manual, path="app/src/debug/AndroidManifest.xml", scope="debug")
+        result([hit], self.rules)
+        self.assertEqual(hit.bucket, "check-by-hand")
+        self.assertTrue(hit.bucket_reason.startswith("Lowered because it's in debug code."))
+
+    def test_fail_on_ignores_them(self):
+        found = [f(self.absent), f(self.manual)]
+        result(found, self.rules)
+        self.assertFalse(cli.fails(found, "low"))
+        found.append(f(self.real))
+        result(found, self.rules)
+        self.assertTrue(cli.fails(found, "medium"))
+
+    def test_reports(self):
+        res = result([f(self.absent), f(self.manual), f(self.real)], self.rules)
+        md = markdown.render(res)
+        self.assertIn("no release blockers found", md)
+        self.assertIn("Also: 1 finding to check by hand and 1 hardening item to consider.", md)
+        hand = md.split("## Check by hand")[1].split("\n## ")[0]
+        self.assertIn("AND-013", hand)
+        self.assertNotIn("AND-048", hand)
+        checklist = md.split("## Hardening checklist")[1].split("\n## ")[0]
+        self.assertIn("- [ ] **Title of AND-048", checklist)
+        self.assertNotIn("AND-048", md.split("## Top fixes")[1].split("\n## ")[0])
+        residual = md.split("## Residual risk")[1].split("\n## ")[0]
+        self.assertNotIn("AND-013", residual)                   # listed once, in its own section
+        plan = md.split("## Fix plan for your AI assistant")[1]
+        self.assertIn("First: confirm it's real", plan)
+        self.assertNotIn("AND-048", plan)
+        self.assertLess(md.index("## Fix soon"), md.index("## Check by hand"))
+        self.assertLess(md.index("## Check by hand"), md.index("## Hardening checklist"))
+        data = json.loads(jsonout.render(res))
+        self.assertEqual((data["summary"]["check-by-hand"], data["summary"]["hardening"]), (1, 1))
+        self.assertEqual({x["rule_id"]: x["kind"] for x in data["findings"]}["AND-048"], "hardening")
+        self.assertIn("Check by hand: 1   Hardening: 1", terminal.render(res))
+
+    def test_sarif_never_above_low(self):
+        from masaudit.report import sarif
+        res = result([f(self.absent), f(self.manual), f(self.real)], self.rules)
+        runs = sarif.to_dict(res)["runs"][0]
+        levels = {x["ruleId"]: (x["level"], x["properties"]["security-severity"]) for x in runs["results"]}
+        self.assertEqual(levels["AND-048"], ("note", "3.0"))
+        self.assertEqual(levels["AND-013"], ("note", "3.0"))
+        self.assertEqual(levels["AND-011"], ("warning", "5.0"))
+        rule_sev = {r["id"]: r["properties"]["security-severity"] for r in runs["tool"]["driver"]["rules"]}
+        self.assertEqual(rule_sev["AND-048"], "3.0")
+
+
 class JobSummary(unittest.TestCase):
     def test_summary_is_the_report_opening(self):
         from masaudit.report import markdown

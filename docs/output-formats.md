@@ -23,6 +23,8 @@ then these sections, in this order:
 |---|---|---|
 | **Fix before release** | Critical and high findings for your app type | Fix before you ship. |
 | **Fix soon** | Medium and low findings | Schedule them. |
+| **Check by hand** | Findings from rules that often misread code (`confidence: manual`) | Confirm each; fix the real ones. |
+| **Hardening checklist** | Protections your app type should have and the app has nowhere (root detection, App Attest, pinning) | Decide which to add. |
 | **Notes** | Informational findings | Read; act if they apply. |
 | **Not needed for your app (and why)** | Real findings your app type doesn't need | Nothing, unless your app type is wrong. |
 | **Accepted earlier (not counted)** | Findings suppressed with a reason, or in a baseline | Review them before each release. |
@@ -30,7 +32,8 @@ then these sections, in this order:
 | **Residual risk** | What a source scanner can't see, and what it couldn't decide | Check these by hand. |
 | **Fix plan for your AI assistant** | The open findings, ready to paste into a chat assistant | Optional. |
 
-*Accepted earlier* appears only when you have suppressions or a baseline. In the fix plan, code from
+*Check by hand*, *Hardening checklist*, and *Accepted earlier* appear only when they hold something.
+Only *Fix before release* and *Fix soon* count toward `--fail-on`. In the fix plan, code from
 your project is marked as data. [Read and fix the report](fixing.md) shows how to work through it.
 
 ## JSON
@@ -43,7 +46,7 @@ Top-level fields:
 | `tool`, `rules_version`, `generated` | masaudit's version, the rules version, and the scan date (UTC; set `SOURCE_DATE_EPOCH` for a fixed date). |
 | `project` | The project name and the platforms detected. |
 | `profile` | `app_type`, `mas_profiles`, `source` (`flag`, `config`, `prompt`, or `default`), `description`, `suggestions` (code clues), and `warnings` ("Check your app type"). |
-| `summary` | Counts per bucket: `fix-before-release`, `fix-soon`, `notes`, `not-needed`, `suppressed`, `baselined`. |
+| `summary` | Counts per bucket: `fix-before-release`, `fix-soon`, `check-by-hand`, `hardening`, `notes`, `not-needed`, `suppressed`, `baselined`. |
 | `findings` | One object per finding (below). |
 | `unknowns` | What the scanner couldn't decide. |
 | `notes` | Messages about the run, such as imports or baselines. |
@@ -53,7 +56,8 @@ Each finding has:
 - **Identity:** `rule_id`, `title`, `platform`, `path`, `line`, `snippet`, `message`, and a stable
   `fingerprint`.
 - **Rating:** `severity` (the rule's), `effective_severity` (after your app type and the file's scope),
-  `bucket`, `bucket_reason`, `confidence` (`high`, `medium`, or `manual` for *Check by hand*), and
+  `bucket`, `bucket_reason`, `confidence` (`high`, `medium`, or `manual` for *Check by hand*), `kind`
+  (`weakness`, or `hardening` for a protection the app has nowhere), and
   `scope` (`main`, `build-script`, `ci`, `debug`, `test`, or `unknown`).
 - **Status:** `status` (`open`, `suppressed`, or `baselined`), `suppression_reason`, and
   `acknowledged` (a decision recorded for another tool, such as Lint's `tools:ignore`).
@@ -83,6 +87,10 @@ SARIF 2.1.0, ready for GitHub code scanning (the [GitHub Action](ci.md) uploads 
   | medium | `warning` | 5.0 |
   | low | `note` | 3.0 |
   | info | `note` | 1.0 |
+
+  Findings in *Check by hand* and the *Hardening checklist* are reported at low at most (`note`, 3.0),
+  so GitHub's default code scanning check doesn't fail on them; *Not needed for your app* findings, when
+  included, at info.
 
 - Paths (`artifactLocation.uri`) are relative to the scanned folder. The
   [GitHub Action](ci.md) rewrites them to be relative to the repository root.

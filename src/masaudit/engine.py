@@ -432,6 +432,19 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
             f.bucket = "fix-soon"
         else:
             f.bucket = "notes"
+        if rule.kind == "hardening" and f.scope not in ("debug", "test"):
+            # A protection the app has nowhere (root detection, App Attest, a forced update): a checklist item
+            # for this app type, not a flaw in a line of code. Benchmarks on unseen apps found these almost never
+            # a vulnerability as described.
+            f.bucket = "hardening"
+            f.bucket_reason = f"A protection recommended for {a_type(profile.app_type)} app, not a flaw in your code."
+            continue
+        if rule.confidence == "manual" and f.bucket in ("fix-before-release", "fix-soon"):
+            # A rule that often misreads code: listed to check, never a release blocker or a --fail-on failure.
+            f.bucket = "check-by-hand"
+            lowered = f"Lowered because it's in {f.scope} code. " if f.scope in ("debug", "test") else ""
+            f.bucket_reason = lowered + "This rule often needs context a scanner can't see: confirm it before fixing."
+            continue
         if f.scope in ("debug", "test"):
             f.bucket_reason = f"Lowered because it's in {f.scope} code."
         elif f.acknowledged:

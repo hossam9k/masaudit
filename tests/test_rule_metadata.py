@@ -62,6 +62,7 @@ class RuleMetadata(unittest.TestCase):
             with self.subTest(rule=r.id):
                 self.assertIn(r.effort, ("minutes", "hours", "days"))
                 self.assertIn(r.confidence, ("high", "medium", "manual"))
+                self.assertIn(r.kind, ("weakness", "hardening"))
                 self.assertTrue(set(r.profiles) <= {"L1", "L2", "R", "P"} and r.profiles)
                 if r.app_types is not None:
                     self.assertTrue(set(r.app_types) <= set(profile.APP_TYPES))

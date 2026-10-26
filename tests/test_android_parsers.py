@@ -92,7 +92,7 @@ class AndroidCalibration(unittest.TestCase):
                     '<uses-permission android:name="android.permission.INTERNET"/><application/></manifest>')
         bank = self._run("AND-007", "banking")
         news = self._run("AND-007", "content")
-        self.assertEqual(bank[0].bucket, "fix-soon")
+        self.assertEqual(bank[0].bucket, "hardening")
         self.assertEqual(news[0].bucket, "not-needed")
         self.assertIn("§8.8", news[0].bucket_reason)
 

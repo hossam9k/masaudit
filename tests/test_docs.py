@@ -49,10 +49,12 @@ class ReadmeNumbers(unittest.TestCase):
         for app_type in ("banking", "news"):
             counts = collections.Counter(
                 f.bucket for f in cli.scan(demo, cli_type=app_type, allow_prompt=False).findings)
-            rows[app_type] = [counts["fix-before-release"], counts["fix-soon"], counts["not-needed"]]
+            rows[app_type] = [counts["fix-before-release"], counts["fix-soon"], counts["check-by-hand"],
+                              counts["hardening"], counts["not-needed"]]
         table = {}
-        for label in ("Fix before release", "Fix soon", "Not needed for your app"):
-            m = re.search(r"^\| " + re.escape(label) + r" \| (\d+) \| (\d+)", README, re.M)
+        for label in ("Fix before release", "Fix soon", "Check by hand",
+                      "Hardening checklist", "Not needed for your app"):
+            m = re.search(r"^\| " + re.escape(label) + r"[^|]* \| (\d+) \| (\d+)", README, re.M)
             self.assertIsNotNone(m, label)
             table[label] = (int(m.group(1)), int(m.group(2)))
         self.assertEqual([t[0] for t in table.values()], rows["banking"])

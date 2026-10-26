@@ -60,6 +60,20 @@ def _rule_entry(rule: Rule, severity: str) -> dict:
     return entry
 
 
+# Buckets that never fail CI: reported at "low" at most, so GitHub's default code scanning check (high and above)
+# doesn't block a pull request on a checklist item or an unconfirmed finding either.
+_SOFT_BUCKETS = ("check-by-hand", "hardening")
+
+
+def _severity(f: Finding) -> str:
+    sev = f.effective_severity or f.rule.severity
+    if f.bucket == "not-needed":
+        return "info"
+    if f.bucket in _SOFT_BUCKETS and SEVERITY_RANK.get(sev, 9) < SEVERITY_RANK["low"]:
+        return "low"
+    return sev
+
+
 def to_dict(result, include_not_needed: bool = False) -> dict:
     findings: List[Finding] = []
     for f in sorted(result.findings, key=sort_key):
@@ -71,9 +85,7 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
     worst: "OrderedDict[str, str]" = OrderedDict()
     rules: Dict[str, Rule] = {}
     for f in sorted(findings, key=lambda x: x.rule.id):
-        sev = f.effective_severity or f.rule.severity
-        if f.bucket == "not-needed":
-            sev = "info"
+        sev = _severity(f)
         prev = worst.get(f.rule.id)
         if prev is None or SEVERITY_RANK.get(sev, 9) < SEVERITY_RANK.get(prev, 9):
             worst[f.rule.id] = sev
@@ -83,12 +95,14 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
 
     results = []
     for f in findings:
-        sev = "info" if f.bucket == "not-needed" else (f.effective_severity or f.rule.severity)
+        sev = _severity(f)
         msg = f"{f.rule.title}."
         if f.message:
             msg += f" {f.message}"
         if f.bucket == "not-needed" and f.bucket_reason:
             msg += f" Not needed for this app: {f.bucket_reason}"
+        elif f.bucket in _SOFT_BUCKETS and f.bucket_reason:
+            msg += f" {f.bucket_reason}"
         location = {
             "physicalLocation": {
                 "artifactLocation": {"uri": _uri(f.location.path or "."), "uriBaseId": "%SRCROOT%"},

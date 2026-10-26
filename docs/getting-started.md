@@ -65,7 +65,8 @@ Platforms: android, ios, ci
 Profile:   banking (Banking, payments, wallets, crypto, lending, or insurance); MAS-L1+L2+R+P; from your answer
 Clue:      Found a payment SDK (Stripe) in android/app/build.gradle.kts - ecommerce may fit
 
-Fix before release: 12   Fix soon: 27   Notes: 0   Not needed: 0   Accepted: 0
+Fix before release: 10   Fix soon: 12
+Check by hand: 3   Hardening: 14   Notes: 0   Not needed: 0   Accepted: 0
 
 Top fixes:
   1. [critical] Release build is debuggable (AND-002) - android/app/build.gradle.kts:17
@@ -77,8 +78,11 @@ Report: .../acme-wallet/SECURITY-AUDIT.md
 Next: open SECURITY-AUDIT.md and start with Top fixes.
 ```
 
-- **Fix before release:** 12 issues serious enough to block a release of a banking app.
-- **Fix soon:** 27 real issues to schedule.
+- **Fix before release:** 10 issues serious enough to block a release of a banking app.
+- **Fix soon:** 12 issues to schedule.
+- **Check by hand:** 3 findings from rules that often misread code. Confirm each before you fix it.
+- **Hardening:** 14 protections a banking app should have and this one has nowhere (root detection,
+  certificate pinning, App Attest, ...). A checklist to plan, not bugs in a line of code.
 - **Not needed:** findings this app type doesn't need. A banking app needs everything, so it's 0.
 - **Couldn't decide:** something the scanner couldn't check from source alone. The report's
   *Residual risk* section lists it for you to check by hand.
@@ -116,7 +120,7 @@ uvx masaudit .
 ```
 
 masaudit doesn't ask the question again; it reads `.masaudit.ini`. The summary now shows
-`Fix before release: 11`, and *Release build is debuggable* is gone from the top fixes. You found,
+`Fix before release: 9`, and *Release build is debuggable* is gone from the top fixes. You found,
 fixed, and verified your first finding.
 
 ## 7. Scan your own app

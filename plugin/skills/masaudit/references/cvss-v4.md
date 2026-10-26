@@ -117,6 +117,10 @@ base severity for apps whose profile includes the weakness; masaudit then calibr
 | `low` | Fix soon | Worth fixing; small impact or demanding preconditions |
 | `info` | Notes, or *Not needed for your app* | Context, or a control this app's profile doesn't need |
 
+Two exceptions: a finding from a `manual`-confidence rule goes to *Check by hand*, and a protection the
+app has nowhere (`kind: hardening`) to the *Hardening checklist*, whatever its level. Neither fails
+`--fail-on`.
+
 The last column is a reading guide. Each finding's `why` text states the specific risk.
 
 How calibration works:
