@@ -58,7 +58,7 @@ Commit `.masaudit-baseline.json` and fix the accepted findings over time. In CI,
 `--baseline`, or with the Action's `baseline` input:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.6.4
+- uses: hossam9k/masaudit@<commit-sha> # v0.6.5
   with:
     app-type: banking
     baseline: .masaudit-baseline.json

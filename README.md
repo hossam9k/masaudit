@@ -130,7 +130,7 @@ In GitHub Actions, the step looks like this; the [CI guide](https://github.com/h
 has the complete workflow:
 
 ```yaml
-- uses: hossam9k/masaudit@<commit-sha> # v0.6.4
+- uses: hossam9k/masaudit@<commit-sha> # v0.6.5
   with:
     app-type: banking
     fail-on: high
@@ -156,7 +156,7 @@ scanned the apps again.
   about 5 seconds on a laptop, with no crashes on any of the 19.
 
 - **On apps no rule was tuned on, expect much more noise.** In three rounds on 55 new apps, 26% to 45%
-  of sampled app-code findings were false alarms (40% for 0.6.4), against 1 in 10 on the tuned corpus;
+  of sampled app-code findings were false alarms (40% for 0.6.5), against 1 in 10 on the tuned corpus;
   CI findings held up (1 of 62 false in the latest round). mobsfscan, rnsec, and Semgrep's free rules did
   worse on the same apps. AI reviewers judged every sample:
   [Benchmark on unseen apps](https://github.com/hossam9k/masaudit/blob/main/docs/benchmark.md).
