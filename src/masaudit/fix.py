@@ -10,7 +10,9 @@ reported as suggestions.
 
 from __future__ import annotations
 
+import bisect
 import difflib
+import itertools
 import os
 import re
 from dataclasses import dataclass, field
@@ -26,6 +28,7 @@ SAFE_FIX_RULES = {DEBUGGABLE_RULE}
 _ATTR = re.compile(r"""android:debuggable\s*=\s*(["'])\s*true\s*\1""", re.IGNORECASE)
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _CDATA = re.compile(r"<!\[CDATA\[.*?\]\]>", re.DOTALL)
+_APPLICATION = re.compile(r"<\s*application[\s/>]")
 
 
 @dataclass
@@ -46,40 +49,52 @@ class FixPlan:
 # ---------------------------------------------------------------------------- the edit
 
 
-def _blocked_ranges(text: str) -> List[Tuple[int, int]]:
-    return [m.span() for m in _COMMENT.finditer(text)] + [m.span() for m in _CDATA.finditer(text)]
+def _first_target(text: str) -> Optional[Tuple[int, int]]:
+    """The first `android:debuggable="true"` that sits on an <application> start tag, outside comments and
+    CDATA, as 0.6.1 found it, without its quadratic walk: membership in a comment or CDATA is a bisect,
+    and the backward search for each match's `<` stops where the previous match's search began."""
+    matches = _ATTR.finditer(text)
+    first = next(matches, None)
+    if first is None:
+        return None
+    spans = sorted([m.span() for m in _COMMENT.finditer(text)] + [m.span() for m in _CDATA.finditer(text)])
+    starts = [a for a, _b in spans]
+    reach = list(itertools.accumulate((b for _a, b in spans), max))   # spans can overlap or nest
 
+    def blocked(pos: int) -> bool:
+        k = bisect.bisect_right(starts, pos) - 1
+        return k >= 0 and reach[k] > pos
 
-def _in_application_tag(text: str, pos: int, blocked: List[Tuple[int, int]]) -> bool:
-    """True if `pos` sits inside an `<application ...>` start tag."""
-    lt = pos
-    while True:
-        lt = text.rfind("<", 0, lt)
+    done, done_lt = 0, -1          # the last unblocked `<` before `done`
+    for m in itertools.chain((first,), matches):
+        pos = m.start()
+        if blocked(pos):
+            continue
+        lt, hi = -1, pos
+        while hi > done:
+            lt = text.rfind("<", done, hi)
+            if lt == -1 or not blocked(lt):
+                break
+            hi, lt = lt, -1
         if lt == -1:
-            return False
-        if not any(a <= lt < b for a, b in blocked):
-            break
-    if text.find(">", lt, pos) != -1:
-        return False
-    return re.match(r"<\s*application[\s/>]", text[lt:]) is not None
+            lt = done_lt
+        done, done_lt = pos, lt
+        if lt == -1 or text.find(">", lt, pos) != -1:
+            continue
+        if _APPLICATION.match(text, lt):
+            return m.start(), m.end()
+    return None
 
 
 def remove_debuggable(text: str) -> str:
-    """Return `text` without `android:debuggable="true"` on <application>. Idempotent."""
+    """Return `text` without `android:debuggable="true"` on <application>. Idempotent. One attribute is cut
+    per pass and the text searched again, as cutting can change what is a comment or a tag."""
     out = text
     while True:
-        blocked = _blocked_ranges(out)
-        target = None
-        for m in _ATTR.finditer(out):
-            if any(a <= m.start() < b for a, b in blocked):
-                continue
-            if not _in_application_tag(out, m.start(), blocked):
-                continue
-            target = m
-            break
+        target = _first_target(out)
         if target is None:
             return out
-        out = _cut(out, target.start(), target.end())
+        out = _cut(out, *target)
 
 
 def _cut(text: str, start: int, end: int) -> str:
@@ -206,7 +221,6 @@ def apply(root: str, fixes: List[FileFix]) -> List[str]:
         current = _read_utf8(root, fx.path)
         if current != fx.old:
             continue
-        with open(full, "w", encoding="utf-8", newline="") as fh:
-            fh.write(fx.new)
+        safety.write_text(full, fx.new, root, newline="")   # replaces the file; never writes through a link
         written.append(fx.path)
     return written

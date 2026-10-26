@@ -523,28 +523,9 @@ def persist_credentials(ctx: Context, rule: Rule) -> Iterable[Hit]:
 # ---------------------------------------------------------------------------- tree inventory
 
 # safety.walk only lists text files worth reading. Signing material and lockfiles have other
-# extensions, so these rules list names (never contents) with the same pruning rules.
+# extensions, so these rules list names (never contents): Context.all_names.
 def _all_names(ctx: Context) -> List[str]:
-    cached = getattr(ctx, "_ci_all_names", None)
-    if cached is not None:
-        return cached
-    root = os.path.abspath(ctx.root)
-    out: List[str] = []
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        dirnames[:] = sorted(
-            d for d in dirnames
-            if d not in safety.SKIP_DIRS and not os.path.islink(os.path.join(dirpath, d))
-        )
-        for name in sorted(filenames):
-            full = os.path.join(dirpath, name)
-            rel = os.path.relpath(full, root)
-            if os.path.islink(full) or safety.has_control(rel):
-                continue
-            out.append(rel.replace(os.sep, "/"))
-            if len(out) >= safety.MAX_FILES:
-                break
-    ctx._ci_all_names = out  # type: ignore[attr-defined]
-    return out
+    return ctx.all_names()
 
 
 # ---------------------------------------------------------------------------- CI-006
@@ -721,7 +702,7 @@ def _gradle_verified(ctx: Context) -> bool:
     The file is often over safety.MAX_FILE_BYTES, so it is found by name and only its first 16 KiB,
     where <configuration> sits, are read.
     """
-    for p in _all_names(ctx):
+    for p in ctx.all_names(excluded=True):
         if p == "gradle/verification-metadata.xml" or p.endswith("/gradle/verification-metadata.xml"):
             head = _read_head(ctx, p, 16384)
             if head and VERIFY_METADATA.search(head):
@@ -731,9 +712,11 @@ def _gradle_verified(ctx: Context) -> bool:
 
 @detector("ci_missing_lockfile")
 def missing_lockfile(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    names = _all_names(ctx)
+    names = ctx.all_names(excluded=True)        # a lockfile in an excluded folder still exists
     bases = {p.rsplit("/", 1)[-1] for p in names}
     gradle_roots = [p for p in ctx.files() if _is_gradle_root(p)]
+    if not ctx.names_complete:
+        return                                   # a lockfile may sit past the cap: all_names noted it
     if gradle_roots and not any(b.endswith(".lockfile") for b in bases):
         uses_locking = any("dependencyLocking" in (ctx.text(p) or "")
                            for p in ctx.files(".gradle", ".gradle.kts"))

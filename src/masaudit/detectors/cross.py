@@ -2100,27 +2100,8 @@ DART_CLIENT_CERT = re.compile(r"\.\s*(?:useCertificateChain(?:Bytes)?|usePrivate
 
 def _shipped_key_files(ctx: Context) -> List[str]:
     """Names (never contents) of .pem and .key files in shipped resource folders; safety.walk skips them."""
-    cached = getattr(ctx, "_xpl_key_files", None)
-    if cached is not None:
-        return cached
-    import os
-
-    from masaudit import safety
-    root = os.path.abspath(ctx.root)
-    out: List[str] = []
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        dirnames[:] = sorted(d for d in dirnames if d not in safety.SKIP_DIRS
-                             and not os.path.islink(os.path.join(dirpath, d)))
-        for name in filenames:
-            if name.lower().endswith((".pem", ".key")):
-                rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/")
-                if _SHIPPED_DIR.search("/" + rel) and not os.path.islink(os.path.join(dirpath, name)) \
-                        and not safety.has_control(rel):
-                    out.append(rel)
-        if len(out) > 200:
-            break
-    ctx._xpl_key_files = out  # type: ignore[attr-defined]
-    return out
+    return [rel for rel in ctx.all_names()
+            if rel.lower().endswith((".pem", ".key")) and _SHIPPED_DIR.search("/" + rel)][:200]
 
 
 @detector("xpl_bundled_private_key")

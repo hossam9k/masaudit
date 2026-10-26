@@ -1,0 +1,6 @@
+# Every change needs a review from the maintainer; rules and the Action are the most sensitive.
+* @hossam9k
+/src/masaudit/rules/ @hossam9k
+/src/masaudit/detectors/ @hossam9k
+/action.yml @hossam9k
+/.github/workflows/ @hossam9k

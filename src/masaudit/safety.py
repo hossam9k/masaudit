@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import re
 import stat
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Set, Tuple
 
 MAX_FILE_BYTES = 2 * 1024 * 1024        # 2 MiB: source and config files are far smaller
 # Large apps have big Xcode project files (Signal's is 2.5 MB); every project-level iOS check needs it.
@@ -74,7 +74,7 @@ def walk(root: str, skipped: Optional[List[Tuple[str, str]]] = None) -> List[str
     def skip(full: str, reason: str) -> None:
         if skipped is not None:
             rel = os.path.relpath(full, root).replace(os.sep, "/")
-            skipped.append((re.sub(r"[\x00-\x1f\x7f]", "?", rel), reason))
+            skipped.append((clean_text(re.sub(r"[\x00-\x1f\x7f]", "?", rel)), reason))
 
     def unreadable(err: OSError) -> None:
         # A folder that can't be listed (no permission, a path too long) would otherwise vanish silently.
@@ -94,6 +94,9 @@ def walk(root: str, skipped: Optional[List[Tuple[str, str]]] = None) -> List[str
             rel = os.path.relpath(full, root)
             if has_control(rel):
                 skip(full, "control characters in the name")    # in a file or folder name, they could forge lines
+                continue
+            if clean_text(rel) != rel:
+                skip(full, "name isn't valid UTF-8")    # it couldn't be written to a report
                 continue
             if os.path.islink(full) and not is_within(root, full):
                 skip(full, "symbolic link to a file outside the folder")
@@ -116,6 +119,30 @@ def walk(root: str, skipped: Optional[List[Tuple[str, str]]] = None) -> List[str
                 skip(dirpath, f"the scan stops after {MAX_FILES:,} files")
                 return out
     return out
+
+
+def walk_names(root: str) -> Tuple[List[str], Set[str], bool]:
+    """Every file under `root`, of any type, as repo-relative names (forward slashes), the subset that are
+    symbolic links, and whether the listing is complete. Names only: nothing is opened. Pruned like walk
+    (SKIP_DIRS, linked folders, control characters) and capped at MAX_FILES names. For rules about files walk
+    leaves out (keystores, keys, lockfiles)."""
+    root = os.path.abspath(root)
+    names: List[str] = []
+    links: Set[str] = set()
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not os.path.islink(os.path.join(dirpath, d)))
+        for name in sorted(filenames):
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, root)
+            if has_control(rel) or clean_text(rel) != rel:
+                continue
+            rel = rel.replace(os.sep, "/")
+            names.append(rel)
+            if os.path.islink(full):
+                links.add(rel)
+            if len(names) >= MAX_FILES:
+                return names, links, False
+    return names, links, True
 
 
 def _is_hard_link(full: str) -> bool:
@@ -173,6 +200,18 @@ def read_bytes(root: str, rel: str) -> Optional[bytes]:
             return None
         with open(full, "rb") as fh:
             return fh.read()
+    except OSError:
+        return None
+
+
+def read_head(root: str, rel: str, size: int) -> Optional[bytes]:
+    """The first `size` bytes of a file, with the same link and file-type checks as read_bytes."""
+    full = os.path.join(root, rel)
+    if not is_within(root, full) or _is_hard_link(full) or not _is_regular(full):
+        return None
+    try:
+        with open(full, "rb") as fh:
+            return fh.read(size)
     except OSError:
         return None
 
@@ -256,11 +295,23 @@ def _inside(path: str, root: str) -> bool:
     return rel != ".." and not rel.startswith(".." + os.sep)
 
 
+def clean_text(text: str) -> str:
+    r"""`text` with UTF-16 surrogate pairs joined and lone surrogates replaced by U+FFFD: a lone surrogate
+    (from a `\UD800` escape in a project file, or `"\ud800"` in JSON) can't be written as UTF-8 and would
+    stop every report."""
+    try:
+        text.encode("utf-8")
+        return text
+    except UnicodeEncodeError:
+        return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+
+
 def write_text(path: str, text: str, root: Optional[str] = None, newline: Optional[str] = "\n") -> None:
     """Write a file masaudit owns (a report, baseline, patch, or .masaudit.ini). Inside the scanned folder
     the repository decides what already sits at `path`, so a symlink or hard link there is replaced, never
     followed, and a FIFO or device is refused: the text goes to a new file that takes the old name. Outside
     it (`--output /dev/null`, a path the user typed) the file is written as usual."""
+    text = clean_text(text)
     if root is None or not _inside(path, root):
         with open(path, "w", encoding="utf-8", newline=newline) as fh:
             fh.write(text)
@@ -277,9 +328,12 @@ def write_text(path: str, text: str, root: Optional[str] = None, newline: Option
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline=newline) as fh:
             fh.write(text)
-        mask = os.umask(0)
-        os.umask(mask)
-        os.chmod(tmp, 0o666 & ~mask)        # the permissions a plain open() would give
+        if st is not None and stat.S_ISREG(st.st_mode):
+            os.chmod(tmp, stat.S_IMODE(st.st_mode) & 0o777)  # an existing file keeps its mode (no setuid)
+        else:
+            mask = os.umask(0)
+            os.umask(mask)
+            os.chmod(tmp, 0o666 & ~mask)    # the permissions a plain open() would give
         os.replace(tmp, path)               # replaces the directory entry: a link's target is untouched
     except BaseException:
         try:

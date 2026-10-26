@@ -17,7 +17,7 @@ from masaudit import guards
 from masaudit.detect import scope_of as _scope_of
 from masaudit.detectors import flutter, rn_expo
 from masaudit.guards import guarded_by
-from masaudit.textscan import bracket_match, finditer_lit, holds_all, holds_any, text_memo, xml_tags
+from masaudit.textscan import bracket_match, finditer_lit, holds_all, holds_any, name_index, text_memo, xml_tags
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import gradle, manifest, proguard, xmlsafe
@@ -3781,9 +3781,12 @@ def _key_name(code: str, arg: str) -> str:
     if arg.startswith('"'):
         return arg.strip('"')
     name = arg.rsplit(".", 1)[-1]
-    found = text_memo(code, ("key", name), lambda: re.search(
-        r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code))
-    return name + " " + (found.group(1) if found else "")
+    if not re.fullmatch(r"[A-Za-z_]\w*", name):  # `Keys.`, `k.1x`: not an identifier, searched as 0.6.1 did
+        found = re.search(r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code)
+        return name + " " + (found.group(1) if found else "")
+    # One pass per file for every constant, not a search of the file per key (quadratic with many keys).
+    found = name_index(code, r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"").get(name)
+    return name + " " + (found.group(2) if found else "")
 
 
 class _Statements:

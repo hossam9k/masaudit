@@ -1,0 +1,19 @@
+# Release builds obfuscate (flags in any order, path from a CI variable); web and profile builds are out of scope.
+stages: [test, build]
+
+test:
+  stage: test
+  script:
+    - flutter analyze
+    - flutter test
+
+android:release:
+  stage: build
+  script:
+    - fvm flutter build appbundle --release --split-debug-info=$CI_PROJECT_DIR/symbols --obfuscate
+    - flutter build apk --profile
+
+web:release:
+  stage: build
+  script:
+    - flutter build web --release

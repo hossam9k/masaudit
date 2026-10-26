@@ -1,0 +1,14 @@
+# GitLab CI through fvm: one build splits debug info without obfuscating, the other passes neither flag.
+stages: [build]
+
+android:release:
+  stage: build
+  script:
+    - fvm flutter pub get
+    - fvm flutter build appbundle --release --flavor prod -t lib/main_prod.dart --split-debug-info=build/symbols
+
+ios:release:
+  stage: build
+  tags: [macos]
+  script:
+    - fvm flutter build ipa --release --export-options-plist=ios/ExportOptions.plist

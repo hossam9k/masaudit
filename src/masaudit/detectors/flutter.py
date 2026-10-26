@@ -10,12 +10,12 @@ Dart's `HttpClient` brings its own TLS stack, so `<pin-set>` and NSPinnedDomains
 from __future__ import annotations
 
 import re
-from typing import Dict, Iterable, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from masaudit import safety
 from masaudit.detect import scope_of as _scope_of
 from masaudit.guards import dart_debug, guarded_by
-from masaudit.textscan import bracket_match
+from masaudit.textscan import bracket_match, found_in_span, name_index
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -80,7 +80,7 @@ BAD_CERT_REF = re.compile(r"\bbadCertificateCallback\s*=\s*([A-Za-z_]\w*)\s*[;),
 
 
 def _function_returns_true(code: str, name: str) -> bool:
-    return bool(re.search(r"\b" + re.escape(name) + r"\s*\([^()]*\)\s*" + _RETURNS_TRUE, code))
+    return name in name_index(code, r"\s*\([^()]*\)\s*" + _RETURNS_TRUE)
 
 
 @detector("flutter_trust_all")
@@ -106,6 +106,9 @@ def trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 _SENSITIVE = re.compile(r"(?i)token|password|passwd|secret|jwt|credential|api_?key")
 _NOT_SECRET = re.compile(r"(?i)fcm|apns|push|device|expir")
+_NOT_SECRET_KEY = re.compile(r"(?i)(?:type|version|policy|hint|length)$")   # token_type, password_policy_version
+# A constant value (a plain string, number, boolean, or null) is a setting, not a token someone received.
+_LITERAL_VALUE = re.compile(r"""^\s*(?:'[^'$\\\n]*'|"[^"$\\\n]*"|-?\d[\d.]*|true|false|null)\s*\)?\s*$""")
 _SET_CALL = re.compile(
     r"\.\s*set(?:String|StringList)\s*\(\s*(?:[\"']([^\"'\n]*)[\"']|([A-Za-z_][\w.]*))\s*,\s*([^,;\n]*)"
 )
@@ -116,8 +119,8 @@ def _key_text(code: str, literal: Optional[str], ident: Optional[str]) -> str:
     if literal is not None:
         return literal
     name = (ident or "").rsplit(".", 1)[-1]
-    m = re.search(r"\b" + re.escape(name) + r"\s*=\s*[\"']([^\"'\n]*)[\"']", code)
-    return m.group(1) if m else name
+    m = name_index(code, r"\s*=\s*[\"']([^\"'\n]*)[\"']").get(name)
+    return m.group(2) if m else name
 
 
 @detector("flutter_prefs_token")
@@ -134,7 +137,10 @@ def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
             value = bare[m.start(3):m.end(3)]                 # the value expression, strings blanked
             names = [w for w in re.findall(r"[A-Za-z_]\w*", value) if _SENSITIVE.search(w)]
             what = key if _SENSITIVE.search(key) else names[0] if names else ""
-            if not what or _NOT_SECRET.search(key) or _NOT_SECRET.search(value):
+            if not what or _NOT_SECRET.search(key) or _NOT_SECRET.search(value) \
+                    or (what == key and _NOT_SECRET_KEY.search(key)):          # `token_type`, not `auth_type: token`
+                continue
+            if _LITERAL_VALUE.match(code[m.start(3):m.end(3)]):
                 continue
             line = ctx.line_of(code, m.start())
             if line in seen:
@@ -162,8 +168,9 @@ def _release_off(blank: str, idx: int) -> bool:
     return False
 
 
-def _args_of(blank: str, open_paren: int) -> str:
-    return blank[open_paren:bracket_match(blank, open_paren, "(", ")") + 1]
+def _args_span(blank: str, open_paren: int) -> Tuple[int, int]:
+    """Where the argument list opening at `open_paren` sits: `(` up to its `)`, or the end of the file."""
+    return open_paren, min(len(blank), bracket_match(blank, open_paren, "(", ")") + 1)
 
 
 def _hit_at(ctx: Context, path: str, blank: str, idx: int, message: str) -> Hit:
@@ -204,14 +211,17 @@ def _locked_version(ctx: Context, pubspec_dir: Optional[str], package: str) -> T
     return ()
 
 
-def _arg(args: str, name: str, value: str) -> bool:
-    return bool(re.search(r"\b" + name + r"\s*:\s*" + value + r"\b", args))
+def _arg(blank: str, span: Tuple[int, int], name: str, value: str) -> bool:
+    """Is `name: value` among the arguments in `span`? (A lookup, not a scan of the arguments: an unclosed
+    call's arguments run to the end of the file, and a scan per call made such files quadratic.)"""
+    return found_in_span(blank, re.compile(r"\b" + name + r"\s*:\s*" + value + r"\b"), *span)
 
 
 # ---------------------------------------------------------------------------- FLT-003
 
 _PRETTY = re.compile(r"\bPrettyDioLogger\s*\(")
 _LOG_INTERCEPTOR = re.compile(r"\bLogInterceptor\s*\(")
+_LOG_PRINT = re.compile(r"\blogPrint\s*:")
 
 
 @detector("flutter_dio_logger")
@@ -222,22 +232,24 @@ def dio_logger(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         blank = ctx.code(path, keep_strings=False) or ""
         for m in _PRETTY.finditer(blank):
-            args = _args_of(blank, m.end() - 1)
+            args = _args_span(blank, m.end() - 1)
             # Defaults: response bodies on; headers and request bodies off.
-            if (_arg(args, "responseBody", "false") and not _arg(args, "requestHeader", "true")
-                    and not _arg(args, "requestBody", "true") and not _arg(args, "responseHeader", "true")):
+            if (_arg(blank, args, "responseBody", "false") and not _arg(blank, args, "requestHeader", "true")
+                    and not _arg(blank, args, "requestBody", "true")
+                    and not _arg(blank, args, "responseHeader", "true")):
                 continue
             yield _hit_at(ctx, path, blank, m.start(),
                           "PrettyDioLogger prints requests and responses with `print`, which reaches the "
                           "device log in release builds.")
         version: Optional[Tuple[int, ...]] = None
         for m in _LOG_INTERCEPTOR.finditer(blank):
-            args = _args_of(blank, m.end() - 1)
+            args = _args_span(blank, m.end() - 1)
             # Defaults: request and response headers on; bodies off.
-            if (_arg(args, "requestHeader", "false") and _arg(args, "responseHeader", "false")
-                    and not _arg(args, "requestBody", "true") and not _arg(args, "responseBody", "true")):
+            if (_arg(blank, args, "requestHeader", "false") and _arg(blank, args, "responseHeader", "false")
+                    and not _arg(blank, args, "requestBody", "true")
+                    and not _arg(blank, args, "responseBody", "true")):
                 continue
-            if re.search(r"\blogPrint\s*:", args):
+            if found_in_span(blank, _LOG_PRINT, *args):
                 msg = ("LogInterceptor sends headers, including `Authorization`, to a custom `logPrint` "
                        "that also runs in release builds.")
             else:
@@ -261,12 +273,12 @@ _FILE_ACCESS = re.compile(r"\ballowFileAccess\s*[:=]\s*true\b")
 _MIXED = re.compile(r"\bmixedContentMode\s*[:=]\s*(?:Android)?MixedContentMode\s*\.\s*MIXED_CONTENT_ALWAYS_ALLOW\b")
 
 
-def _enclosing_settings(blank: str, idx: int) -> str:
-    """Arguments of the flutter_inappwebview settings call around `idx`, or '' when there is none."""
-    best = ""
+def _enclosing_settings(blank: str, idx: int) -> Tuple[int, int]:
+    """Span of the arguments of the flutter_inappwebview settings call around `idx`; empty when there is none."""
+    best = (idx, idx)
     for m in _INAPP_SETTINGS.finditer(blank, max(0, idx - 6000), idx):
-        args = _args_of(blank, m.end() - 1)
-        if m.end() - 1 + len(args) > idx:
+        args = _args_span(blank, m.end() - 1)
+        if args[1] > idx:
             best = args
     return best
 
@@ -286,7 +298,7 @@ def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
             found.append((m.start(), "`MIXED_CONTENT_ALWAYS_ALLOW` lets an HTTPS page load scripts over plain "
                                      "HTTP, which anyone on the network can replace."))
         for m in _FILE_ACCESS.finditer(blank):
-            if _arg(_enclosing_settings(blank, m.start()), "javaScriptEnabled", "false"):
+            if _arg(blank, _enclosing_settings(blank, m.start()), "javaScriptEnabled", "false"):
                 continue                         # JavaScript is on by default in flutter_inappwebview
             found.append((m.start(), "`allowFileAccess` is on with JavaScript enabled, so page scripts can "
                                      "read local files through `file://` URLs."))
@@ -309,23 +321,23 @@ _CONDITION = re.compile(r"\bif\s*\(|\bswitch\s*\(|\?\s*[^.?\s]|==|!=|&&|\|\||\bc
 _BODY_START = re.compile(r"\s*(?:async\s*)?(\{|=>)")
 
 
-def _closure_body(blank: str, start: int) -> str:
-    """Body of the closure, or of the named function, passed as a handler at `start`."""
+def _closure_body(blank: str, start: int) -> Tuple[int, int]:
+    """Span of the body of the closure, or of the named function, passed as a handler at `start`."""
     ref = re.compile(r"([A-Za-z_]\w*)\s*[,)]").match(blank, start)
     if ref:                                      # a function reference: find its declaration
-        decl = re.search(r"\b" + re.escape(ref.group(1)) + r"\s*\([^()]*\)\s*(?:async\s*)?(\{|=>)", blank)
+        decl = name_index(blank, r"\s*\([^()]*\)\s*(?:async\s*)?(\{|=>)").get(ref.group(1))
         if not decl:
-            return ""
-        at = decl.start(1)
+            return start, start
+        at = decl.start(2)
     else:
         if not blank.startswith("(", start):
-            return ""
+            return start, start
         m = _BODY_START.match(blank, bracket_match(blank, start, "(", ")") + 1)
         if not m:
-            return ""
+            return start, start
         at = m.start(1)
     if blank.startswith("{", at):
-        return blank[at:bracket_match(blank, at, "{", "}") + 1]
+        return at, min(len(blank), bracket_match(blank, at, "{", "}") + 1)
     depth = 0                                    # arrow body: up to the `,` or `)` that ends it
     for j in range(at + 2, min(len(blank), at + 3000)):
         c = blank[j]
@@ -333,11 +345,17 @@ def _closure_body(blank: str, start: int) -> str:
             depth += 1
         elif c in ")]}":
             if depth == 0:
-                return blank[at:j]
+                return at, j
             depth -= 1
         elif c in ",;" and depth == 0:
-            return blank[at:j]
-    return blank[at:at + 3000]
+            return at, j
+    return at, min(len(blank), at + 3000)
+
+
+def _body_has(blank: str, rx: "re.Pattern[str]", span: Tuple[int, int]) -> bool:
+    if span[1] - span[0] <= 3000:                # arrow bodies and short blocks: search the slice
+        return rx.search(blank[span[0]:span[1]]) is not None
+    return found_in_span(blank, rx, *span)       # a long `{...}` block, which may hold many other handlers
 
 
 @detector("flutter_webview_trust_all")
@@ -349,7 +367,7 @@ def webview_trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
         blank = ctx.code(path, keep_strings=False) or ""
         for m in _TRUST_HANDLER.finditer(blank):
             body = _closure_body(blank, m.end())
-            if not _PROCEEDS.search(body) or _CONDITION.search(body):
+            if not _body_has(blank, _PROCEEDS, body) or _body_has(blank, _CONDITION, body):
                 continue
             yield _hit_at(ctx, path, blank, m.start(),
                           f"`{m.group(1)}` proceeds without checking the certificate, so the web view "
@@ -427,6 +445,49 @@ _BUILD_CMD = re.compile(r"\bflutter\s+build\b")
 _YAML_COMMENT = re.compile(r"(^|[ \t])#[^\n]*", re.MULTILINE)
 
 
+_FOLDED_HEADER = re.compile(r"(?:^|[\s:-])>[-+]?[0-9]?\s*$")
+_FOLD_LINES = 50                                 # lines a folded command may span, at most
+
+
+def _folded_lines(text: str) -> Dict[int, int]:
+    """{line start offset: content indent} for the lines of YAML folded blocks (`run: >`), in one pass."""
+    out: Dict[int, int] = {}
+    header, content = -1, -1                     # the open block's header indent and content indent
+    pos = 0
+    for line in text.split("\n"):
+        indent = len(line) - len(line.lstrip(" "))
+        if line.strip():
+            if header >= 0 and indent > header:
+                if content < 0:
+                    content = indent
+                out[pos] = content
+            else:
+                header, content = (indent, -1) if _FOLDED_HEADER.search(line) else (-1, -1)
+        pos += len(line) + 1
+    return out
+
+
+def _folded_rest(text: str, folded: Dict[int, int], start: int, end: int) -> str:
+    """The lines a folded block joins onto the command at `start`: in a `>` block, line breaks between lines
+    of the block's indent become spaces, so `--obfuscate` on the next line belongs to the same command. A
+    blank line, a more-indented line, or another `flutter build` ends it."""
+    line_start = text.rfind("\n", 0, start) + 1
+    indent = folded.get(line_start)
+    if indent is None or len(text[line_start:start]) - len(text[line_start:start].lstrip(" ")) != indent:
+        return ""
+    rest: List[str] = []
+    pos = end + 1
+    while pos < len(text) and len(rest) < _FOLD_LINES:
+        nxt = text.find("\n", pos)
+        nxt = len(text) if nxt < 0 else nxt
+        line = text[pos:nxt]
+        if folded.get(pos) != indent or len(line) - len(line.lstrip(" ")) != indent or _BUILD_CMD.search(line):
+            break
+        rest.append(line.strip())
+        pos = nxt + 1
+    return " " + " ".join(rest) if rest else ""
+
+
 @detector("flutter_obfuscation")
 def obfuscation(ctx: Context, rule: Rule) -> Iterable[Hit]:
     if not is_flutter(ctx):
@@ -441,6 +502,7 @@ def obfuscation(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         scripted = True
         missing = []
+        folded = _folded_lines(text)
         for m in _FLUTTER_BUILD.finditer(text):
             args = m.group(2)
             end = m.end()
@@ -449,7 +511,10 @@ def obfuscation(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 nxt = len(text) if nxt < 0 else nxt
                 args = args.rstrip()[:-1] + " " + text[end + 1:nxt]
                 end = nxt
-            if re.search(r"--(?:debug|profile|config-only)\b|\$\{\{", args):
+            args += _folded_rest(text, folded, m.start(), end)
+            # `--debug` builds, and `${{ ... }}` standing alone where it may hold the flags (an expression
+            # inside one flag, `--build-number=${{ github.run_number }}`, can't).
+            if re.search(r"--(?:debug|profile|config-only)\b|(?:^|\s)\"?\$\{\{", args):
                 continue
             if re.search(r"(?:^|\s)\"?\$\{?[A-Za-z_]", args):
                 continue                         # flags passed through a variable can't be read

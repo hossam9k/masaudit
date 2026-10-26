@@ -274,6 +274,45 @@ class SigningMaterial(unittest.TestCase):
             ("app/nightly.keystore", 0): "high",
         })
 
+    def test_exclude_globs_apply_to_files_the_scan_does_not_read(self):
+        # Keystores are found by name, outside safety.walk; `exclude` must still drop them (0.6.1 didn't).
+        tmp = tempfile.mkdtemp(prefix="masaudit-ci-")
+        self.addCleanup(shutil.rmtree, tmp)
+        shutil.copytree(fixture("CI-006", "mustfire"), tmp, dirs_exist_ok=True)
+        result = cli.scan(tmp, cli_type="banking", cfg={"exclude": ["keystores/**", "app/upload.keystore"]},
+                          allow_prompt=False)
+        got = sorted(f.location.path for f in result.findings if f.rule.id == "CI-006")
+        self.assertEqual(got, ["app/nightly.keystore", "app/release.jks"])
+
+    def test_no_missing_lockfile_claim_past_the_name_limit(self):
+        tmp = tempfile.mkdtemp(prefix="masaudit-ci-")
+        self.addCleanup(shutil.rmtree, tmp)
+        os.makedirs(os.path.join(tmp, "assets"))
+        os.makedirs(os.path.join(tmp, "z"))
+        for i in range(5):
+            open(os.path.join(tmp, "assets", f"{i}.png"), "w").close()
+        with open(os.path.join(tmp, "Package.swift"), "w") as fh:
+            fh.write("// swift-tools-version:5.9\n")
+        open(os.path.join(tmp, "z", "Package.resolved"), "w").close()   # listed after the cap
+        with mock.patch.object(safety, "MAX_FILES", 3):
+            result = cli.scan(tmp, cli_type="banking", cfg={}, allow_prompt=False)
+        self.assertEqual([f for f in result.findings if f.rule.id == "CI-008"], [])
+        self.assertTrue(any("file listing stopped" in u for u in result.project.unknowns))
+
+    def test_a_lockfile_in_an_excluded_folder_still_counts(self):
+        # `exclude` hides findings in a folder; it doesn't make the folder's lockfile disappear (CI-008).
+        tmp = tempfile.mkdtemp(prefix="masaudit-ci-")
+        self.addCleanup(shutil.rmtree, tmp)
+        for rel, text in (("settings.gradle.kts", 'include(":app")\n'),
+                          ("app/build.gradle.kts", 'plugins { id("com.android.application") }\n'),
+                          ("vendor/gradle.lockfile", "# locked\n")):
+            os.makedirs(os.path.dirname(os.path.join(tmp, rel)) or tmp, exist_ok=True)
+            with open(os.path.join(tmp, rel), "w", encoding="utf-8") as fh:
+                fh.write(text)
+        for exclude in ([], ["vendor/**"]):
+            result = cli.scan(tmp, cli_type="banking", cfg={"exclude": exclude}, allow_prompt=False)
+            self.assertEqual([f for f in result.findings if f.rule.id == "CI-008"], [], exclude)
+
     def test_password_kept_out_of_the_repository_is_one_level_lower(self):
         got = calibrated(fixture("CI-006", "mustfire_password_env"), "CI-006")
         self.assertEqual(severities(got), {("app/qa.keystore", 0): "medium"})

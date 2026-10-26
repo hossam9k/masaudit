@@ -4,8 +4,9 @@
 It understands block mappings and sequences (including sequences at the same indent as
 their key), `- key: value` items, block scalars (`|`, `>`, with chomping and indent
 indicators), single-line and multi-line flow collections (`[a, b]`, `{ a: b }`), quoted
-strings, comments, and document markers. Anchors and tags are stripped; aliases stay
-as plain text. It never raises: a line it can't place is skipped.
+strings, comments, and document markers. Tags are stripped; an alias (`*name`) stands for the
+node its anchor (`&name`) marked earlier in the file, as GitHub reads it (merge keys, `<<:`, are
+not supported by GitHub and stay as written). It never raises: a line it can't place is skipped.
 
 Every value carries the 1-based line it came from:
   * Scalar is a `str` with `.line` (for block scalars, `.line` is the key's line and
@@ -105,20 +106,37 @@ def _unquote(s: str) -> str:
 
 def _strip_props(s: str) -> str:
     """Drop leading anchors (&a) and tags (!t) from a value."""
+    return _props(s)[0]
+
+
+def _props(s: str) -> Tuple[str, Optional[str]]:
+    """(the value without its leading anchor and tags, the anchor's name or None)."""
+    anchor = None
     while True:
-        m = re.match(r"^(?:&[^\s]+|![^\s]*)(?:\s+|$)", s)
+        m = re.match(r"^(?:&([^\s]+)|![^\s]*)(?:\s+|$)", s)
         if not m:
-            return s
+            return s, anchor
+        anchor = m.group(1) or anchor
         s = s[m.end():]
 
 
 # ---------------------------------------------------------------------------- parser
 
 
+ALIAS_BUDGET = 5000
+ALIAS_DEPTH = 32          # an alias may not nest deeper than this: chained aliases could otherwise nest without end
+
+
 class _Parser:
     def __init__(self, text: str):
         self.raw = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
         self.i = 0
+        self.anchors: Dict[str, Node] = {}
+        # Nodes added by aliases, at most ALIAS_BUDGET per file: an alias shares its node, so aliases of
+        # aliases (N jobs, each with M aliased steps) would make every rule walk N x M steps. Past the
+        # budget an alias stays as text, as in masaudit 0.6.1.
+        self.alias_budget = ALIAS_BUDGET
+        self._sizes: Dict[int, Tuple[int, int]] = {}
 
     # A "significant" line: not blank, not a comment, not a document marker.
     def _peek(self) -> Optional[Tuple[int, int, str]]:
@@ -197,20 +215,28 @@ class _Parser:
             self.i += 1
             rest = content[1:].lstrip(" ")
             item_indent = ind + (len(content) - len(rest))
-            rest = _strip_props(rest)
+            rest, anchor = _props(rest)
             if not rest:
                 item = self._node(ind + 1)
                 s.append(item if item is not None else Scalar("", idx + 1))
-                continue
-            kv = _split_key(rest) if rest[0] not in "[{" else None
-            if kv is not None:
-                s.append(self._map(item_indent, first=(kv[0], kv[1], idx + 1)))
             else:
-                s.append(self._value(rest, idx + 1, ind))
+                kv = _split_key(rest) if rest[0] not in "[{" else None
+                if kv is not None:
+                    s.append(self._map(item_indent, first=(kv[0], kv[1], idx + 1)))
+                else:
+                    s.append(self._value(rest, idx + 1, ind))
+            if anchor:
+                self.anchors[anchor] = s[-1]
         return s
 
     def _value(self, rest: str, lineno: int, parent_indent: int) -> Node:
-        rest = _strip_props(rest.strip())
+        rest, anchor = _props(rest.strip())
+        node = self._plain_value(rest, lineno, parent_indent)
+        if anchor:
+            self.anchors[anchor] = node
+        return node
+
+    def _plain_value(self, rest: str, lineno: int, parent_indent: int) -> Node:
         if rest.startswith(("|", ">")) and re.match(r"^[|>][0-9+\-]*$", rest):
             return self._block_scalar(rest, lineno, parent_indent)
         if not rest:
@@ -230,14 +256,33 @@ class _Parser:
             depth, quote = _depth_state(rest)
             while depth > 0 and self.i < len(self.raw):
                 line = _strip_comment(self.raw[self.i]).strip()
+                body = self.raw[self.i].replace("\t", "  ")
+                if line and len(body) - len(body.lstrip(" ")) <= parent_indent and line[0] not in "]}":
+                    break        # back at the parent's indent: an unclosed `[`, `{`, or quote ends here
                 parts.append(line)
                 depth, quote = _depth_state(" " + line, depth, quote)
                 self.i += 1
             node, _ = _flow(" ".join(parts), 0, lineno)
             return node
         if rest.startswith("*"):
+            node = self.anchors.get(rest[1:].strip())
+            if node is not None:
+                size, depth = self._size(node)
+                if size <= self.alias_budget and depth <= ALIAS_DEPTH:
+                    self.alias_budget -= size
+                    return node
             return Scalar(rest, lineno)
         return Scalar(_unquote(rest), lineno)
+
+    def _size(self, node: Node) -> Tuple[int, int]:
+        """(nodes a consumer visits walking `node`, counting shared ones each time they appear; its depth).
+        Remembered per node, so an alias of an alias is measured once."""
+        key = id(node)
+        if key not in self._sizes:
+            children = list(node.values()) if isinstance(node, Map) else node if isinstance(node, Seq) else []
+            measured = [self._size(c) for c in children]
+            self._sizes[key] = (1 + sum(s for s, _ in measured), 1 + max((d for _, d in measured), default=0))
+        return self._sizes[key]
 
     def _block_scalar(self, header: str, lineno: int, parent_indent: int) -> Scalar:
         explicit = re.search(r"[1-9]", header)

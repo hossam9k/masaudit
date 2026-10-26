@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import functools
-import os
 import re
 from typing import List, Optional
 
@@ -17,6 +16,7 @@ _SNIFF_FILES = 2000
 def _imports_android(root: str, files: List[str]) -> bool:
     """Does a Kotlin or Java production file import android.* or androidx.*? For a folder of sources with no
     manifest or Gradle file (a copied module, decompiled code). Reads only the head of each file."""
+    from masaudit import safety
     checked = 0
     for f in files:
         if not f.endswith((".kt", ".java")) or scope_of(f) == "test":
@@ -24,12 +24,8 @@ def _imports_android(root: str, files: List[str]) -> bool:
         checked += 1
         if checked > _SNIFF_FILES:
             return False
-        try:
-            with open(os.path.join(root, f), "rb") as fh:
-                head = fh.read(_SNIFF_BYTES)
-        except OSError:
-            continue
-        if _ANDROID_IMPORT.search(head):
+        head = safety.read_head(root, f, _SNIFF_BYTES)
+        if head and _ANDROID_IMPORT.search(head):
             return True
     return False
 

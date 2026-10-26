@@ -1,0 +1,98 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+		/* Case: Release takes CODE_SIGN_ENTITLEMENTS from its base .xcconfig, which still points at the -Dev entitlements. */
+		CC0000000000000000000010 /* Debug.xcconfig */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.xcconfig;
+			path = Config/Debug.xcconfig;
+			sourceTree = SOURCE_ROOT;
+		};
+		CC0000000000000000000011 /* Release.xcconfig */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.xcconfig;
+			path = Config/Release.xcconfig;
+			sourceTree = SOURCE_ROOT;
+		};
+		CC0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = CC0000000000000000000010 /* Debug.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		CC0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = CC0000000000000000000011 /* Release.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		CC0000000000000000000004 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000002,
+				CC0000000000000000000003,
+			);
+			defaultConfigurationName = Release;
+		};
+		CC0000000000000000000005 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		CC0000000000000000000001 /* App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000000000000000000004;
+			buildPhases = (
+				CC0000000000000000000005,
+			);
+			name = App;
+			productType = "com.apple.product-type.application";
+		};
+		CC0000000000000000000006 = {
+			isa = PBXGroup;
+			children = (
+				CC0000000000000000000010,
+				CC0000000000000000000011,
+			);
+			sourceTree = "<group>";
+		};
+		CC0000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		CC0000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		CC0000000000000000000009 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC0000000000000000000007,
+				CC0000000000000000000008,
+			);
+		};
+		CC000000000000000000000A /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = CC0000000000000000000009;
+			mainGroup = CC0000000000000000000006;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CC0000000000000000000001,
+			);
+		};
+	};
+	rootObject = CC000000000000000000000A /* Project object */;
+}

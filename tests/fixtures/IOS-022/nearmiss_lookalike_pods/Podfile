@@ -1,0 +1,14 @@
+# Near miss: layout pods whose names resemble FLEX, and netfox only in the UI-test target.
+platform :ios, '15.0'
+
+target 'Bank' do
+  use_frameworks!
+  pod 'FlexLayout'
+  pod 'PinLayout'
+  # pod 'FLEX'
+
+  target 'BankUITests' do
+    inherit! :search_paths
+    pod 'netfox'
+  end
+end

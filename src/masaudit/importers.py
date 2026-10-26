@@ -63,7 +63,7 @@ TOOL_KEYS = [
 
 
 def _one_line(text: object, limit: int = 240) -> str:
-    s = str(text or "")
+    s = safety.clean_text(str(text or ""))
     s = re.sub(r"[\x00-\x1f\x7f]+", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return safety.mask(s)[:limit]
@@ -123,25 +123,35 @@ def _book() -> Tuple[str, str]:
         return "Chapter 23", BOOK_URL
 
 
-def _rel_path(uri: str, base: Optional[str], root: str) -> str:
+def _rel_path(uri: str, base: Optional[str], root: str) -> Optional[str]:
+    """The result's file, relative to `root`; None when it lies outside `root` (another checkout, a build
+    machine's absolute path), which would otherwise be reported as if it were part of this project. A
+    relative URI under a base outside `root` (%SRCROOT% on the machine that ran the tool) is read as
+    relative to `root`."""
     if base and not urlparse(uri).scheme:
-        uri = base.rstrip("/") + "/" + uri
+        joined = _rel_path(base.rstrip("/") + "/" + uri, None, root)
+        return joined if joined is not None else _rel_path(uri, None, root)
     parsed = urlparse(uri)
-    if parsed.scheme == "file":
-        local = unquote(parsed.path)
+    drive = len(parsed.scheme) == 1                        # C:/src/a.kt or C:\\src\\a.kt
+    if parsed.scheme == "file" or (not parsed.scheme and uri.startswith("/")) or drive:
+        if drive and os.name != "nt":
+            return None
+        local = unquote(uri if drive else parsed.path)
         if os.name == "nt" and re.match(r"^/[A-Za-z]:", local):
             local = local[1:]
         root_real = os.path.realpath(root)
         local_real = os.path.realpath(local)
         if local_real == root_real or local_real.startswith(root_real + os.sep):
             return os.path.relpath(local_real, root_real).replace(os.sep, "/")
-        return local.replace(os.sep, "/")
+        return None
     if parsed.scheme:
         return _one_line(uri, 300)
     path = unquote(uri).replace("\\", "/")
     path = posixpath.normpath(path) if path else path
     while path.startswith("./"):
         path = path[2:]
+    if path == ".." or path.startswith("../"):
+        return None                              # above the root
     return _one_line(path, 300)
 
 
@@ -180,7 +190,7 @@ def import_sarif(path: str, root: str, rules: List[Rule]) -> Tuple[List[Finding]
     try:
         with open(path, encoding="utf-8-sig") as fh:
             data = json.load(fh)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise SarifImportError(f"{path} is not valid SARIF JSON: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("runs"), list):
         raise SarifImportError(f"{path} is not SARIF (no 'runs' list)")
@@ -189,6 +199,7 @@ def import_sarif(path: str, root: str, rules: List[Rule]) -> Tuple[List[Finding]
     findings: List[Finding] = []
     notes: List[str] = []
     synthetic: Dict[str, Rule] = {}
+    state = _Import(root)
     skipped = 0
     for run in data["runs"]:
         if not isinstance(run, dict):
@@ -204,10 +215,14 @@ def import_sarif(path: str, root: str, rules: List[Rule]) -> Tuple[List[Finding]
                 if isinstance(v, dict) and isinstance(v.get("uri"), str):
                     bases[k] = v["uri"]
         results = run.get("results") if isinstance(run.get("results"), list) else []
-        for res in results[:MAX_RESULTS]:
+        for res in results:
+            if state.results >= MAX_RESULTS:   # across all runs: a file of many runs is no way around it
+                state.capped = True
+                break
+            state.results += 1
             try:
                 finding = _one_result(res, root, rules, tool_name, tool_key, tool_platform,
-                                      meta_list, meta_by_id, bases, synthetic, book, book_url)
+                                      meta_list, meta_by_id, bases, synthetic, book, book_url, state)
             except (KeyError, TypeError, ValueError, AttributeError, IndexError):
                 finding = None
             if finding is None:
@@ -215,14 +230,37 @@ def import_sarif(path: str, root: str, rules: List[Rule]) -> Tuple[List[Finding]
                 continue
             findings.append(finding)
     base = os.path.basename(path)
+    skipped -= state.outside
     if skipped:
         notes.append(f"Skipped {skipped} unreadable or suppressed result(s) in {base}.")
+    if state.outside:
+        notes.append(f"Skipped {state.outside} result(s) in {base} for files outside the scanned folder.")
+    if state.capped:
+        notes.append(f"Read only the first {MAX_RESULTS:,} results in {base}.")
     notes.append(f"Imported {len(findings)} result(s) from {base}.")
     return findings, notes
 
 
+class _Import:
+    """Per-file import state: results read so far, source lines read once per file, and results skipped
+    because their file is outside the scanned folder."""
+
+    def __init__(self, root: str):
+        self.root = root
+        self.results = 0
+        self.capped = False
+        self.outside = 0
+        self._lines: Dict[str, Optional[List[str]]] = {}
+
+    def lines(self, rel: str) -> Optional[List[str]]:
+        if rel not in self._lines:
+            text = safety.read_text(self.root, rel)
+            self._lines[rel] = safety.lines(text) if text is not None else None
+        return self._lines[rel]
+
+
 def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list, meta_by_id,
-                bases, synthetic, book, book_url) -> Optional[Finding]:
+                bases, synthetic, book, book_url, state: _Import) -> Optional[Finding]:
     if not isinstance(res, dict):
         return None
     if res.get("suppressions"):
@@ -253,7 +291,11 @@ def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list,
         uri = art.get("uri")
         if isinstance(uri, str) and uri:
             base_id = art.get("uriBaseId")
-            rel = _rel_path(uri, bases.get(base_id) if base_id else None, root)
+            found = _rel_path(uri, bases.get(base_id) if base_id else None, root)
+            if found is None:
+                state.outside += 1
+                return None
+            rel = found
         region = phys.get("region") or {}
         start = region.get("startLine")
         if isinstance(start, int) and start > 0:
@@ -264,11 +306,9 @@ def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list,
 
     snippet = ""
     if rel and line:
-        text = safety.read_text(root, rel) if not os.path.isabs(rel) else None
-        if text is not None:
-            lines = safety.lines(text)
-            if 1 <= line <= len(lines):
-                snippet = safety.mask(lines[line - 1])
+        lines = state.lines(rel)
+        if lines is not None and 1 <= line <= len(lines):
+            snippet = safety.mask(lines[line - 1])
     if not snippet and region_snippet:
         snippet = _one_line(region_snippet, 160)
 

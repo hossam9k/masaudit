@@ -1,0 +1,10 @@
+# Bitrise script step building an APK with no obfuscation flags.
+format_version: "13"
+workflows:
+  release:
+    steps:
+      - script@1:
+          inputs:
+            - content: |
+                set -ex
+                flutter build apk --release --target-platform android-arm64

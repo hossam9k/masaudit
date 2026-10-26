@@ -114,8 +114,8 @@ def save_app_type(root: str, app_type: str, reviewed: Sequence[str] = ()) -> str
         except ConfigError:
             before = []
         values["app_type_reviewed"] = ", ".join(dict.fromkeys(before + list(reviewed)))
-    if not os.path.isfile(path) or os.path.islink(path):
-        # No config yet (or a symlink, which is replaced, not followed).
+    if not os.path.isfile(path) or os.path.islink(path) or os.stat(path).st_nlink > 1:
+        # No config yet, or a symlink or hard link (replaced, never read or followed, as in load()).
         safety.write_text(path, f"[{SECTION}]\n" + "".join(f"{k} = {v}\n" for k, v in values.items()), root, None)
         return path
     with open(path, encoding="utf-8-sig") as fh:

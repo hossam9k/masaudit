@@ -4,26 +4,74 @@
 masaudit scans code it doesn't trust, so each parser must return a value or None for any input,
 quickly. An exception or a slow input is a bug.
 
-With atheris (Linux, CPython 3.12+), seeded with the test fixtures:
-    python fuzz/fuzz_parsers.py -max_total_time=300 -timeout=5 tests/fixtures
+With atheris (Linux, CPython 3.12+), seeded with the test fixtures and fuzz/seeds (a SARIF file):
+    python fuzz/fuzz_parsers.py -max_total_time=300 -timeout=5 tests/fixtures fuzz/seeds
 Without it, a stdlib mutation run that works anywhere:
     python fuzz/fuzz_parsers.py --smoke 20000
 """
 
+import json
 import os
 import random
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
-from masaudit import lexer, safety, suppress  # noqa: E402
-from masaudit.detectors import ios, reactnative, rn_platform, rn_storage  # noqa: E402
+from masaudit import engine, importers, lexer, safety, suppress  # noqa: E402
+from masaudit.detectors import flutter, ios, kmp, reactnative, rn_platform, rn_storage  # noqa: E402
+from masaudit.model import Project  # noqa: E402
 from masaudit.parsers import (  # noqa: E402
     gradle, manifest, pbxproj, plist, proguard, workflows, xcconfig, xcscheme, xmlsafe,
 )
 
 LANGS = sorted(set(lexer.LANG_BY_SUFFIX.values()))
+RULES = engine.load_rules()
+_TMP = tempfile.mkdtemp(prefix="masaudit-fuzz-")
+# Flutter and KMP detectors read files from a project on disk: one Dart file and one shared Kotlin file.
+_DART, _KOTLIN = "lib/a.dart", "shared/src/commonMain/kotlin/a/A.kt"
+_PROJECT_FILES = {"pubspec.yaml": "name: a\ndependencies:\n  flutter:\n    sdk: flutter\n",
+                  "settings.gradle.kts": 'include(":shared")\n',
+                  "shared/build.gradle.kts": 'plugins { kotlin("multiplatform") }\n'}
+_DETECTORS = [getattr(mod, name) for mod, names in (
+    (flutter, ("trust_all", "prefs_token", "dio_logger", "webview_file_access", "webview_trust_all",
+               "webview_debugging", "biometric_boolean", "obfuscation")),
+    (kmp, ("mechanism_expect", "native_in_common", "ktor_pinning", "ktor_logging", "darwin_trust_all",
+           "settings_token"))) for name in names]
+
+
+def _write(rel: str, text: str) -> None:
+    path = os.path.join(_TMP, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", errors="replace") as fh:
+        fh.write(text)
+
+
+for _rel, _text in _PROJECT_FILES.items():
+    _write(_rel, _text)
+
+
+def check_project(text: str) -> None:
+    """Flutter and KMP detectors, the SARIF importer, and xcconfig includes on one input."""
+    _write(_DART, text)
+    _write(_KOTLIN, text)
+    files = sorted(_PROJECT_FILES) + [_DART, _KOTLIN]
+    ctx = engine.Context(Project(root=_TMP, platforms=["flutter", "kmp", "android", "ios"], files=files))
+    for detect in _DETECTORS:
+        list(detect(ctx, None))
+    # Every include of every file resolves to this same text: cycles and fan-out on any input.
+    xcconfig.resolve(_TMP, "a.xcconfig", read=lambda _root, _rel: text, unknowns=[])
+    try:
+        doc = json.loads(text)
+    except (ValueError, RecursionError):
+        return
+    if isinstance(doc, dict) and isinstance(doc.get("runs"), list):
+        _write("in.sarif", text)
+        try:
+            importers.import_sarif(os.path.join(_TMP, "in.sarif"), _TMP, RULES)
+        except importers.SarifImportError:
+            pass
 
 
 def check(data: bytes) -> None:
@@ -77,6 +125,7 @@ def check(data: bytes) -> None:
     safety.reject_xml_entities(text)
     for line in text.splitlines()[:50]:
         suppress.parse_line(line)
+    check_project(text)
 
 
 def _seeds(root: str):
@@ -109,12 +158,34 @@ def _mutate(rng: random.Random, data: bytes, pool) -> bytes:
     return bytes(b[:200_000])
 
 
+_ODD_VALUES = (None, 0, -1, 10 ** 30, 1.5, True, "", "x" * 300, "file:///", "../a", "/abs", "C:/x", "%SRCROOT%",
+               "\ud800", [], {}, [{}], {"uri": 5})
+
+
+def _mutate_json(rng: random.Random, node):
+    """The same document with a few values swapped for wrong types and odd strings: still valid JSON, so
+    the SARIF importer's handling of each field is reached (byte mutations rarely leave JSON parseable)."""
+    if rng.random() < 0.08:
+        return rng.choice(_ODD_VALUES)
+    if isinstance(node, dict):
+        return {k: _mutate_json(rng, v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_mutate_json(rng, v) for v in node] * rng.choice((1, 1, 1, 3))
+    return node
+
+
 def smoke(runs: int, seed: int = 0, quiet: bool = False) -> int:
     """Mutate the test fixtures `runs` times. Returns 1 on the first failing input."""
     rng = random.Random(seed)
-    pool = list(_seeds(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fixtures")))
+    here = os.path.dirname(os.path.abspath(__file__))
+    pool = list(_seeds(os.path.join(here, "..", "tests", "fixtures"))) + list(_seeds(os.path.join(here, "seeds")))
+    with open(os.path.join(here, "seeds", "sample.sarif"), encoding="utf-8") as fh:
+        sarif = json.load(fh)
     for n in range(runs):
-        data = _mutate(rng, rng.choice(pool), pool)
+        if n % 10 == 0:
+            data = json.dumps(_mutate_json(rng, sarif)).encode("utf-8", "surrogatepass")
+        else:
+            data = _mutate(rng, rng.choice(pool), pool)
         start = time.monotonic()
         try:
             check(data)

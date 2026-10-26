@@ -8,8 +8,9 @@ Each gives exactly the answer of the obvious version; the tests compare them.
 
 from __future__ import annotations
 
+import bisect
 import re
-from typing import TYPE_CHECKING, Callable, Iterator, List, Optional, Sequence, Set, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 
 if TYPE_CHECKING:
     from masaudit.engine import Context
@@ -33,10 +34,12 @@ _TEXT_MEMO: List[list] = []
 
 
 def text_memo(text: str, key: tuple, compute: Callable[[], object]):
-    """compute(), remembered for this text object and key."""
-    for entry in _TEXT_MEMO:
+    """compute(), remembered for this text object and key (the most recently used texts are kept)."""
+    for k, entry in enumerate(_TEXT_MEMO):
         if entry[0] is text:
             memo = entry[1]
+            if k:
+                _TEXT_MEMO.insert(0, _TEXT_MEMO.pop(k))
             break
     else:
         memo = {}
@@ -47,9 +50,41 @@ def text_memo(text: str, key: tuple, compute: Callable[[], object]):
     return memo[key]
 
 
+def first_in_span(text: str, rx: "re.Pattern[str]", start: int, end: int) -> Optional["re.Match[str]"]:
+    """The match rx.search(text[start:end]) finds, as a match on `text` (offsets into `text`), answered from
+    one memoized pass over `text`: a bisect per question instead of a scan of the slice. Exact when no match
+    of `rx` can begin before `start` and overlap it, or run past `end`: the callers' spans start and end at
+    brackets their patterns can't contain, such as an argument list `(...)` or a block `{...}`."""
+    def build() -> Tuple[List[int], List["re.Match[str]"]]:
+        found = list(rx.finditer(text))
+        return [m.start() for m in found], found
+    starts, found = text_memo(text, ("matches", rx.pattern, rx.flags), build)  # type: ignore[misc]
+    k = bisect.bisect_left(starts, start)
+    return found[k] if k < len(starts) and starts[k] < end else None
+
+
+def found_in_span(text: str, rx: "re.Pattern[str]", start: int, end: int) -> bool:
+    """rx.search(text[start:end]) is not None; see first_in_span."""
+    return first_in_span(text, rx, start, end) is not None
+
+
 # Recent texts bracket_match was asked about: [text, opener, closer, {open: close} once asked twice].
 _PAIRINGS: List[list] = []
 _PAIR_MIN = 4096                              # texts shorter than this are walked without the cache
+
+
+def name_index(text: str, tail: str) -> Dict[str, "re.Match[str]"]:
+    """{identifier: its first match of `\\bIDENTIFIER` + `tail`} for every identifier in `text`, in one pass.
+
+    Replaces re.search(r"\\b" + re.escape(name) + tail, text) called once per name, which rescanned the
+    whole file for every call site. The scan is a lookahead at each position, so matches may overlap as
+    separate searches would; groups of `tail` are numbered from 2 (group 1 is the identifier)."""
+    def build() -> Dict[str, "re.Match[str]"]:
+        out: Dict[str, "re.Match[str]"] = {}
+        for m in re.finditer(r"(?=\b([A-Za-z_]\w*)" + tail + r")", text):
+            out.setdefault(m.group(1), m)
+        return out
+    return text_memo(text, ("name_index", tail), build)  # type: ignore[return-value]
 
 
 def bracket_match(text: str, i: int, opener: str, closer: str) -> int:

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """The stdlib-only workflow YAML reader: structure, scalars, and exact line numbers."""
 
+import time
 import unittest
 
 import helpers  # noqa: F401  (sets sys.path)
@@ -54,9 +55,36 @@ class Load(unittest.TestCase):
     def test_anchors_aliases_urls_and_quoted_keys(self):
         doc = wf.load('base: &defaults\n  a: 1\nother: *defaults\nurl: https://h:8080/p\n"on": push\n')
         self.assertEqual(doc["base"]["a"], "1")
-        self.assertEqual(doc["other"], "*defaults")
+        self.assertIs(doc["other"], doc["base"])                    # an alias is the anchored node
+        self.assertEqual(wf.load("a: *nowhere\n")["a"], "*nowhere")  # an unknown alias stays as written
         self.assertEqual(doc["url"], "https://h:8080/p")
         self.assertEqual(doc["on"], "push")
+
+    def test_aliased_steps_and_sequence_items(self):
+        doc = wf.load("x:\n  - &co\n    uses: actions/checkout@v4\n    with:\n      persist-credentials: true\n"
+                      "steps:\n  - *co\n  - &plain run: echo\n  - *plain\n")
+        self.assertEqual(doc["steps"][0]["uses"], "actions/checkout@v4")
+        self.assertEqual(doc["steps"][2], doc["steps"][1])
+
+    def test_alias_expansion_is_bounded(self):
+        self.assertEqual(wf.load("x: &p {}\ny: *p\n")["y"], {})        # an empty node is still a node
+        # 3,000 jobs aliasing one job whose steps alias 3,000 steps: 0.6.2 before review took 84 s.
+        lines = ["on: pull_request_target", "x:", "  - &s", "    run: echo hi", "y: &steps"] + ["  - *s"] * 3000
+        lines += ["jobs:", "  j0: &J", "    runs-on: x", "    steps: *steps"] + [f"  j{i}: *J" for i in range(1, 3000)]
+        start = time.monotonic()
+        wf.parse_workflow("\n".join(lines))
+        self.assertLess(time.monotonic() - start, 2.0)
+        chain = "a0: &a0 [x]\n" + "".join(f"a{i}: &a{i}\n  - *a{i - 1}\n" for i in range(1, 2000))
+        doc = wf.load(chain)
+        self.assertEqual(doc["a1999"], ["*a1998"])                     # past the depth limit, text again
+
+    def test_unclosed_flow_ends_at_the_parent_indent(self):
+        doc = wf.load("on: [push, 'pull_request\njobs:\n  a:\n    runs-on: x\n")
+        self.assertIn("jobs", doc)                                  # 0.6.1 swallowed the rest of the file
+        self.assertEqual(doc["jobs"]["a"]["runs-on"], "x")
+        doc = wf.load("on: [push,\n  pull_request\n]\njobs: {}\n")  # a closing bracket at the key's indent
+        self.assertEqual(list(doc["on"]), ["push", "pull_request"])
+        self.assertIn("jobs", doc)
 
     def test_never_raises(self):
         for text in ("", "---\n", "\t- : [\n", "a: [unclosed\n", "- - -\n", "key: |\n", ":\n"):

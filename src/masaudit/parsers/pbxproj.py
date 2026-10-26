@@ -152,7 +152,8 @@ class _Parser:
             c = s[self.i]
             if c == q:
                 self._advance()
-                return "".join(out)
+                # \U escapes are UTF-16 code units: join surrogate pairs, replace a lone one.
+                return "".join(out).encode("utf-16", "surrogatepass").decode("utf-16", "replace")
             if c == "\\" and self.i + 1 < n:
                 e = s[self.i + 1]
                 if e in ("U", "u") and self.i + 6 <= n:

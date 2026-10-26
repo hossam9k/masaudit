@@ -15,10 +15,12 @@ from __future__ import annotations
 import posixpath
 import re
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Tuple
 
 from masaudit import safety
 
+MAX_INCLUDES = 500                # files resolved per configuration, at most
+MAX_LINES = 200_000               # settings and includes applied per configuration, at most
 MAX_INCLUDE_DEPTH = 8
 
 _ASSIGN = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*((?:\[[^\]]*\]\s*)*)=(.*)$")
@@ -65,34 +67,76 @@ def resolve(root: str, rel: str,
     """Effective settings of an xcconfig and everything it includes (later wins)."""
     read = read or safety.read_text
     out: Dict[str, Setting] = {}
-    _resolve_into(root, rel, read, out, set(), 0, unknowns)
+    state = _State(read, unknowns)
+    _resolve_into(root, rel, state, out, frozenset(), 0)
     return out
 
 
-def _resolve_into(root: str, rel: str, read, out: Dict[str, Setting], stack: set, depth: int,
-                  unknowns: Optional[List[str]]) -> bool:
+class _State:
+    """One resolve: each file's settings are worked out once and reused (a file included many times, at
+    many levels, was re-read and re-resolved every time: exponential), and the total work is capped."""
+
+    def __init__(self, read, unknowns: Optional[List[str]]):
+        self.read = read
+        self.unknowns = unknowns
+        # rel -> (settings, height, files): resolved with no cycle or depth cut; `height` is how many include
+        # levels sit below it and `files` every file it names, so a reuse is only taken where the same cuts
+        # (none) would happen again.
+        self.done: Dict[str, Tuple[Dict[str, Setting], int, FrozenSet[str]]] = {}
+        self.budget = MAX_INCLUDES
+        self.lines = MAX_LINES
+        self.parsed: Dict[str, Optional[XCConfig]] = {}   # each file is read and parsed once per resolve
+
+    def note(self, message: str) -> None:
+        if self.unknowns is not None and message not in self.unknowns:
+            self.unknowns.append(message)
+
+
+def _resolve_into(root: str, rel: str, state: _State, out: Dict[str, Setting], stack: FrozenSet[str],
+                  depth: int) -> Tuple[bool, bool, int, FrozenSet[str]]:
+    """Apply `rel` and its includes to `out`. Returns (read ok, pure, height, files): pure when no cycle or
+    depth cap cut the expansion; height and files describe the include tree below `rel`."""
     if depth > MAX_INCLUDE_DEPTH or rel in stack:
-        if unknowns is not None:
-            unknowns.append(f"xcconfig include chain too deep or circular at {rel}")
-        return False
-    text = read(root, rel)
-    if text is None:
-        return False
-    cfg = parse(text)
+        state.note(f"xcconfig include chain too deep or circular at {rel}")
+        return False, False, 0, frozenset((rel,))
+    hit = state.done.get(rel)
+    if hit is not None and depth + hit[1] <= MAX_INCLUDE_DEPTH and not (hit[2] & stack):
+        out.update(hit[0])
+        return True, True, hit[1], hit[2]
+    if state.budget <= 0 or state.lines <= 0:
+        state.note(f"xcconfig includes stop after {MAX_INCLUDES} files or {MAX_LINES:,} lines, at {rel}")
+        return True, False, 0, frozenset((rel,))     # noted once here, not as an unreadable include
+    state.budget -= 1
+    if rel not in state.parsed:
+        text = state.read(root, rel)
+        state.parsed[rel] = parse(text) if text is not None else None
+    cfg = state.parsed[rel]
+    if cfg is None:
+        return False, True, 0, frozenset((rel,))
+    state.lines -= len(cfg.order)
     stack = stack | {rel}
+    local: Dict[str, Setting] = {}
+    pure, height, files = True, 0, {rel}
     for kind, idx in cfg.order:
         if kind == "set":
             key, value, line = cfg.settings[idx]       # type: ignore[index]
-            out[key] = Setting(value=value, path=rel, line=line)
+            local[key] = Setting(value=value, path=rel, line=line)
         else:
             inc, optional, line = cfg.includes[idx]    # type: ignore[index]
             target = include_path(rel, inc)
             if target is None:
                 continue
-            ok = _resolve_into(root, target, read, out, stack, depth + 1, unknowns)
-            if not ok and not optional and unknowns is not None:
-                unknowns.append(f"Couldn't read {inc}, included from {rel}:{line}")
-    return True
+            ok, inner_pure, inner_height, inner_files = _resolve_into(root, target, state, local, stack, depth + 1)
+            pure = pure and inner_pure
+            height = max(height, inner_height + 1)
+            files |= inner_files
+            if not ok and not optional:
+                state.note(f"Couldn't read {inc}, included from {rel}:{line}")
+    out.update(local)
+    frozen = frozenset(files)
+    if pure:
+        state.done[rel] = (local, height, frozen)
+    return True, pure, height, frozen
 
 
 def include_path(from_rel: str, inc: str) -> Optional[str]:

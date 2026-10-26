@@ -79,7 +79,8 @@ class Finding:
         basis = f"{self.rule.id}|{self.location.path}|{text.strip()}"
         if self.occurrence > 1 and not legacy:
             basis += f"|#{self.occurrence}"
-        return hashlib.sha256(basis.encode("utf-8")).hexdigest()[:32]
+        # surrogatepass: a lone surrogate (from an imported SARIF, say) can't crash it; valid text is unchanged.
+        return hashlib.sha256(basis.encode("utf-8", "surrogatepass")).hexdigest()[:32]
 
 
 @dataclass
@@ -144,3 +145,4 @@ class Project:
     files: List[str]                   # repo-relative paths that passed safety checks
     unknowns: List[str] = field(default_factory=list)      # things the scanner could not decide
     undecided: Dict[str, str] = field(default_factory=dict)  # rule id -> why it couldn't decide
+    exclude: List[str] = field(default_factory=list)        # the config's `exclude` globs

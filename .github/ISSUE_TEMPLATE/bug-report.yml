@@ -1,0 +1,43 @@
+name: Bug report
+description: masaudit crashed, hung, missed something it should find, or printed something wrong.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: masaudit version
+      description: Output of `masaudit --version`.
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command you ran
+      placeholder: masaudit . --app-type banking --format md
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How you run it
+      options: [uvx or pipx, pip install, masaudit.pyz, GitHub Action, pre-commit, Other]
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Python version and OS
+      placeholder: Python 3.12, macOS 15
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: For a crash, paste the error. For a missed finding, the rule ID you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Smallest file or snippet that shows it
+      description: Remove anything secret or proprietary. For a slow scan, say which file it was on.
+      render: text

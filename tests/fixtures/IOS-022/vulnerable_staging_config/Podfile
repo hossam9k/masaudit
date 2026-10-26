@@ -1,0 +1,12 @@
+# Debug tools gated to Debug + Staging, and one in an abstract target: Staging/AppStore builds still link them.
+platform :ios, '15.0'
+use_frameworks!
+
+abstract_target 'Shared' do
+  pod "Reveal-SDK"
+
+  target 'Bank' do
+    pod 'FLEX', :configurations => ['Debug', 'Staging']
+    pod 'SnapKit'
+  end
+end
