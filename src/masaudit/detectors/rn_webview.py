@@ -511,6 +511,7 @@ def _handler_body(f: _File, start: int, end: int) -> Optional[str]:
     return f.blank[span[0]:span[1]] if span else None
 
 
+_QUOTED = re.compile(r"'([^'\n]*)'|\"([^\"\n]*)\"")
 _SPECIFIC_ORIGIN = re.compile(r"https://(?:\*\.)?[\w-]+(?:\.[\w-]+)+(?::\d+)?/?")
 
 
@@ -521,9 +522,12 @@ def _specific_origins(f: _File, s: _Site) -> bool:
     if p is None or p.kind != "expr":
         return False
     text = f.code[p.start:p.end].strip()
-    entries = re.findall(r"['\"]([^'\"]*)['\"]", text)
-    return (bool(entries) and re.fullmatch(r"\[\s*(?:['\"][^'\"]*['\"]\s*,?\s*)+\]", text) is not None
-            and all(_SPECIFIC_ORIGIN.fullmatch(e) for e in entries))
+    if len(text) > 2000 or not (text.startswith("[") and text.endswith("]")):
+        return False
+    entries = [a or b for a, b in _QUOTED.findall(text)]
+    # Nothing but the quoted entries, commas, and spaces between the brackets (no variables, no spreads).
+    rest = _QUOTED.sub("", text[1:-1])
+    return bool(entries) and not rest.replace(",", "").strip() and all(_SPECIFIC_ORIGIN.fullmatch(e) for e in entries)
 
 
 def _message_hit(ctx: Context, f: _File, s: _Site) -> Optional[Hit]:
