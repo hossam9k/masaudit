@@ -1,1 +1,1 @@
-{"vulnerable": 4, "clean": 0, "vulnerable_legacy_adapter": 2, "nearmiss_pinned_callback": 0}
+{"vulnerable": 4, "clean": 0, "vulnerable_legacy_adapter": 2, "nearmiss_pinned_callback": 0, "vulnerable_static_and_closure": 2, "nearmiss_static_pin_check": 0}

@@ -1,1 +1,1 @@
-{"vulnerable": 2, "clean": 0, "vulnerable_auth_method_check": 2, "nearmiss_client_certificate": 0}
+{"vulnerable": 2, "clean": 0, "vulnerable_auth_method_check": 2, "nearmiss_client_certificate": 0, "vulnerable_staging_handler": 1, "nearmiss_helper_evaluation": 0}

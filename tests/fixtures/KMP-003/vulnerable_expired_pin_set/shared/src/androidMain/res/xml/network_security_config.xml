@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- These pins expired in 2024, so Android stopped enforcing them. -->
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="true">api.shop.example</domain>
+        <pin-set expiration="2024-01-01">
+            <pin digest="SHA-256">YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</pin>
+            <pin digest="SHA-256">Vjs8r4z+80wjNcr1YKepWQboSIRi63WsWXhIMN+eWys=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

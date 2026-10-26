@@ -1,0 +1,6 @@
+name: acme_bank
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.10.0
+  webview_flutter_android: ^4.3.0

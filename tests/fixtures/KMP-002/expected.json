@@ -1,1 +1,1 @@
-{"vulnerable": 3, "clean": 0, "vulnerable_attestation_imports": 5, "nearmiss_multiplatform_libs": 0}
+{"vulnerable": 3, "clean": 0, "vulnerable_attestation_imports": 5, "nearmiss_multiplatform_libs": 0, "vulnerable_qualified_subpackages": 2}

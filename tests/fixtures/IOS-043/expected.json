@@ -1,1 +1,1 @@
-{"vulnerable": 4, "clean": 0, "vulnerable_lazy_objc": 3, "nearmiss_numberpad_secure": 0, "vulnerable_lazy_closure": 1}
+{"vulnerable": 4, "clean": 0, "vulnerable_lazy_objc": 3, "nearmiss_numberpad_secure": 0, "vulnerable_lazy_closure": 1, "vulnerable_sibling_view": 1, "nearmiss_parent_modifier": 0}

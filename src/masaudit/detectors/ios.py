@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set,
 from masaudit import safety
 from masaudit.detect import scope_of as _scope_of
 from masaudit.detectors import flutter, rn_expo
-from masaudit.textscan import bracket_match, holds_any, text_memo
+from masaudit.textscan import bracket_match, holds_any, name_index, text_memo
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 from masaudit.parsers import pbxproj, plist, xcconfig, xcscheme
@@ -1078,8 +1078,10 @@ def ats_exception_http(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 
 _WEAK_TLS = {"TLSV1.0", "TLSV1.1"}
+# Swift spells the URLSessionConfiguration properties `tlsMinimumSupportedProtocol(Version)`, Objective-C
+# `TLSMinimumSupportedProtocol(Version)`; a maximum below 1.2 caps every connection there too.
 _WEAK_TLS_CODE = re.compile(
-    r"\b(?:tlsMinimumSupportedProtocolVersion|TLSMinimumSupportedProtocol)\s*=\s*[\w.]*?"
+    r"\b(?:tls|TLS)(?:Minimum|Maximum)SupportedProtocol(?:Version)?\s*=\s*[\w.]*?"
     r"(?:TLSv10|TLSv11|tlsProtocol1|tlsProtocol11|kTLSProtocol1|kTLSProtocol11)\b"
 )
 
@@ -1098,7 +1100,7 @@ def weak_tls(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 if isinstance(value, str) and value.strip().upper() in _WEAK_TLS:
                     yield _plist_hit(ctx, doc, ("NSAppTransportSecurity", "NSExceptionDomains", domain, key),
                                      f"{domain} accepts {value.strip()}, below the TLS 1.2 floor ATS enforces.")
-    yield from _code_hits(ctx, _WEAK_TLS_CODE, "TLS",
+    yield from _code_hits(ctx, _WEAK_TLS_CODE, "SupportedProtocol",
                           "The session accepts TLS 1.0 or 1.1, below the TLS 1.2 floor ATS enforces.")
 
 
@@ -1108,6 +1110,8 @@ _CALL_ARGS = r"(?:[^;()]|\([^;()]{0,80}\)){0,200}?"
 _NW_WEAK_TLS = re.compile(
     r"\bsec_protocol_options_set_(?:min|max)_tls_protocol_version\s*\(" + _CALL_ARGS +
     r"(?:\.TLSv1[01]\b|tls_protocol_version_TLSv1[01]\b|\.DTLSv10\b|tls_protocol_version_DTLSv10\b)"
+    r"|\bsec_protocol_options_set_tls_(?:min|max)_version\s*\(" + _CALL_ARGS +          # deprecated SSLProtocol form
+    r"(?:\.tlsProtocol1|\.tlsProtocol11|\.dtlsProtocol1|\bkTLSProtocol1|\bkTLSProtocol11|\bkDTLSProtocol1)\b"
     r"|\bSSLSetProtocolVersion(?:Min|Max)\s*\(" + _CALL_ARGS +
     r"\b(?:kTLSProtocol1|kTLSProtocol11|kSSLProtocol3|kSSLProtocol2|kDTLSProtocol1)\b"
 )
@@ -1115,7 +1119,7 @@ _NW_WEAK_TLS = re.compile(
 
 @detector("ios_network_framework_tls")
 def network_framework_tls(ctx: Context, rule: Rule) -> Iterable[Hit]:
-    yield from _code_hits(ctx, _NW_WEAK_TLS, "Protocol",
+    yield from _code_hits(ctx, _NW_WEAK_TLS, "rotocol",          # Protocol in Swift, protocol in the C API
                           "This connection accepts TLS 1.0 or 1.1. Network.framework and Secure Transport "
                           "connections are outside ATS, so nothing else raises the floor.")
 
@@ -1163,17 +1167,37 @@ def _named_arg(args: str, name: str) -> Optional[str]:
     return _paren_balance_cut(re.split(r",\s*\w+\s*:", rest, maxsplit=1)[0])
 
 
+_NW_C_PLAIN_TCP = re.compile(r"\bnw_parameters_create_secure_tcp\s*\(\s*NW_PARAMETERS_DISABLE_PROTOCOL\b")
+_NW_C_ENDPOINT = re.compile(r"\bnw_endpoint_create_host\s*\(\s*([^,;\n]{1,200}),")
+
+
 @detector("ios_cleartext_socket")
 def cleartext_socket(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE_SUFFIXES):
         if _is_test_path(path) or not holds_any(ctx, path, ("NWConnection", "getaddrinfo", "SocketToHost",
-                                                            "getStreamsToHost", "withHostName")):
+                                                            "getStreamsToHost", "withHostName",
+                                                            "nw_parameters_create_secure_tcp")):
             continue
         code = _release_code(ctx, path, keep_strings=True)
         if code is None:
             continue
         connects = bool(re.search(r"(?<![\w.])connect\s*\(", code))
         stream_tls = bool(_STREAM_TLS.search(code))
+        # The C Network.framework API: TCP parameters with TLS turned off, for a connection in this file.
+        for m in _NW_C_PLAIN_TCP.finditer(code):
+            if "nw_connection_create" not in code:
+                break
+            fstart, fend = _enclosing_function(code, m.start())
+            endpoint = _NW_C_ENDPOINT.search(code, fstart, fend)
+            host_value = endpoint.group(1) if endpoint else ""
+            host = _non_local_host(host_value)
+            if host is None and _LITERAL_HOST.search(host_value):
+                continue                         # localhost or a loopback address
+            where = f" to {host}" if host else ""
+            line = ctx.line_of(code, m.start())
+            yield Hit(path, line, ctx.snippet(path, line),
+                      f"This connection{where} uses plain TCP with no TLS. Socket and Network.framework "
+                      "connections are outside App Transport Security, so the data travels in cleartext.")
         for m in _SOCKET_CALL.finditer(code):
             open_idx = code.find("(", m.start())
             end = _paren_end(code, open_idx, limit=800)
@@ -1558,12 +1582,23 @@ def message_handler_origin(ctx: Context, rule: Rule) -> Iterable[Hit]:
         yield Hit(path, line, ctx.snippet(path, line), msg, severity=severity)
 
 
+_KVC_TRUE_SWIFT = (r"(?:true|1|kCFBooleanTrue|NSNumber\s*\(\s*(?:value|booleanLiteral)\s*:\s*(?:true|1)\s*\)"
+                   r"|true\s+as\s+(?:NSNumber|AnyObject|Any))")
+_KVC_FILE_KEYS = r"(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)"
 _KVC_FILE_ACCESS = re.compile(
-    r"\bsetValue\s*\(\s*(?:true|1|NSNumber\s*\(\s*value\s*:\s*(?:true|1)\s*\)|kCFBooleanTrue)\s*,\s*forKey\s*:\s*"
-    r"\"(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\""
+    r"\bsetValue\s*\(\s*" + _KVC_TRUE_SWIFT + r"\s*,\s*forKey\s*:\s*(?:\"" + _KVC_FILE_KEYS + r"\"|([A-Za-z_][\w.]*))"
     r"|\bsetValue\s*:\s*(?:@YES|@\(\s*YES\s*\)|@1|@true|\[\s*NSNumber\s+numberWithBool\s*:\s*YES\s*\])\s+forKey\s*:\s*"
-    r"@\"(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\""
+    r"(?:@\"" + _KVC_FILE_KEYS + r"\"|([A-Za-z_]\w*))"
 )
+
+
+def _kvc_key(code: str, m: "re.Match[str]") -> Optional[str]:
+    """The preference a match sets: a literal key, or a constant in the same file that holds one."""
+    if m.group(1) or m.group(3):
+        return m.group(1) or m.group(3)
+    name = (m.group(2) or m.group(4) or "").rsplit(".", 1)[-1]
+    const = name_index(code, r"\s*(?::\s*(?:String|NSString\s*\*)\s*)?=\s*@?\"" + _KVC_FILE_KEYS + r"\"").get(name)
+    return const.group(2) if const else None
 
 
 @detector("ios_webview_file_access_kvc")
@@ -1574,7 +1609,9 @@ def webview_file_access_kvc(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         code = _release_code(ctx, path, keep_strings=True)
         for m in _KVC_FILE_ACCESS.finditer(code or ""):
-            key = m.group(1) or m.group(2)
+            key = _kvc_key(code, m)
+            if key is None:
+                continue
             line = ctx.line_of(code, m.start())
             yield Hit(path, line, ctx.snippet(path, line),
                       f"The private WebKit preference {key} is switched on through key-value coding, so a "
@@ -1582,9 +1619,13 @@ def webview_file_access_kvc(ctx: Context, rule: Rule) -> Iterable[Hit]:
                                                                   else "."))
 
 
+# One character of an Objective-C argument, or a whole message in it nested up to two levels. A message
+# can span lines; `;` ends the statement, and the counts keep each attempt bounded.
+_OBJC_ARG = r"(?:[^\[\];]|\[(?:[^\[\];]|\[[^\[\];]{0,200}\]){0,200}\])"
 _LOAD_FILE_URL = re.compile(
     r"\bloadFileURL\s*\(\s*[^,;\n]{1,200}?,\s*allowingReadAccessTo\s*:\s*([^\n;]{1,200})"
-    r"|\bloadFileURL\s*:\s*[^\]\n]{1,200}?\ballowingReadAccessToURL\s*:\s*([^\]\n]{1,200})\]"
+    # Objective-C: either argument may hold messages two levels deep, `[[NSFileManager defaultManager] ...]`.
+    r"|\bloadFileURL\s*:\s*" + _OBJC_ARG + r"{1,200}?\ballowingReadAccessToURL\s*:\s*(" + _OBJC_ARG + r"{1,300})\]"
 )
 _BROAD_DIR = re.compile(
     r"\b(?:documentDirectory|documentsDirectory|libraryDirectory|applicationSupportDirectory|cachesDirectory"
@@ -1706,7 +1747,8 @@ def webview_password_input(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         for m in _LOAD_HTML.finditer(code):
             arg = code[m.end():m.end() + 4000]
-            ident = re.match(r"(?:self\s*\.\s*)?([A-Za-z_]\w*)\s*[,\s\]]", arg)
+            # `page`, `self.page`, `Self.page`, `LoginPage.html`: a constant this file defines.
+            ident = re.match(r"(?:(?:self|Self|[A-Z]\w*)\s*\.\s*)?([A-Za-z_]\w*)\s*[,\s\]]", arg)
             if ident and ident.group(1) not in ("String", "NSString"):
                 html = _literal_value(code, ident.group(1), m.start())
             else:
@@ -1725,20 +1767,34 @@ _DEEPLINK_HANDLER = re.compile(
     r"|\bfunc\s+application\s*\([^)]{0,200}?\bcontinue\s+(\w+)\s*:\s*NSUserActivity"
     r"|\bfunc\s+scene\s*\([^)]{0,200}?\bcontinue\s+(\w+)\s*:\s*NSUserActivity"
     r"|\.onOpenURL\s*(?:\(\s*perform\s*:\s*)?(?=\{\s*(\w+)\s+in)"
+    # Objective-C: -application:openURL:options:, -application:continueUserActivity:restorationHandler:
+    r"|-\s*\(\s*BOOL\s*\)\s*application\s*:\s*\([^)]{0,80}\)\s*\w+\s+openURL\s*:\s*\(\s*NSURL\s*\*\s*\)\s*(\w+)"
+    r"|-\s*\(\s*BOOL\s*\)\s*application\s*:\s*\([^)]{0,80}\)\s*\w+\s+continueUserActivity\s*:"
+    r"\s*\(\s*NSUserActivity\s*\*\s*\)\s*(\w+)"
 )
-_WEB_LOAD = re.compile(r"\.load\s*\(\s*(?:URLRequest\s*\(\s*url\s*:|request\s*\()|\bloadFileURL\s*\(|\bloadHTMLString\s*\(")
+_WEB_LOAD = re.compile(r"\.load\s*\(\s*(?:URLRequest\s*\(\s*url\s*:|request\s*\()|\bloadFileURL\s*\(|\bloadHTMLString\s*\("
+                       r"|\bloadRequest\s*:|\bloadFileURL\s*:|\bloadHTMLString\s*:")    # the last three: Objective-C
 _HOST_ALLOWLIST = re.compile(r"\.host\s*(?:==|!=)\s*\"|\"\s*(?:==|!=)\s*\w+\s*\.host\b|allowed\w*\s*\.contains\s*\("
-                             r"|\.contains\s*\(\s*\w+\s*\.host\b|switch\s+[\w.?]+\.host\b|trusted\w*Host")
+                             r"|\.contains\s*\(\s*\w+\s*\.host\b|switch\s+[\w.?]+\.host\b|trusted\w*Host"
+                             r"|\.host\s+isEqualToString\s*:|containsObject\s*:\s*[\w.]+\.host\b")   # Objective-C
+# `if url.host == "ads.example" { return }` blocks one host and lets every other through: not an allowlist.
+_HOST_BLOCKLIST = re.compile(r"\bif\s+(?:[\w.?]+\.host\s*==\s*\"[^\"\n]*\"|\"[^\"\n]*\"\s*==\s*[\w.?]+\.host"
+                             r"|(?:blocked|denied|banned|black)\w*\s*\.contains\s*\([^()\n]*\))\s*\{\s*return\b"
+                             r"|\bif\s*\(\s*\[\s*[\w.]+\.host\s+isEqualToString\s*:\s*@?\"[^\"\n]*\"\s*\]\s*\)\s*\{?\s*return\b",
+                             re.IGNORECASE)
 _CALL_WITH = r"\b(\w+)\s*\(\s*(?:\w+\s*:\s*)?{v}\b"
 
 
 def _taint(body: str, seeds: Set[str]) -> Set[str]:
-    """The seed names plus local constants derived from them (three rounds of `let x = f(seed)`)."""
+    """The seed names plus local constants derived from them (three rounds of `let x = f(seed)`, or
+    Objective-C `NSURLRequest *x = [... seed];`)."""
     names = set(seeds)
     for _ in range(3):
-        for a in re.finditer(r"\b(?:let|var)\s+(\w+)\s*(?::\s*[\w.?!<>\[\]]+\s*)?=\s*([^\n{;]+)", body):
-            if a.group(1) not in names and any(re.search(rf"\b{re.escape(n)}\b", a.group(2)) for n in names):
-                names.add(a.group(1))
+        for a in re.finditer(r"\b(?:let|var)\s+(\w+)\s*(?::\s*[\w.?!<>\[\]]+\s*)?=\s*([^\n{;]+)"
+                             r"|\b[A-Z]\w*\s*\*\s*(\w+)\s*=\s*([^{;]+)", body):
+            name, value = (a.group(1), a.group(2)) if a.group(1) else (a.group(3), a.group(4))
+            if name not in names and any(re.search(rf"\b{re.escape(n)}\b", value) for n in names):
+                names.add(name)
     return names
 
 
@@ -1746,8 +1802,12 @@ def _tainted_load(body: str, seeds: Set[str]) -> Optional[int]:
     """Offset of a web view load whose arguments derive from the seed names, if any."""
     names = _taint(body, seeds)
     for m in _WEB_LOAD.finditer(body):
-        end = _paren_end(body, body.find("(", m.start()))
-        args = body[m.start():end if end != -1 else m.end() + 200]
+        if m.group().endswith(":"):             # Objective-C: the message's arguments, up to the statement end
+            stop = body.find(";", m.end(), m.end() + 400)
+            args = body[m.start():stop if stop != -1 else m.end() + 400]
+        else:
+            end = _paren_end(body, body.find("(", m.start()))
+            args = body[m.start():end if end != -1 else m.end() + 200]
         if any(re.search(rf"\b{re.escape(n)}\b", args) for n in names):
             return m.start()
     return None
@@ -1760,7 +1820,7 @@ def deeplink_webview(ctx: Context, rule: Rule) -> Iterable[Hit]:
         param = next((g for g in m.groups() if g), None)
         if not param or param == "_":
             continue
-        if _HOST_ALLOWLIST.search(body):
+        if _HOST_ALLOWLIST.search(_HOST_BLOCKLIST.sub(" ", body)):
             continue
         seeds = {param}
         offset = _tainted_load(body, seeds)
@@ -1775,7 +1835,7 @@ def deeplink_webview(ctx: Context, rule: Rule) -> Iterable[Hit]:
                     if span is None:
                         continue
                     hbody = code[span[0]:span[1]]
-                    if _HOST_ALLOWLIST.search(hbody):
+                    if _HOST_ALLOWLIST.search(_HOST_BLOCKLIST.sub(" ", hbody)):
                         continue
                     off = _tainted_load(hbody, {f.group(1)})
                     if off is not None:
@@ -2234,6 +2294,10 @@ _GROUP_CONTAINER = re.compile(r"containerURL\s*\(\s*forSecurityApplicationGroupI
 _FILE_WRITE = re.compile(r"\.write\s*\(\s*to\s*:|\bcreateFile\s*\(\s*atPath|\bcreateFileAtPath\s*:|writeToURL\s*:"
                          r"|writeToFile\s*:|\bNSPersistentStoreDescription\s*\(|addPersistentStore")
 _SECRET_NAME = re.compile(r"token|password|passwd|secret|credential|session(?!Configuration)|jwt|api_?key", re.IGNORECASE)
+# What is written: `x.write(to:)`, `JSONEncoder().encode(x).write(to:)`, `x.data(using: .utf8)?.write(to:)`.
+_WRITE_RECEIVER = re.compile(r"\b(\w+)\s*\.\s*write\s*\(\s*to\s*:"
+                             r"|\.encode\s*\(\s*(\w+)\s*\)\s*\.\s*write\s*\(\s*to\s*:"
+                             r"|\b(\w+)\s*\.\s*data\s*\([^()\n]{0,40}\)\s*[?!]?\s*\.\s*write\s*\(\s*to\s*:")
 
 
 @detector("ios_app_group_secret_file")
@@ -2251,7 +2315,7 @@ def app_group_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if not _FILE_WRITE.search(fn):
                 continue
             names = [n.group(1) for n in _DOCS_WRITE_NAME.finditer(fn)]
-            receivers = [w.group(1) for w in re.finditer(r"\b(\w+)\s*\.\s*write\s*\(\s*to\s*:", fn)]
+            receivers = [w.group(1) or w.group(2) or w.group(3) for w in _WRITE_RECEIVER.finditer(fn)]
             hit = next((x for x in names + receivers if _SECRET_NAME.search(x) and "URLSession" not in x), None)
             if hit is None:
                 continue
@@ -2278,13 +2342,28 @@ _BACKUP_SECRET_NAME = re.compile(r"secret|token(?!iz)|password|passwd|credential
                                  r"|\.(?:key|pem|p12)$", re.IGNORECASE)
 
 
+def _excludes_per_file(code: str) -> bool:
+    """True when every isExcludedFromBackup in this file sits in a function that writes a file itself: each
+    write is excluded on its own, so a write elsewhere without it is not covered. Otherwise (a folder
+    excluded in `init`, a helper) the whole file counts as excluded, as before 0.6.3."""
+    for m in itertools.islice(_BACKUP_EXCLUDED.finditer(code), 50):
+        if not _in_function(code, m.start()):
+            return False
+        start, end = _enclosing_function(code, m.start())
+        if not _BACKUP_WRITE.search(code, start, end):
+            return False
+    return True
+
+
 @detector("ios_backup_secret_file")
 def backup_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE_SUFFIXES):
         if _is_test_path(path) or not holds_any(ctx, path, ("Directory",)):
             continue
         code = _release_code(ctx, path, keep_strings=True)
-        if code is None or _BACKUP_EXCLUDED.search(code) or not _BACKED_UP_DIR.search(code):
+        if code is None or not _BACKED_UP_DIR.search(code):
+            continue
+        if _BACKUP_EXCLUDED.search(code) and not _excludes_per_file(code):
             continue
         done: Set[int] = set()
         for w in _BACKUP_WRITE.finditer(code):
@@ -2293,6 +2372,8 @@ def backup_secret_file(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             done.add(fstart)
             fn = code[fstart:fend]
+            if _BACKUP_EXCLUDED.search(fn):
+                continue                    # this function excludes what it writes
             if not _BACKED_UP_DIR.search(fn):
                 # The folder may be a stored property of the type (`let docs = ...documentDirectory...`).
                 stored = _stored_properties(code)
@@ -2531,6 +2612,78 @@ _IB_NO_LEARNING = re.compile(r"\bsecureTextEntry=\"YES\"|\bautocorrectionType=\"
 _IB_OUTLET = re.compile(r"<outlet\s+property=\"(\w+)\"\s+destination=\"([^\"]+)\"")
 
 
+_SWIFTUI_VIEW = re.compile(r"\bstruct\s+(\w+)\s*(?::[^{]{0,200}?\bView\b[^{]{0,200}?)?\{")
+_CALL_NAME = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+
+
+class _SwiftUIViews:
+    """The structs of one file, which set a no-learning modifier, and where each name is called: built in
+    one pass, so asking about every text field stays linear."""
+
+    def __init__(self, code: str):
+        self.code = code
+        marks = [m.start() for m in _SWIFTUI_NO_LEARNING.finditer(code)]
+        self.anywhere = bool(marks)
+        self.names: List[str] = []
+        self.starts: List[int] = []
+        self.ends: List[int] = []
+        self.parent: List[int] = []
+        flagged: List[Tuple[int, int]] = []
+        self.flagged: Set[int] = set()
+        stack: List[int] = []
+        for v in _SWIFTUI_VIEW.finditer(code):
+            end = bracket_match(code, v.end() - 1, "{", "}")
+            while stack and self.ends[stack[-1]] <= v.start():
+                stack.pop()
+            self.parent.append(stack[-1] if stack else -1)
+            stack.append(len(self.names))
+            self.names.append(v.group(1))
+            self.starts.append(v.start())
+            self.ends.append(end)
+            k = bisect.bisect_left(marks, v.start())
+            if k < len(marks) and marks[k] < end:
+                flagged.append((v.start(), end))
+                self.flagged.add(len(self.names) - 1)
+        merged: List[List[int]] = []
+        for a, b in sorted(flagged):
+            if merged and a <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], b)
+            else:
+                merged.append([a, b])
+        self.covered_starts = [a for a, _b in merged]
+        self.covered = merged
+        self.calls: Dict[str, List[int]] = {}
+        for c in _CALL_NAME.finditer(code):
+            self.calls.setdefault(c.group(1), []).append(c.start())
+        self.used: Dict[str, bool] = {}
+
+    def _in_flagged(self, pos: int) -> bool:
+        k = bisect.bisect_right(self.covered_starts, pos) - 1
+        return k >= 0 and pos < self.covered[k][1]
+
+    def no_learning(self, pos: int) -> bool:
+        """Does a no-learning modifier reach a field at `pos`: on its own view or a view around it, or on a
+        view in this file that uses its view? Outside any struct, the whole file decides, as before 0.6.3."""
+        i = bisect.bisect_right(self.starts, pos) - 1
+        for _ in range(64):                     # out through enclosing structs to the innermost around `pos`
+            if i < 0 or pos < self.ends[i]:
+                break
+            i = self.parent[i]
+        else:
+            return self.anywhere
+        if i < 0:
+            return self.anywhere
+        own = i
+        while i >= 0:
+            if i in self.flagged:
+                return True
+            i = self.parent[i]
+        name = self.names[own]
+        if name not in self.used:
+            self.used[name] = any(self._in_flagged(p) for p in self.calls.get(name, ()))
+        return self.used[name]
+
+
 def _keyboard_message(label: str, kind: str) -> str:
     return (f"The field \"{label}\" takes {kind}, but it isn't a secure field and keeps autocorrection on, so the "
             "keyboard can learn what is typed and suggest it later.")
@@ -2593,14 +2746,15 @@ def keyboard_cache(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if label is not None:
                 line = ctx.line_of(code, m.start())
                 yield Hit(path, line, ctx.snippet(path, line), _keyboard_message(label, _secret_field_kind(label)))
-        # SwiftUI: a plain TextField for a secret, with no autocorrection modifier anywhere in the file
-        # (the modifier is inherited from a parent container).
-        if "TextField" in code and not _SWIFTUI_NO_LEARNING.search(code):
+        # SwiftUI: a plain TextField for a secret, with no autocorrection modifier on its view, or on a view in
+        # this file that contains it (the modifier is inherited from a parent container).
+        if "TextField" in code:
+            views = _SwiftUIViews(code)
             # A "show password" toggle swaps a SecureField for a TextField bound to the same value: the user
             # chose to reveal it.
             revealed = set(_SECURE_FIELD_BINDING.findall(code))
             for m in _SWIFTUI_FIELD.finditer(code):
-                if m.group(3) in revealed:
+                if m.group(3) in revealed or views.no_learning(m.start()):
                     continue
                 title, binding = m.group(1) or m.group(2) or "", m.group(3).rsplit(".", 1)[-1]
                 label = title.strip() if _secret_field_kind(title) else binding
@@ -3227,7 +3381,10 @@ def tracking_domains(ctx: Context, rule: Rule) -> Iterable[Hit]:
             if dom is None or (m.group(2) and _NON_TRACKING_PATH.search(m.group(2))) \
                     or (host != dom and _NON_TRACKING_HOST.match(host)):
                 continue
-            covered = tracking and any(host == x or host.endswith("." + x) or x.endswith(dom) for x in declared)
+            # A declared domain covers itself and its subdomains; a declared subdomain covers only a bare
+            # vendor domain in code (`mixpanel.com`), not a sibling host (`api-eu` doesn't cover `api`).
+            covered = tracking and any(host == x or host.endswith("." + x) or (host == dom and x.endswith("." + dom))
+                                       for x in declared)
             if covered or host in seen:
                 continue
             seen.add(host)
