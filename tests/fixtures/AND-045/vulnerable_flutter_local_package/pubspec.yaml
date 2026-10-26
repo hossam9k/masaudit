@@ -1,0 +1,7 @@
+name: bank
+# A local package inside the scanned folder: it is scanned, and it sets nothing.
+dependencies:
+  flutter:
+    sdk: flutter
+  bank_widgets:
+    path: packages/widgets

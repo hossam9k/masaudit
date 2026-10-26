@@ -1,1 +1,1 @@
-{"vulnerable": 1, "clean": 0, "clean_compose": 0, "clean_flutter": 0, "clean_library": 0, "clean_rn_expo_screen_capture": 0, "vulnerable_rn_unrelated": 1, "vulnerable_expo_managed": 1, "clean_expo_screen_capture": 0}
+{"vulnerable": 1, "clean": 0, "clean_compose": 0, "clean_flutter": 0, "clean_library": 0, "clean_rn_expo_screen_capture": 0, "vulnerable_rn_unrelated": 1, "vulnerable_expo_managed": 1, "clean_expo_screen_capture": 0, "unclear_outside_package": 0, "vulnerable_flutter_local_package": 1}

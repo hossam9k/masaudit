@@ -2065,6 +2065,16 @@ _STD_SCHEMES = {"http", "https", "content", "file", "mailto", "tel", "sms", "sms
 _SMS_RECEIVED = "android.provider.Telephony.SMS_RECEIVED"
 
 
+# Wear OS opens a complication's or watch face's settings screen through its own app-specific action; the
+# category marks that contract, and the system needs the activity exported.
+_SYSTEM_CONFIG_CATEGORIES = frozenset({
+    "android.support.wearable.complications.category.PROVIDER_CONFIG",
+    "androidx.wear.watchface.complications.category.PROVIDER_CONFIG",
+    "com.google.android.wearable.watchface.category.WEARABLE_CONFIGURATION",
+    "com.google.android.wearable.watchface.category.COMPANION_CONFIGURATION",
+})
+
+
 def _private_surface(c: Element) -> Tuple[List[str], bool]:
     """Why an exported component exposes something app-specific, or [] if it only serves public
     platform contracts (share target, widget, media session, launcher shortcut, sync adapter ...).
@@ -2083,6 +2093,8 @@ def _private_surface(c: Element) -> Tuple[List[str], bool]:
         else:
             custom = [a for a in acts if a and not _FRAMEWORK_ACTION.match(a)]
         custom = [a for a in custom if a not in _PUBLIC_INTEROP and not a.startswith(_PUBLIC_INTEROP_PREFIX)]
+        if _SYSTEM_CONFIG_CATEGORIES.intersection(cats):
+            custom = []                       # the watch's system UI opens it by this filter, by design
         if len(custom) < len([a for a in acts if a]):
             public = True
         out += custom
@@ -4266,6 +4278,11 @@ def crypto_provider(ctx: Context, rule: Rule) -> Iterable[Hit]:
             arg = code[spans[0][0]:spans[0][1]] if spans else ""
             if re.search(r"Conscrypt|AndroidOpenSSL|AndroidKeyStore", arg):
                 continue
+            # addProvider appends at the lowest priority: calls that name no provider still get the platform's.
+            # Only insertProviderAt(p, 1) (or 2) puts it ahead of the platform's maintained provider.
+            position = code[spans[1][0]:spans[1][1]].strip() if len(spans) > 1 else ""
+            if "addProvider" in blank[m.start():m.end()] or small_int(position) not in (0, 1, 2):
+                continue
             yield _hit(ctx, path, ctx.line_of(blank, m.start()),
                        f"The app installs its own security provider ({arg.strip()[:40]}), which replaces the "
                        "platform's maintained implementation for later crypto calls.")
@@ -5105,6 +5122,12 @@ def no_screenshot_protection(ctx: Context, rule: Rule) -> Iterable[Hit]:
         yield _hit(ctx, *expo, "No screen-capture protection found for this Expo app (expo-screen-capture, or a "
                    "library that sets FLAG_SECURE), so screenshots, screen recording and the recents thumbnail can "
                    "capture balances, card numbers or one-time codes.")
+        return
+    outside = flutter.outside_packages(ctx)
+    if outside:
+        ctx.note_unknown("No FLAG_SECURE was found, but local Flutter packages outside the scanned folder ("
+                         + ", ".join(outside[:5]) + ") weren't scanned and may set it. Scan the repository root "
+                         "to check them.")
         return
     path, app = _main_application(ctx)
     yield _hit(ctx, path, app.line,

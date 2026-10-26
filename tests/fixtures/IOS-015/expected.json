@@ -1,1 +1,1 @@
-{"vulnerable": 1, "clean": 0, "vulnerable_keyboard_frameinfo": 1, "clean_trampoline": 0, "vulnerable_delegate_action": 1}
+{"vulnerable": 1, "clean": 0, "vulnerable_keyboard_frameinfo": 1, "clean_trampoline": 0, "vulnerable_delegate_action": 1, "clean_stub_handlers": 0}

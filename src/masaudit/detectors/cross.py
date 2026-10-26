@@ -3136,6 +3136,9 @@ _ANALYTICS_FILE = re.compile(r"Analytics|Crashlytics|Amplitude|Mixpanel|Segment|
                              r"Bugsnag|Datadog|PostHog|Countly")
 
 
+_EVENT_CONSTANT = re.compile(r"(?<=[:(,=\s])\.[a-z]\w*\b(?!\s*\()|\b[A-Z]\w*\s*\.\s*[A-Z][A-Z0-9_]+\b(?!\s*\()")
+
+
 def _event_pii(code: str, blank: str, open_paren: int, path: str) -> List[str]:
     """PII words in an analytics event's parameter keys and values: the call's arguments, a trailing
     `{ param(...) }` block, and the `put…("key", …)` calls on a bundle or map variable it passes."""
@@ -3157,6 +3160,9 @@ def _event_pii(code: str, blank: str, open_paren: int, path: str) -> List[str]:
         start = max(_enclosing_function(blank, open_paren, path)[0], open_paren - 4000)
         put = re.compile(r"\b" + re.escape(var.group(1)) + r"\s*(?:\.\s*put\w*\s*\(|\[)\s*[\"']([^\"'\n]{1,60})[\"']")
         keys += put.findall(code, start, open_paren)
+    # Enum cases and constants name the event (`object: .addressAutofillPromptShown`, `Events.EMAIL_OPENED`);
+    # they carry no user data, so their words don't count.
+    region_blank = _EVENT_CONSTANT.sub(" ", region_blank)
     words = _words_of(" ".join(keys)) | _words_of(region_blank)
     return sorted(words & _PII_WORDS)
 
@@ -3523,6 +3529,39 @@ _ASSIGNED_NAME = re.compile(r"(?:\b(?:val|var|let|final|String|long|Long|int|Int
                             r"TimeInterval)\s+)?\b([A-Za-z_]\w*)\s*(?::\s*[\w.?]+)?\s*=(?!=)[^=;\n]*$")
 
 
+def _named_enclosing_call(blank: str, idx: int) -> str:
+    """_enclosing_call, stepping out of grouping parentheses: `getOtp((now / 1000) + offset)` -> getOtp."""
+    for _ in range(8):
+        depth, i = 0, idx - 1
+        while i >= max(0, idx - 400):
+            c = blank[i]
+            if c == ")":
+                depth += 1
+            elif c == "(":
+                if not depth:
+                    break
+                depth -= 1
+            elif c in "{};" and depth == 0:
+                return ""
+            i -= 1
+        else:
+            return ""
+        if i < max(0, idx - 400):
+            return ""
+        name = re.search(r"([A-Za-z_]\w*)\s*$", blank[max(0, i - 80):i])
+        if name:
+            return name.group(1)
+        idx = i                                   # a grouping parenthesis: look further out
+    return ""
+
+
+# Calls that pass the time through unchanged as text or a number: `String.valueOf(now)` is still the clock.
+_TIME_AS_TEXT = re.compile(r"(?:get|valueOf|toString|format|String|Long|Integer|Int|toHexString|toLong|toInt|abs|floor"
+                           r"|round|div|times|plus|minus|parse\w*|encode\w*"
+                           # A hash of the time is as guessable as the time: md5(now), sha256(now), hash(now).
+                           r"|(?i:\w*(?:hash|md5|sha1|sha256|sha512|sha|digest|base64)\w*))$")
+
+
 @detector("xpl_time_based_token")
 def time_based_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, CODE, ("currentTimeMillis", "nanoTime", "SystemClock", "Date", "Calendar",
@@ -3540,8 +3579,11 @@ def time_based_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
             rhs = blank[m.start():e]          # other entropy mixed in (`time + random`) is not this rule's case
             if not found or words & _TIME_NAME or re.search(r"(?i)random|uuid", rhs):
                 continue
-            if re.search(r"(?i)random|seed|srand", _enclosing_call(blank, m.start())):
+            call = _named_enclosing_call(blank, m.start())
+            if re.search(r"(?i)random|seed|srand", call):
                 continue                      # a generator seeded with the time: XPL-008's case
+            if call and not _TIME_AS_TEXT.match(call):
+                continue                      # the time goes into a function (getOtp(now), hmac(key, now)), not out as-is
             line = ctx.line_of(code, m.start())
             if line not in seen:
                 seen.add(line)

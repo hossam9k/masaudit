@@ -12,3 +12,8 @@ class Tokens {
         return "$random1$random2$sessionToken"
     }
 }
+
+fun hashed(): String {
+    val resetToken = md5(System.currentTimeMillis().toString())
+    return resetToken
+}

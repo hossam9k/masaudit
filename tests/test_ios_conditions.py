@@ -136,6 +136,13 @@ class AuditedSeverity(unittest.TestCase):
         lines = sorted(h.location.line for h in self._hits("IOS-017", "vulnerable_flutter"))
         self.assertEqual(lines, [7, 12])
 
+    def test_redirect_that_never_reaches_the_os_is_low(self):
+        # ASWebAuthenticationSession, FlutterWebAuth2, or the app's own web view receives the callback: only
+        # client impersonation is left. A redirect routed through the OS keeps the rule's severity.
+        for variant in ("vulnerable", "vulnerable_flutter", "webview_captured"):
+            self.assertEqual({h.severity for h in self._hits("IOS-017", variant)}, {"low"}, variant)
+        self.assertEqual([h.severity for h in self._hits("IOS-017", "vulnerable_os_redirect")], [""])
+
 
 if __name__ == "__main__":
     unittest.main()

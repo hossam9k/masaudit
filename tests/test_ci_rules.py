@@ -274,6 +274,11 @@ class SigningMaterial(unittest.TestCase):
             ("app/nightly.keystore", 0): "high",
         })
 
+    def test_gradle_push_task_counts_as_a_push(self):
+        got = calibrated(fixture("CI-005", "info_gradle_push"), "CI-005")
+        self.assertEqual([f.effective_severity for f in got.values()], ["info"])
+        self.assertIn("this job pushes", next(iter(got.values())).message)
+
     def test_exclude_globs_apply_to_files_the_scan_does_not_read(self):
         # Keystores are found by name, outside safety.walk; `exclude` must still drop them (0.6.1 didn't).
         tmp = tempfile.mkdtemp(prefix="masaudit-ci-")

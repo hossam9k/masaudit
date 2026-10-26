@@ -1,1 +1,1 @@
-{"vulnerable": 2, "clean": 0, "nearmiss": 2, "mustfire": 8, "mustfire_fastlane": 2}
+{"vulnerable": 2, "clean": 0, "nearmiss": 2, "mustfire": 8, "mustfire_fastlane": 2, "nearmiss_disabled_job": 0, "info_gradle_push": 1}

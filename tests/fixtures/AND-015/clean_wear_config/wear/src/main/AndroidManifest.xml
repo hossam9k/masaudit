@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Wear OS complication's settings screen: the watch opens it through this filter, so it must be exported. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.watch">
+    <application android:label="Watch">
+        <activity android:name=".complications.ComplicationConfigActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.watch.ENTITY_COMPLICATION_CONFIG" />
+                <category android:name="android.support.wearable.complications.category.PROVIDER_CONFIG" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
