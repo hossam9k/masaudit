@@ -5,21 +5,24 @@
 [Accuracy and speed](precision.md) measures masaudit on the apps its rules were tuned on, after the false
 alarms found there were fixed. That number is optimistic by design. This page measures what a new user
 gets: open-source apps that no rule was written or fixed for, scanned by masaudit and three other free
-scanners on the same commits, in two rounds. Losses are included.
+scanners on the same commits, in four rounds. Losses are included.
 
 **Short version** (October 2026):
 
-- **On code it hasn't seen, expect about 4 in 10 of masaudit's app-code findings to be false alarms.**
-  Three rounds on 55 apps: 26% for 0.6.2 (round 1), 45% for 0.6.3 (round 2; 35% without one outlier
-  file), and 40% for 0.6.4 (round 3, 29–52%). Fixing each round's false alarms didn't lower the next
-  round's rate: the causes are spread over many rules, a few each.
+- **On code it hasn't seen, expect about 1 in 3 findings in masaudit's fix lists to be a false alarm.**
+  Round 4 (0.6.5, 16 new apps): 33% (23–44%) of the app-code findings in *Fix before release* and *Fix
+  soon*. 0.6.5 moved the noisiest findings, 162 of 350 in app code, to *Check by hand* and the *Hardening
+  checklist*, which don't fail CI; none of the 30 sampled there was a real vulnerability. Counting every
+  bucket, the rate is about where it was: 26% for 0.6.2, 45% for 0.6.3, 40% for 0.6.4, about 44% for 0.6.5.
+  The rules didn't get more accurate; the fix lists got cleaner.
 - **Only about 1 in 7 to 1 in 11 app-code findings is a vulnerability as described.** Most of the rest are
   real gaps that matter less than they sound: a missing hardening control, a debug-only setting.
-- **CI findings hold up:** 1 of 62 false in round 3, none of 45 in round 2, 2 of 49 in round 1.
-- **The other free scanners did worse in every round.** Round 3: mobsfscan's sampled findings were false
-  93% of the time, rnsec's 52% (none as serious as stated), Semgrep's free rules 1 of 1.
-- **The next step is structural, not another round of fixes:** see
-  [Round 3](#round-3-064-on-16-more-apps).
+- **CI findings hold up:** none of 30 false in round 4, 1 of 62 in round 3, none of 45 in round 2, 2 of 49
+  in round 1.
+- **The other free scanners did worse in every round.** Round 4: mobsfscan's sampled findings were false
+  91% of the time, rnsec's 72% (none as serious as stated), Semgrep's free rules 3 of 3.
+- **The next step is reading what ships:** about a third of the false alarms left are in demo apps, test
+  modules, and debug-only build types. See [Round 4](#round-4-065-on-16-more-apps).
 
 ## Method
 
@@ -200,6 +203,52 @@ Matching patterns one file at a time, masaudit can't know which code ships or wh
 next releases aim at that rather than at single cases: reading the Gradle and Xcode project structure (which
 modules and targets build the app, and the merged Android manifest) to decide what ships, and marking the
 rules that keep misfiring *Check by hand* until they are reliable.
+
+## Round 4: 0.6.5 on 16 more apps
+
+Chosen after 0.6.5 was released, the first version with *Check by hand* and the *Hardening checklist*:
+Termux, Delta Chat, Tasks.org, Proton Pass, Mullvad VPN (Android); Kickstarter, Kiwix, Session, Monal
+(iOS); Zeus and Edge (React Native); BlueBubbles, wger, ProxyPin, Mangayomi (Flutter); Tivi (Kotlin
+Multiplatform). Same tools, scope, and judging as round 2, with each app scanned as its own type. masaudit's
+findings were drawn from three pools, so each could be measured: 70 from its fix lists in app code, 30
+from *Check by hand* and the *Hardening checklist* in app code, and 30 from its fix lists in CI. Judges
+didn't see which pool a finding came from: the text the two new buckets add to a message was removed.
+Every verdict is in [benchmark-judgments-4.json](benchmark-judgments-4.json); `sample --buckets` and
+`--where` repeat the draws.
+
+| Tool | Findings | Total time |
+|---|---|---|
+| masaudit, each app's own type | 738 (388 CI; 350 app code: 188 in the fix lists, 162 in *Check by hand* or the *Hardening checklist*) | 25 s |
+| mobsfscan | 1,214 | 32 min |
+| Semgrep, free registry rules | 3 | 55 s |
+| rnsec | 583 | 53 s |
+
+| Tool | Sample | Real | Overrated | False | Real or overrated |
+|---|---|---|---|---|---|
+| masaudit fix lists, app code | 70 | 12 (17%, 10–28%) | 35 | 23 (33%, 23–44%) | 67% (56–77%) |
+| masaudit *Check by hand* and *Hardening checklist*, app code | 30 | 0 (0–11%) | 13 | 17 (57%, 39–73%) | 43% (27–61%) |
+| masaudit CI | 30 | 16 (53%, 36–70%) | 14 | 0 (0–11%) | 100% (89–100%) |
+| mobsfscan | 70 | 1 (1%, 0–8%) | 5 | 64 | 9% (4–17%) |
+| rnsec | 40 | 0 (0–9%) | 11 | 29 | 28% (16–43%) |
+| Semgrep, free registry rules | 3 | 0 | 0 | 3 | 0% |
+
+**What the new buckets did:** they took 46% of the app-code findings (162 of 350) out of the fix lists,
+and none of the 30 sampled was a real vulnerability as described. 14 of their 17 false alarms were
+plain-HTTP URLs (XPL-009), the rest exported components and resilience checks. In the fix lists, 33% are
+false against 40% in round 3; the intervals overlap, so treat that as a likely improvement, not a
+measured one. Weighting the two app-code samples by the size of their pools, about 44% of all app-code
+findings are false, close to round 3: the rules didn't get more accurate.
+
+**The 23 false alarms left in the fix lists:**
+
+- **Code that doesn't ship** (7): a demo app module, an end-to-end test app, a test module's network
+  config, a QA-only flavor, a LeakCanary build type, a design-system demo screen behind internal tools.
+- **Context a pattern can't see** (16): Swift symbols stripped at App Store export (IOS-021), password
+  fields made secure in code rather than in the storyboard (IOS-043), a shell argument from the OS's own
+  interface list, a public partner key, an NFC entitlement the app uses, a hidden PIN field.
+
+The next release aims at the first group: reading the Gradle and Xcode project structure to decide which
+modules, flavors, and targets build the shipped app.
 
 ## After the round 1 fixes
 

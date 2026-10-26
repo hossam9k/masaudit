@@ -7,7 +7,10 @@
     python3 scripts/benchmark_compare.py summary OUT               # findings per tool and app, shipping code only
     python3 scripts/benchmark_compare.py sample OUT N [--seed S]   # N random findings per tool, to judge by hand
 
-`--round 2` or `--round 3` (before the subcommand) uses a later set of apps.
+`--round 2`, `3`, or `4` (before the subcommand) uses a later set of apps. `--buckets fix` (after `summary` or
+`sample`) keeps only masaudit's fix lists (*Fix before release*, *Fix soon*); `--buckets soft` only its *Check by
+hand* and *Hardening checklist* findings (0.6.5 and later). The default counts both, as rounds 1-3 did.
+`sample --where app` or `--where ci` draws only from app code or only from `.github/` workflows.
 
 The tools: masaudit (this checkout's `src`, or --src), mobsfscan, Semgrep Community Edition with its free
 registry rulesets for the languages each app uses, and rnsec on React Native apps. Each runs with its
@@ -100,7 +103,28 @@ authpass             authpass/authpass                      ceb3b3ea22f64ead1eb9
 keyguard             AChep/keyguard-app                     cf9538ce4103e7fab247933036db1e88e69b359c .                          kmp           identity
 """
 
-ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT, "3": APPS3_TEXT}
+# Round 4: 16 more apps, chosen after 0.6.5 was released, the first version with the Hardening checklist and
+# Check by hand buckets.
+APPS4_TEXT = """
+termux               termux/termux-app                      8629e632fcb95da272221be327db653fb24befe9 .                          android       general
+deltachat-android    deltachat/deltachat-android            b0360819f7225fe55025da71cc73174b5a449db1 .                          android       social
+tasks                tasks/tasks                            1e159ce86c431edd842cc05c6718c441af60bc60 .                          android       general
+proton-pass-android  protonpass/android-pass                d03bd115db30f9fb2653e12d3af8dc7119619a44 .                          android       identity
+mullvad-android      mullvad/mullvadvpn-app                 0508389502500fdd8e375d1e53756d4053ca23de android                    android       general
+kickstarter-ios      kickstarter/ios-oss                    5f5463cfb830413d253efed45bfcec0322c9f152 .                          ios           ecommerce-cards
+kiwix-apple          kiwix/kiwix-apple                      f410135964333775373ce851a43eeb05c966dace .                          ios           content
+session-ios          session-foundation/session-ios         195c9fbddfc5a66c62c5494c6bd1d65417fe436b .                          ios           social
+monal                monal-im/Monal                         8cdbe7479edb38e045e9ff58d3489ec2271961f0 .                          ios           social
+zeus                 ZeusLN/zeus                            7d468f37812ad2fcea59b660f5f1a2be43f15794 .                          react-native  banking
+edge-wallet          EdgeApp/edge-react-gui                 e39bc73141898813f62a2a4edc3dd6443f955ae2 .                          react-native  banking
+bluebubbles          BlueBubblesApp/bluebubbles-app         7e5f1bce5cacf2e7194e329a4aeae6728e872049 .                          flutter       social
+wger                 wger-project/flutter                   6814711fe6c49ffde4c61bac031420e287bfd6c7 .                          flutter       health
+proxypin             wanghongenpin/proxypin                 2c98385438b0ada5666574cce3f8cc562fbd8f98 .                          flutter       general
+mangayomi            kodjodevf/mangayomi                    04fcda0ea92195e18e4a88a7d7278eb9045d3003 .                          flutter       content
+tivi                 chrisbanes/tivi                        a0c62c2c763c83e3a0ecf79b283224374bb06c4a .                          kmp           content
+"""
+
+ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT, "3": APPS3_TEXT, "4": APPS4_TEXT}
 _ROUND = ["1"]                                   # the round in use, set from --round
 
 TOOLS = ("masaudit", "mobsfscan", "semgrep", "rnsec")
@@ -235,6 +259,7 @@ def _results(path: str, app_root: str) -> List[dict]:
             uri = uri.lstrip("./") if uri.startswith("./") else uri
             line = (phys.get("region") or {}).get("startLine") or 0
             out.append({"rule": str(res.get("ruleId") or ""), "path": uri, "line": line,
+                        "bucket": (res.get("properties") or {}).get("bucket") or "",
                         "level": res.get("level") or "warning",
                         "message": ((res.get("message") or {}).get("text") or "")[:300]})
     return out
@@ -244,19 +269,30 @@ def _shipped(results: List[dict]) -> List[dict]:
     return [r for r in results if r["path"] and not _NOT_SHIPPED.search(r["path"])]
 
 
-def load(out_dir: str, directory: str) -> Dict[str, Dict[str, List[dict]]]:
+_SOFT = ("check-by-hand", "hardening")
+
+
+def _in_buckets(r: dict, buckets: str) -> bool:
+    """masaudit's buckets; other tools have none and are always kept."""
+    if not r["bucket"] or buckets == "all":
+        return True
+    return (r["bucket"] in _SOFT) == (buckets == "soft")
+
+
+def load(out_dir: str, directory: str, buckets: str = "all") -> Dict[str, Dict[str, List[dict]]]:
     data: Dict[str, Dict[str, List[dict]]] = {}
     for tool in TOOLS:
         for folder, _repo, _commit, sub, _kind in _apps():
             path = os.path.join(out_dir, tool, folder + ".sarif")
             if os.path.exists(path):
                 root = os.path.realpath(os.path.join(directory, folder, sub))
-                data.setdefault(tool, {})[folder] = _shipped(_results(path, root))
+                data.setdefault(tool, {})[folder] = [r for r in _shipped(_results(path, root))
+                                                     if _in_buckets(r, buckets)]
     return data
 
 
-def summary(out_dir: str, directory: str) -> int:
-    data = load(out_dir, directory)
+def summary(out_dir: str, directory: str, buckets: str = "all") -> int:
+    data = load(out_dir, directory, buckets)
     tools = [t for t in TOOLS if t in data]
     print("app".ljust(22) + "".join(t.rjust(11) for t in tools))
     for folder, _repo, _commit, _sub, kind in _apps():
@@ -268,12 +304,13 @@ def summary(out_dir: str, directory: str) -> int:
     return 0
 
 
-def sample(out_dir: str, directory: str, n: int, seed: int) -> int:
-    data = load(out_dir, directory)
+def sample(out_dir: str, directory: str, n: int, seed: int, buckets: str = "all", where: str = "all") -> int:
+    data = load(out_dir, directory, buckets)
     rng = random.Random(seed)
     picked = {}
     for tool, apps in data.items():
-        pool = [{"app": app, **r} for app, results in sorted(apps.items()) for r in results]
+        pool = [{"app": app, **r} for app, results in sorted(apps.items()) for r in results
+                if where == "all" or r["path"].startswith(".github/") == (where == "ci")]
         picked[tool] = rng.sample(pool, min(n, len(pool)))
     json.dump(picked, sys.stdout, indent=1)
     print()
@@ -295,11 +332,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p = sub.add_parser("summary", help="findings per tool and app, shipping code only")
     p.add_argument("out")
     p.add_argument("dir")
+    p.add_argument("--buckets", choices=("all", "fix", "soft"), default="all", help="which masaudit buckets")
     p = sub.add_parser("sample", help="N random findings per tool, as JSON")
     p.add_argument("out")
     p.add_argument("dir")
     p.add_argument("n", type=int)
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--buckets", choices=("all", "fix", "soft"), default="all", help="which masaudit buckets")
+    p.add_argument("--where", choices=("all", "app", "ci"), default="all", help="app code, CI workflows, or both")
     parser.add_argument("--round", choices=sorted(ROUNDS), default="1", help="which set of apps (default 1)")
     args = parser.parse_args(argv)
     _ROUND[0] = args.round
@@ -308,8 +348,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "scan":
         return scan(args.dir, args.out, os.path.abspath(args.src), args.rnsec, args.tool, args.calibrated)
     if args.cmd == "summary":
-        return summary(args.out, args.dir)
-    return sample(args.out, args.dir, args.n, args.seed)
+        return summary(args.out, args.dir, args.buckets)
+    return sample(args.out, args.dir, args.n, args.seed, args.buckets, args.where)
 
 
 if __name__ == "__main__":

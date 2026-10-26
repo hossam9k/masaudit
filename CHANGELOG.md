@@ -3,6 +3,18 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased
+
+### Docs
+
+- [Benchmark on unseen apps](docs/benchmark.md), round 4: 0.6.5 on 16 more apps. 33% (23–44%) of the
+  sampled app-code findings in the fix lists were false alarms, against 40% in round 3 (the intervals
+  overlap). The new buckets took 46% of app-code findings out of the fix lists, and none of the 30 sampled
+  there was a real vulnerability; counting every bucket, about 44% are false, so the rules themselves
+  didn't get more accurate. `scripts/benchmark_compare.py --round 4` repeats it; `sample --buckets` and
+  `--where` draw from one bucket set or from app code or CI only.
+- README: the unseen-app sentence said "40% for 0.6.5"; that figure was for 0.6.4.
+
 ## 0.6.5 — 2026-10-26
 
 **Two new report buckets that never fail CI.** Rules 2.3.0. Three benchmark rounds on unseen apps judged
