@@ -155,7 +155,7 @@ def scan(directory: str, out_dir: str, src: str, rnsec: str, only: Optional[List
                 continue
             env = {**os.environ, "PYTHONPATH": src, "CI": "1"} if tool == "masaudit" else None
             start = time.monotonic()
-            code = _run(cmd, env=env)
+            code = _run(cmd, env=env, cwd=out_dir)      # rnsec also writes reports into its working folder
             times[tool][folder] = round(time.monotonic() - start, 1)
             ok = os.path.exists(out)
             print(f"{tool:10} {folder:22} {'ok' if ok else 'FAILED'} (exit {code}, {times[tool][folder]} s)",
