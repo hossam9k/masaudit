@@ -3,6 +3,50 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased (0.6.3)
+
+**Detector gaps found while writing the 0.6.2 fixtures.** Each fix has a fixture that 0.6.2 gets wrong.
+
+### False alarms fixed
+
+- KMP-003 counted only OkHttp's `CertificatePinner` as Android pinning. An unexpired `<pin-set>` in the
+  network security config, which Android enforces for OkHttp and Ktor, now counts too.
+- FLT-002 no longer flags `setString('locale', x).then((_) => refreshToken())`: the value now ends at the
+  call's own `)`.
+
+### Missed cases now found
+
+- iOS:
+  - IOS-003: Swift's `tlsMinimumSupportedProtocol`, Objective-C's `TLSMinimumSupportedProtocolVersion`,
+    and a TLS maximum below 1.2.
+  - IOS-033: the deprecated `sec_protocol_options_set_tls_min_version`.
+  - IOS-023: the preference name held in a constant, and `true as NSNumber`.
+  - IOS-031: Objective-C folder arguments built from nested messages.
+  - IOS-032: Objective-C `openURL:` and Handoff handlers, and a host block-list, which isn't an
+    allowlist.
+  - IOS-035: an encoded object written straight to the App Group container.
+  - IOS-040: a declared subdomain no longer covers its siblings (`api-eu.mixpanel.com` isn't
+    `api.mixpanel.com`).
+  - IOS-043: one view's `.autocorrectionDisabled()` no longer hides fields in other views (a view
+    that contains the field still covers it).
+  - IOS-044: the C Network.framework API with TLS turned off.
+  - IOS-045: an HTML constant read through `Self.` or a type name.
+  - IOS-046: one write excluded from backup no longer hides another write in the same file.
+- Flutter:
+  - FLT-001: static methods and closure variables that accept every certificate.
+  - FLT-002: values across commas, such as `jsonEncode({... 'token': ...})`; and a push or device
+    word now clears only that word.
+  - FLT-004: webview_flutter_android's `setAllowFileAccess(true)` with JavaScript on.
+  - FLT-005: the `InAppBrowser` subclass override.
+- Kotlin Multiplatform:
+  - KMP-002: fully qualified names in sub-packages.
+  - KMP-004: a log level held in a constant.
+  - KMP-005: each challenge handler is judged on its own, so a file where one function evaluates trust
+    and another doesn't is reported.
+
+IOS-022 still checks Podfiles and imports only: a Swift package is linked only when code imports it, and
+the import check covers that.
+
 ## 0.6.2 — 2026-10-26
 
 **Fixes from a third audit, aimed at the code the first two reached least:** iOS build settings, Flutter,

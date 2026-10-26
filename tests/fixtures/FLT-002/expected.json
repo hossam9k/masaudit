@@ -1,1 +1,1 @@
-{"vulnerable": 4, "clean": 0, "vulnerable_session_repo": 3, "nearmiss_non_secret_prefs": 0, "nearmiss_constant_values": 0}
+{"vulnerable": 4, "clean": 0, "vulnerable_session_repo": 3, "nearmiss_non_secret_prefs": 0, "nearmiss_constant_values": 0, "vulnerable_json_session": 3, "nearmiss_push_tokens": 0}

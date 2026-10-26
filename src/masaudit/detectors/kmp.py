@@ -7,11 +7,12 @@ mechanism), §8.10 (Ktor's common API doesn't pin; each engine must), §6.6 (no 
 
 from __future__ import annotations
 
+import bisect
 import re
-from typing import Iterable, List, Set
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from masaudit.guards import guarded_by
-from masaudit.textscan import bracket_match, first_in_span, found_in_span, name_index
+from masaudit.textscan import bracket_match, first_in_span, found_in_span, name_index, text_memo
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -66,7 +67,7 @@ NATIVE_PKG = (
     r"platform\.Security|platform\.LocalAuthentication|platform\.CryptoKit|platform\.DeviceCheck"
 )
 NATIVE_IMPORT = re.compile(r"^[ \t]*import\s+((?:" + NATIVE_PKG + r")\b[\w.*]*)", re.MULTILINE)
-NATIVE_FQN = re.compile(r"(?<![\w.])((?:javax\.crypto|java\.security|android\.security)\.[A-Z]\w*)")
+NATIVE_FQN = re.compile(r"(?<![\w.])((?:javax\.crypto|java\.security|android\.security)(?:\.[a-z]\w*)*\.[A-Z]\w*)")
 
 
 @detector("kmp_native_in_common")
@@ -90,6 +91,30 @@ def native_in_common(ctx: Context, rule: Rule) -> Iterable[Hit]:
 # ---------------------------------------------------------------------------- KMP-003
 
 PIN = re.compile(r"\"sha256/[A-Za-z0-9+/]{43}=\"")
+
+
+def _platform_pin_set(ctx: Context) -> bool:
+    """A release network security config with an unexpired <pin-set>: Android's trust manager, which OkHttp
+    and Ktor's Android engines use, enforces it with no code (§8.10)."""
+    import datetime
+
+    from masaudit.detect import scope_of
+    from masaudit.detectors import android
+
+    today = datetime.date.today()
+    for path, root in android._nsc_files(ctx):
+        if scope_of(path) != "main" or path.rsplit("/", 1)[-1].endswith("_debug.xml"):
+            continue
+        for ps in root.iter("pin-set"):
+            if not any(c.tag == "pin" for c in ps.children):
+                continue
+            try:
+                expires = datetime.date.fromisoformat((ps.get("expiration") or "").strip())
+            except ValueError:
+                expires = None
+            if expires is None or expires >= today:
+                return True
+    return False
 
 
 @detector("kmp_ktor_pinning")
@@ -117,7 +142,7 @@ def ktor_pinning(ctx: Context, rule: Rule) -> Iterable[Hit]:
         return ctx.code(p, keep_strings=False) or ""
 
     missing: List[str] = []
-    if android and not any("CertificatePinner" in code_of(p) for p in android):
+    if android and not any("CertificatePinner" in code_of(p) for p in android) and not _platform_pin_set(ctx):
         missing.append("Android (OkHttp)")
     if apple:
         enforced = [p for p in apple if "CertificatePinner" in code_of(p) or "handleChallenge" in code_of(p)]
@@ -136,6 +161,22 @@ def ktor_pinning(ctx: Context, rule: Rule) -> Iterable[Hit]:
 KTOR_LOGGING = re.compile(r"\binstall\s*\(\s*Logging\s*\)\s*\{")
 KTOR_LEVEL = re.compile(r"\blevel\s*=\s*LogLevel\s*\.\s*(ALL|BODY|HEADERS)\b")
 _SANITIZE = re.compile(r"\bsanitizeHeader\s*[({]")
+# `level = HTTP_LOG_LEVEL`: a bare name, not a call, a `when`, or `BuildConfig.X`.
+KTOR_LEVEL_REF = re.compile(r"\blevel\s*=\s*([A-Za-z_]\w*)[ \t]*(?=[;}\r\n]|\Z)")
+# Any declaration (so a name declared twice is left alone); group 3 is set only for a `val` whose value is
+# exactly one of these levels, not a constructor parameter's default (`val level: LogLevel = LogLevel.ALL,`).
+_VAL_DECL = re.compile(r"\b(va[lr])\s+([A-Za-z_]\w*)\s*(?::\s*[\w.]+\s*)?=\s*"
+                       r"(?:LogLevel\s*\.\s*(ALL|BODY|HEADERS)\b(?!\s*[,)]))?")
+
+
+def _level_constants(blank: str) -> Dict[str, str]:
+    """{name: level} for each `val NAME = LogLevel.ALL|BODY|HEADERS` whose name the file declares only once."""
+    def build() -> Dict[str, str]:
+        found: Dict[str, List[str]] = {}
+        for m in _VAL_DECL.finditer(blank):
+            found.setdefault(m.group(2), []).append(m.group(3) if m.group(1) == "val" and m.group(3) else "")
+        return {name: levels[0] for name, levels in found.items() if len(levels) == 1 and levels[0]}
+    return text_memo(blank, ("kmp_level_constants",), build)  # type: ignore[return-value]
 
 
 def _kmp_debug(cond: str) -> bool:
@@ -156,9 +197,13 @@ def ktor_logging(ctx: Context, rule: Rule) -> Iterable[Hit]:
             # The block's span, looked up rather than sliced: nested blocks made a slice per block quadratic.
             body = (m.end() - 1, min(len(blank), bracket_match(blank, m.end() - 1, "{", "}") + 1))
             lv = first_in_span(blank, KTOR_LEVEL, *body)
-            if lv is None:
-                continue                         # INFO, NONE, or a level chosen at runtime
-            level = lv.group(1)
+            if lv is not None:
+                level = lv.group(1)
+            else:                                # a constant declared in this file
+                lv = first_in_span(blank, KTOR_LEVEL_REF, *body)
+                level = _level_constants(blank).get(lv.group(1), "") if lv else ""
+                if not level:
+                    continue                     # INFO, NONE, or a level chosen at runtime
             if level != "BODY" and found_in_span(blank, _SANITIZE, *body):
                 continue
             idx = lv.start()
@@ -175,6 +220,35 @@ def ktor_logging(ctx: Context, rule: Rule) -> Iterable[Hit]:
 TRUST_CREDENTIAL = re.compile(
     r"\bNSURLCredential\s*\.\s*(?:credentialForTrust|create\s*\(\s*trust\s*=|credentialWithTrust)"
 )
+_EVALUATES = re.compile(r"\bSecTrustEvaluate(?:WithError|AsyncWithError)?\s*\(")
+_FUN = re.compile(r"\bfun\s+(?:<[^<>{}()]*>\s*)?(?:[\w.]+\.)?(\w+)\s*\(")
+_FUN_BODY = re.compile(r"\s*(?::[^{}=;]{0,200})?\{")
+_HANDLE_CHALLENGE = re.compile(r"\bhandleChallenge\s*\{")
+_CALL = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+
+
+def _handler_blocks(blank: str) -> List[Tuple[int, int]]:
+    """The outermost `fun ... {` bodies and `handleChallenge { }` blocks, in order. Brackets pair up nested
+    or apart, so these spans never overlap."""
+    spans = []
+    for m in _FUN.finditer(blank):
+        body = _FUN_BODY.match(blank, bracket_match(blank, m.end() - 1, "(", ")") + 1)
+        if body:
+            spans.append((body.end() - 1, bracket_match(blank, body.end() - 1, "{", "}")))
+    for m in _HANDLE_CHALLENGE.finditer(blank):
+        spans.append((m.end() - 1, bracket_match(blank, m.end() - 1, "{", "}")))
+    outer: List[Tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if not outer or start > outer[-1][1]:
+            outer.append((start, end))
+    return outer
+
+
+def _evaluating_functions(blank: str) -> Set[str]:
+    """Functions declared in this file whose text, up to the next `fun`, evaluates trust."""
+    funs = list(_FUN.finditer(blank))
+    return {m.group(1) for k, m in enumerate(funs)
+            if found_in_span(blank, _EVALUATES, m.start(), funs[k + 1].start() if k + 1 < len(funs) else len(blank))}
 
 
 @detector("kmp_darwin_trust_all")
@@ -186,10 +260,30 @@ def darwin_trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if "NSURLCredential" not in raw or "UseCredential" not in raw:
             continue
         blank = ctx.code(path, keep_strings=False) or ""
-        if (re.search(r"\bSecTrustEvaluate(?:WithError|AsyncWithError)?\s*\(", blank)
-                or "CertificatePinner" in blank or "UseCredential" not in blank):
+        if "CertificatePinner" in blank or "UseCredential" not in blank:
             continue
-        for m in TRUST_CREDENTIAL.finditer(blank):
+        credentials = list(TRUST_CREDENTIAL.finditer(blank))
+        if not credentials:
+            continue
+        # Each credential is judged by the function or handleChallenge block around it: one that evaluates
+        # trust, itself or through a function of this file, is quiet. Outside any block, by the whole file.
+        blocks = _handler_blocks(blank)
+        starts = [b[0] for b in blocks]
+        helpers: Optional[Set[str]] = None
+        verdicts: Dict[Tuple[int, int], bool] = {}
+        for m in credentials:
+            k = bisect.bisect_right(starts, m.start()) - 1
+            span = blocks[k] if k >= 0 and m.start() < blocks[k][1] else (0, len(blank))
+            if span not in verdicts:
+                evaluates = found_in_span(blank, _EVALUATES, *span)
+                if not evaluates:
+                    if helpers is None:
+                        helpers = _evaluating_functions(blank)
+                    evaluates = bool(helpers) and any(
+                        c.group(1) in helpers for c in _CALL.finditer(blank, span[0], span[1]))
+                verdicts[span] = evaluates
+            if verdicts[span]:
+                continue
             line = ctx.line_of(blank, m.start())
             yield Hit(path, line, ctx.snippet(path, line),
                       "The server-trust challenge is answered with a credential for whatever trust it "

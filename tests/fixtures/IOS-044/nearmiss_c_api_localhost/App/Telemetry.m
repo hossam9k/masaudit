@@ -1,0 +1,9 @@
+// Plain TCP only to a local debug relay on the device itself.
+#import <Network/Network.h>
+
+nw_connection_t OpenRelay(void) {
+    nw_endpoint_t endpoint = nw_endpoint_create_host("127.0.0.1", "9000");
+    nw_parameters_t params = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL,
+                                                             NW_PARAMETERS_DEFAULT_CONFIGURATION);
+    return nw_connection_create(endpoint, params);
+}

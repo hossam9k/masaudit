@@ -15,7 +15,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 from masaudit import safety
 from masaudit.detect import scope_of as _scope_of
 from masaudit.guards import dart_debug, guarded_by
-from masaudit.textscan import bracket_match, found_in_span, name_index
+from masaudit.textscan import bracket_match, first_in_span, found_in_span, name_index
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -76,11 +76,14 @@ def uses_native_http(ctx: Context) -> bool:
 
 _RETURNS_TRUE = r"(?:=>\s*\(?\s*true\b(?!\s*[&|?=!<>])|\{\s*return\s+true\s*;\s*\})"
 BAD_CERT_INLINE = re.compile(r"\bbadCertificateCallback\s*=\s*\(?\s*\([^()]*\)\s*" + _RETURNS_TRUE)
-BAD_CERT_REF = re.compile(r"\bbadCertificateCallback\s*=\s*([A-Za-z_]\w*)\s*[;),]")
+# A function, a static method (`TlsPolicy.acceptAll`), or a variable holding a closure.
+BAD_CERT_REF = re.compile(r"\bbadCertificateCallback\s*=\s*((?:[A-Za-z_]\w*\s*\.\s*)*[A-Za-z_]\w*)\s*[;),]")
 
 
 def _function_returns_true(code: str, name: str) -> bool:
-    return name in name_index(code, r"\s*\([^()]*\)\s*" + _RETURNS_TRUE)
+    name = name.rsplit(".", 1)[-1].strip()
+    return (name in name_index(code, r"\s*\([^()]*\)\s*" + _RETURNS_TRUE)            # bool f(...) => true
+            or name in name_index(code, r"\s*=\s*\(?\s*\([^()]*\)\s*" + _RETURNS_TRUE))  # f = (c, h, p) => true
 
 
 @detector("flutter_trust_all")
@@ -110,8 +113,9 @@ _NOT_SECRET_KEY = re.compile(r"(?i)(?:type|version|policy|hint|length)$")   # to
 # A constant value (a plain string, number, boolean, or null) is a setting, not a token someone received.
 _LITERAL_VALUE = re.compile(r"""^\s*(?:'[^'$\\\n]*'|"[^"$\\\n]*"|-?\d[\d.]*|true|false|null)\s*\)?\s*$""")
 _SET_CALL = re.compile(
-    r"\.\s*set(?:String|StringList)\s*\(\s*(?:[\"']([^\"'\n]*)[\"']|([A-Za-z_][\w.]*))\s*,\s*([^,;\n]*)"
+    r"\.\s*set(?:String|StringList)\s*(\()\s*(?:[\"']([^\"'\n]*)[\"']|([A-Za-z_][\w.]*))\s*,\s*"
 )
+_SEMICOLON = re.compile(";")
 
 
 def _key_text(code: str, literal: Optional[str], ident: Optional[str]) -> str:
@@ -132,15 +136,24 @@ def prefs_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
         code = ctx.code(path, keep_strings=True) or ""
         bare = ctx.code(path, keep_strings=False) or ""
         seen: Set[int] = set()
-        for m in _SET_CALL.finditer(code):
-            key = _key_text(code, m.group(1), m.group(2))
-            value = bare[m.start(3):m.end(3)]                 # the value expression, strings blanked
-            names = [w for w in re.findall(r"[A-Za-z_]\w*", value) if _SENSITIVE.search(w)]
+        calls = list(_SET_CALL.finditer(code))
+        for k, m in enumerate(calls):
+            key = _key_text(code, m.group(2), m.group(3))
+            # The value runs to the call's `)`, but no further than the next `;` or the next call, so the
+            # values never overlap and an unclosed call costs no more than its own text.
+            end = min(bracket_match(bare, m.start(1), "(", ")"), calls[k + 1].start() if k + 1 < len(calls)
+                      else len(bare))
+            semi = first_in_span(bare, _SEMICOLON, m.end(), end)
+            end = semi.start() if semi else end
+            value = bare[m.end():end]                         # the value expression, strings blanked
+            words = [w for w in re.findall(r"[A-Za-z_]\w*", value) if _SENSITIVE.search(w)]
+            names = [w for w in words if not _NOT_SECRET.search(w)]      # not `fcmToken`, `tokenExpiry`
             what = key if _SENSITIVE.search(key) else names[0] if names else ""
-            if not what or _NOT_SECRET.search(key) or _NOT_SECRET.search(value) \
+            if not what or _NOT_SECRET.search(key) or (what == key and words and not names) \
                     or (what == key and _NOT_SECRET_KEY.search(key)):          # `token_type`, not `auth_type: token`
                 continue
-            if _LITERAL_VALUE.match(code[m.start(3):m.end(3)]):
+            literal = code[m.end():end].rstrip()
+            if _LITERAL_VALUE.match(literal[:-1] if literal.endswith(",") else literal):
                 continue
             line = ctx.line_of(code, m.start())
             if line in seen:
@@ -271,6 +284,9 @@ _INAPP_SETTINGS = re.compile(
 _FILE_ORIGIN = re.compile(r"\b(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\s*[:=]\s*true\b")
 _FILE_ACCESS = re.compile(r"\ballowFileAccess\s*[:=]\s*true\b")
 _MIXED = re.compile(r"\bmixedContentMode\s*[:=]\s*(?:Android)?MixedContentMode\s*\.\s*MIXED_CONTENT_ALWAYS_ALLOW\b")
+# webview_flutter_android: JavaScript is off unless the controller sets JavaScriptMode.unrestricted.
+_SET_FILE_ACCESS = re.compile(r"\.\s*setAllowFileAccess\s*\(\s*true\s*\)")
+_JS_UNRESTRICTED = re.compile(r"\bJavaScriptMode\s*\.\s*unrestricted\b")
 
 
 def _enclosing_settings(blank: str, idx: int) -> Tuple[int, int]:
@@ -287,7 +303,8 @@ def _enclosing_settings(blank: str, idx: int) -> Tuple[int, int]:
 def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*DART):
         raw = ctx.text(path) or ""
-        if not any(k in raw for k in ("allowFileAccess", "allowUniversalAccess", "MIXED_CONTENT_ALWAYS_ALLOW")):
+        if not any(k in raw for k in ("allowFileAccess", "allowUniversalAccess", "MIXED_CONTENT_ALWAYS_ALLOW",
+                                      "setAllowFileAccess")):
             continue
         blank = ctx.code(path, keep_strings=False) or ""
         found = []
@@ -302,6 +319,10 @@ def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue                         # JavaScript is on by default in flutter_inappwebview
             found.append((m.start(), "`allowFileAccess` is on with JavaScript enabled, so page scripts can "
                                      "read local files through `file://` URLs."))
+        if "AndroidWebViewController" in blank and _JS_UNRESTRICTED.search(blank):
+            for m in _SET_FILE_ACCESS.finditer(blank):
+                found.append((m.start(), "`setAllowFileAccess(true)` with `JavaScriptMode.unrestricted` lets page "
+                                         "scripts read local files through `file://` URLs."))
         seen: Set[int] = set()
         for idx, msg in sorted(found):
             line = ctx.line_of(blank, idx)
@@ -315,6 +336,11 @@ def webview_file_access(ctx: Context, rule: Rule) -> Iterable[Hit]:
 _TRUST_HANDLER = re.compile(
     r"\b(onReceivedServerTrustAuthRequest|androidOnReceivedServerTrustAuthRequest|onReceivedSslError|"
     r"onSslAuthError)\s*:\s*"
+)
+# The override in an InAppBrowser or InAppWebView subclass: `Future<ServerTrustAuthResponse?> name(...) async {`.
+_TRUST_OVERRIDE = re.compile(
+    r"\bServerTrustAuthResponse\b\s*\??\s*>?\s*\??\s*"
+    r"\b(onReceivedServerTrustAuthRequest|androidOnReceivedServerTrustAuthRequest)\s*(?=\()"
 )
 _PROCEEDS = re.compile(r"\bServerTrustAuthResponseAction\s*\.\s*PROCEED\b|\.\s*proceed\s*\(\s*\)")
 _CONDITION = re.compile(r"\bif\s*\(|\bswitch\s*\(|\?\s*[^.?\s]|==|!=|&&|\|\||\bcase\b")
@@ -365,7 +391,10 @@ def webview_trust_all(ctx: Context, rule: Rule) -> Iterable[Hit]:
         if "PROCEED" not in raw and "proceed" not in raw:
             continue
         blank = ctx.code(path, keep_strings=False) or ""
-        for m in _TRUST_HANDLER.finditer(blank):
+        handlers = list(_TRUST_HANDLER.finditer(blank))
+        if "ServerTrustAuthResponse" in blank:
+            handlers += _TRUST_OVERRIDE.finditer(blank)  # the parameter list and body read like a closure's
+        for m in handlers:
             body = _closure_body(blank, m.end())
             if not _body_has(blank, _PROCEEDS, body) or _body_has(blank, _CONDITION, body):
                 continue

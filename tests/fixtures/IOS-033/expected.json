@@ -1,1 +1,1 @@
-{"vulnerable": 4, "clean": 0, "vulnerable_dtls_securetransport": 3, "nearmiss_dtls12_securetransport": 0}
+{"vulnerable": 4, "clean": 0, "vulnerable_dtls_securetransport": 3, "nearmiss_dtls12_securetransport": 0, "vulnerable_c_api": 2, "nearmiss_c_api": 0}

@@ -1,0 +1,5 @@
+name: acme_bank
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_inappwebview: ^6.1.5
