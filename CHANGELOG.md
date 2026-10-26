@@ -3,7 +3,14 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.6.4 — 2026-10-26
+
+**Fewer false alarms on apps no rule was tuned on.** Rules 2.2.4. Benchmark round 2 measured 0.6.3 on 18
+more unseen apps and found 45% of its sampled app-code findings were false alarms. This release fixes the
+causes of 21 of those 25, each with a test; nothing a judge called real was lost, the recall apps keep
+every finding at its severity, and a baseline from 0.6.3 leaves nothing new open. On new code expect
+fewer false alarms than 0.6.3 gave, but more than the after-fix figures in
+[the benchmark](docs/benchmark.md), which come from the samples the fixes were written for.
 
 ### False alarms found by benchmark round 2
 

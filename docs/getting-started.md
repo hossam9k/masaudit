@@ -60,7 +60,7 @@ certificates; a news app isn't. [Choose your app type](app-type.md) explains how
 The scan takes a few seconds. masaudit prints a summary like this (paths shortened):
 
 ```text
-masaudit 0.6.3 (rules 2.2.3) - acme-wallet
+masaudit 0.6.4 (rules 2.2.4) - acme-wallet
 Platforms: android, ios, ci
 Profile:   banking (Banking, payments, wallets, crypto, lending, or insurance); MAS-L1+L2+R+P; from your answer
 Clue:      Found a payment SDK (Stripe) in android/app/build.gradle.kts - ecommerce may fit
