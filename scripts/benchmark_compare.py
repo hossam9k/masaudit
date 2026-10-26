@@ -7,6 +7,8 @@
     python3 scripts/benchmark_compare.py summary OUT               # findings per tool and app, shipping code only
     python3 scripts/benchmark_compare.py sample OUT N [--seed S]   # N random findings per tool, to judge by hand
 
+`--round 2` (before the subcommand) uses the second set of apps.
+
 The tools: masaudit (this checkout's `src`, or --src), mobsfscan, Semgrep Community Edition with its free
 registry rulesets for the languages each app uses, and rnsec on React Native apps. Each runs with its
 defaults; each writes SARIF, so all four are read the same way. `fetch` and the tools need network
@@ -56,6 +58,31 @@ droidcon             touchlab/DroidconKotlin                27f3e87c12f7fa76f740
 confetti             joreilly/Confetti                      4e0057039ebb1e0806578fd19fc3bad14742be72 .                          kmp  content
 """
 
+# Round 2: 18 more apps, chosen after 0.6.3 was released, to measure it on code its fixes never saw.
+APPS2_TEXT = """
+catima               CatimaLoyalty/Android                  4be0ce14489d825e16b48d7d04aed3558ac1eabb .                          android       loyalty
+habitica-android     HabitRPG/habitica-android              52fbfd7a1bc76b153fb55fba7220644798de54b2 .                          android       game
+wireguard-android    WireGuard/wireguard-android            e7b3a3c118836e112620b1302a8ba1873ad4daac .                          android       general
+materialfiles        zhanghai/MaterialFiles                 93c333960aa897836ba3f215a19d0cb0de494db1 .                          android       general
+seal                 JunkFood02/Seal                        7677f61a20fda4210e84215fef9e9b51d25daa47 .                          android       content
+nextcloud-notes      nextcloud/notes-android                8c0ec80063533062eea36379ee70d44129ae966e .                          android       general
+pocket-casts-android Automattic/pocket-casts-android        d93024e86a492be2c5deab0b4a9f8b24727a92fb .                          android       content
+icecubes             Dimillian/IceCubesApp                  98098b9c4b5928f89f338203193c2bf40ab7f38c .                          ios           social
+simplenote-ios       Automattic/simplenote-ios              29bd22351aaa45934c5dce41577571c64e1cbfbe .                          ios           general
+woocommerce-ios      woocommerce/woocommerce-ios            c81156dcc72473fdda889a9af35f160a4b66b576 .                          ios           ecommerce
+wire-ios             wireapp/wire-ios                       c0a21787419724ae5696c17e0c664b9dba3df173 .                          ios           social
+ledger-live          LedgerHQ/ledger-live                   b36f95c01377fc63e74fe6fe3b6045ac76e009a8 apps/ledger-live-mobile    react-native  banking
+blixt                smolcars/blixt-wallet                  b0408dd1d45a24d7e5a38221adeb79d6309f0e87 .                          react-native  banking
+thunder              thunder-app/thunder                    d5de00be11fd3256c9debcf4a8cea8bc9fe91ce3 .                          flutter       social
+aves                 deckerst/aves                          716425a3136249f960ce371c6789eb64f7421ecc .                          flutter       content
+hiddify              hiddify/hiddify-app                    8ab20b01ea5165ebc3719711ad3001388d0247c4 .                          flutter       general
+rustdesk             rustdesk/rustdesk                      59f2953c94b8373f124dc38d4fd0635098f7c5cd flutter                    flutter       device-control
+spotube              team-spotube/spotube                   0d5b5b094e9dc8a08a80c88729472a71db4f3d78 .                          kmp           content
+"""
+
+ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT}
+_ROUND = ["1"]                                   # the round in use, set from --round
+
 TOOLS = ("masaudit", "mobsfscan", "semgrep", "rnsec")
 MOBSFSCAN = "mobsfscan==1.0.1"
 SEMGREP = "semgrep==1.182.1"
@@ -85,7 +112,7 @@ def _app_types() -> Dict[str, str]:
 
 
 def _rows() -> List[List[str]]:
-    return [(line.split() + [""] * 6)[:6] for line in APPS_TEXT.strip().splitlines()]
+    return [(line.split() + [""] * 6)[:6] for line in ROUNDS[_ROUND[0]].strip().splitlines()]
 
 
 def _run(cmd: List[str], cwd: Optional[str] = None, env: Optional[dict] = None, timeout: int = 3600) -> int:
@@ -253,7 +280,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("dir")
     p.add_argument("n", type=int)
     p.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--round", choices=sorted(ROUNDS), default="1", help="which set of apps (default 1)")
     args = parser.parse_args(argv)
+    _ROUND[0] = args.round
     if args.cmd == "fetch":
         return fetch(args.dir)
     if args.cmd == "scan":

@@ -1,0 +1,1834 @@
+{
+ "round": 2,
+ "seed": 20261027,
+ "masaudit": "0.6.3 (each app's own type)",
+ "judged": [
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "AND-022",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/channel/calls/SecurityHandler.kt",
+   "line": 6,
+   "verdict": "overrated",
+   "reason": "EncryptedSharedPreferences is deprecated but still AES256-GCM with Keystore MasterKey; deprecation is maintenance, not an exploitable weakness."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 8,
+   "verdict": "false",
+   "reason": "XMP namespace identifier constant, never fetched over network."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 21,
+   "verdict": "false",
+   "reason": "www.dji.com XMP namespace URI constant, not fetched."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 36,
+   "verdict": "false",
+   "reason": "XMP namespace identifier strings, never fetched over the network."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 38,
+   "verdict": "false",
+   "reason": "ns.google.com XMP namespace URI constant, not a network endpoint."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 40,
+   "verdict": "false",
+   "reason": "XMP namespace identifier constant, not fetched over HTTP."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 42,
+   "verdict": "false",
+   "reason": "XMP namespace identifier (ns.google.com) constant, not a network endpoint."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 50,
+   "verdict": "false",
+   "reason": "XMP namespace identifier string, never fetched over the network."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 56,
+   "verdict": "false",
+   "reason": "XMP namespace identifier string, never fetched over the network."
+  },
+  {
+   "tool": "masaudit",
+   "app": "aves",
+   "rule": "XPL-009",
+   "path": "lib/ref/metadata/xmp.dart",
+   "line": 59,
+   "verdict": "false",
+   "reason": "XMP namespace identifier string (Microsoft Photo), never fetched."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "CI-005",
+   "path": ".github/workflows/build.yml",
+   "line": 24,
+   "verdict": "overrated",
+   "reason": "Token persisted, but no write permissions declared, debug build only, PR runs get read-only token."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 77,
+   "verdict": "real",
+   "reason": "Third-party oven-sh/setup-bun@v2 tag in workflow with no permissions block running on push to master."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "AND-048",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 22,
+   "verdict": "false",
+   "reason": "Blixt is a self-custodial wallet without an app backend to attest; Play Integrity not applicable (also F-Droid/GitHub distribution)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "AND-001",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 22,
+   "verdict": "real",
+   "reason": "Shipped main manifest sets usesCleartextTraffic=true app-wide for a Bitcoin wallet; no network security config limits it."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "XPL-021",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 22,
+   "verdict": "overrated",
+   "reason": "Confirmed no root detection/attestation in repo; resilience control only, bypassable, not a direct vulnerability."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "AND-007",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 22,
+   "verdict": "overrated",
+   "reason": "No pinning found, but wallet uses LN p2p and LNURL to arbitrary hosts; pinning is defense-in-depth here."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "RN-015",
+   "path": "babel.config.js",
+   "line": 2,
+   "verdict": "overrated",
+   "reason": "No console stripping is real; release console.log goes to logcat (not readable by other apps); logged items mostly invoices, not keys."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "XPL-028",
+   "path": "ios/BlixtWallet.xcodeproj/project.pbxproj",
+   "line": 318,
+   "verdict": "overrated",
+   "reason": "No device-passcode check found; app offers its own PIN/biometric lock, so this is defense-in-depth hardening."
+  },
+  {
+   "tool": "masaudit",
+   "app": "blixt",
+   "rule": "XPL-010",
+   "path": "src/windows/InitProcess/DEV_Commands.tsx",
+   "line": 1012,
+   "verdict": "overrated",
+   "reason": "Wallet password logged on a dev-menu button; screen gated by __DEV__ or name=='Hampus' and requires explicit tap."
+  },
+  {
+   "tool": "masaudit",
+   "app": "catima",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 31,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v7.0.1 in read-only-permission CI job; tag-move risk is minimal."
+  },
+  {
+   "tool": "masaudit",
+   "app": "catima",
+   "rule": "CI-005",
+   "path": ".github/workflows/android.yml",
+   "line": 31,
+   "verdict": "overrated",
+   "reason": "Workflow sets contents: read and all else none; persisted token read-only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "catima",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 82,
+   "verdict": "overrated",
+   "reason": "GitHub-owned upload-artifact tag in CI with read-only token, uploading test reports only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "catima",
+   "rule": "AND-047",
+   "path": "wear/proguard-rules.pro",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "Keep rule does preserve app class names, but Catima is open source; obfuscation adds negligible protection."
+  },
+  {
+   "tool": "masaudit",
+   "app": "catima",
+   "rule": "AND-021",
+   "path": "wear/src/main/AndroidManifest.xml",
+   "line": 10,
+   "verdict": "overrated",
+   "reason": "Wear app backs up SharedPreferences cache of loyalty cards synced from phone; low-sensitivity data, main app also allows backup by design."
+  },
+  {
+   "tool": "masaudit",
+   "app": "habitica-android",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 12,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v7 tag; low supply-chain risk in a CI-only build workflow."
+  },
+  {
+   "tool": "masaudit",
+   "app": "habitica-android",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 45,
+   "verdict": "overrated",
+   "reason": "Tag pin is real, but official Gradle action, no secrets passed, CI build/test only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "habitica-android",
+   "rule": "CI-005",
+   "path": ".github/workflows/android.yml",
+   "line": 58,
+   "verdict": "overrated",
+   "reason": "persist-credentials token in PR/push test job with default permissions; no secrets or release steps; low impact."
+  },
+  {
+   "tool": "masaudit",
+   "app": "habitica-android",
+   "rule": "AND-001",
+   "path": "Habitica/res/xml/network_security_config.xml",
+   "line": 2,
+   "verdict": "real",
+   "reason": "Habitica base-config permits cleartext for all hosts in release; credentials app, custom server dialog accepts http:// URLs."
+  },
+  {
+   "tool": "masaudit",
+   "app": "habitica-android",
+   "rule": "AND-047",
+   "path": "wearos/proguard-rules.pro",
+   "line": 23,
+   "verdict": "false",
+   "reason": "wearos release has isMinifyEnabled=false, so R8 never runs; keep rules are inert (and app is open source)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "habitica-android",
+   "rule": "AND-015",
+   "path": "wearos/src/main/AndroidManifest.xml",
+   "line": 23,
+   "verdict": "false",
+   "reason": "MainActivity reads no incoming intent data; starting it only shows the app's main screen."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 46,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v6 in a contents:read test job; tag-move risk is minimal defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-005",
+   "path": ".github/workflows/build.yml",
+   "line": 94,
+   "verdict": "overrated",
+   "reason": "Build job permissions contents: read; persisted token is read-only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 452,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v6 tag pin; low risk compared to third-party."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-005",
+   "path": ".github/workflows/build.yml",
+   "line": 539,
+   "verdict": "real",
+   "reason": "upload-release job persists token, then runs unpinned third-party actions (softprops, r0adkll) and handles Play secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 655,
+   "verdict": "real",
+   "reason": "Third-party Apple-Actions action pinned to v5 tag receives App Store Connect API private key."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-001",
+   "path": ".github/workflows/virustotal_scan.yml",
+   "line": 34,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v6 tag pin; first-party, tag-move risk is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-001",
+   "path": ".github/workflows/virustotal_scan.yml",
+   "line": 58,
+   "verdict": "real",
+   "reason": "Third-party crazy-max action pinned to v5 tag, given VIRUS_TOTAL_API_KEY in job with contents: write."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "CI-007",
+   "path": "android/gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org; defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "XPL-009",
+   "path": "lib/features/settings/data/config_option_repository.dart",
+   "line": 149,
+   "verdict": "false",
+   "reason": "Connectivity-check URL option (generate_204) among choices incl. HTTPS; no sensitive data sent."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "XPL-017",
+   "path": "lib/hiddifycore/core_interface/core_interface_desktop.dart",
+   "line": 76,
+   "verdict": "false",
+   "reason": "Insecure is only an initial default; production setup passes mode 1 (mTLS), and channel is loopback 127.0.0.1."
+  },
+  {
+   "tool": "masaudit",
+   "app": "hiddify",
+   "rule": "IOS-019",
+   "path": "macos/Runner.xcodeproj/project.pbxproj",
+   "line": 378,
+   "verdict": "false",
+   "reason": "macOS Runner lacks privacy manifest, but it's a compliance item; macOS build ships as dmg/pkg, App Store target disabled."
+  },
+  {
+   "tool": "masaudit",
+   "app": "icecubes",
+   "rule": "IOS-019",
+   "path": "IceCubesApp.xcodeproj/project.pbxproj",
+   "line": 446,
+   "verdict": "overrated",
+   "reason": "No PrivacyInfo.xcprivacy found in icecubes; App Store compliance requirement, not a security weakness."
+  },
+  {
+   "tool": "masaudit",
+   "app": "ledger-live",
+   "rule": "AND-001",
+   "path": "android/app/src/debug/res/xml/network_security_config.xml",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "Cleartext base-config is in src/debug source set only; not in release build."
+  },
+  {
+   "tool": "masaudit",
+   "app": "ledger-live",
+   "rule": "XPL-022",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 47,
+   "verdict": "overrated",
+   "reason": "No debugger detection in repo, but signing keys are on the hardware wallet; debugger detection is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "ledger-live",
+   "rule": "XPL-039",
+   "path": "ios/ledgerlivemobile.xcodeproj/project.pbxproj",
+   "line": 255,
+   "verdict": "overrated",
+   "reason": "No hooking detection found in repo, but keys live on the Ledger hardware device; anti-instrumentation is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "ledger-live",
+   "rule": "XPL-040",
+   "path": "ios/ledgerlivemobile.xcodeproj/project.pbxproj",
+   "line": 255,
+   "verdict": "false",
+   "reason": "AppVersionBlocker component (src/mvvm/features/AppBlockers) blocks outdated versions and links to store."
+  },
+  {
+   "tool": "masaudit",
+   "app": "ledger-live",
+   "rule": "RN-008",
+   "path": "src/components/WebViewScreen/index.tsx",
+   "line": 135,
+   "verdict": "overrated",
+   "reason": "Only caller (PurchaseDevice) trusts page messages without origin check, but action merely sets read-only/onboarding flags."
+  },
+  {
+   "tool": "masaudit",
+   "app": "ledger-live",
+   "rule": "RN-008",
+   "path": "src/screens/RatingsModal/DisappointedForm.tsx",
+   "line": 187,
+   "verdict": "false",
+   "reason": "WebView restricted by originWhitelist https://*.typeform.com; onMessage only tracks analytics and changes UI step."
+  },
+  {
+   "tool": "masaudit",
+   "app": "materialfiles",
+   "rule": "AND-015",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 235,
+   "verdict": "false",
+   "reason": "FtpServerActivity only hosts a settings fragment; reads no intent data and starting it requires user interaction to do anything."
+  },
+  {
+   "tool": "masaudit",
+   "app": "nextcloud-notes",
+   "rule": "CI-005",
+   "path": ".github/workflows/android.yml",
+   "line": 67,
+   "verdict": "overrated",
+   "reason": "Workflow sets permissions contents: read; persisted token is read-only and later steps only run the repo's own Gradle build."
+  },
+  {
+   "tool": "masaudit",
+   "app": "nextcloud-notes",
+   "rule": "CI-005",
+   "path": ".github/workflows/renovate-approve-merge.yml",
+   "line": 51,
+   "verdict": "overrated",
+   "reason": "pull_request_target limited to same-repo renovate[bot]; only later step is gh pr merge, no untrusted code reads the persisted token."
+  },
+  {
+   "tool": "masaudit",
+   "app": "nextcloud-notes",
+   "rule": "AND-004",
+   "path": "app/src/main/java/it/niedermann/owncloud/notes/edit/NoteDirectEditFragment.kt",
+   "line": 303,
+   "verdict": "overrated",
+   "reason": "handler.proceed() only when BuildConfig.DEBUG; release builds call super (cancel)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "CI-002",
+   "path": ".github/workflows/gradle-wrapper-validation.yml",
+   "line": 4,
+   "verdict": "overrated",
+   "reason": "No permissions block, but job only checks out and runs pinned wrapper-validation; no secrets or writes."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "CI-001",
+   "path": ".github/workflows/gradle-wrapper-validation.yml",
+   "line": 9,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v7 in wrapper-validation workflow; no secrets, low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "AND-015",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 660,
+   "verdict": "overrated",
+   "reason": "Exported receiver lets any app control playback/refresh only; intended for automation, no data exposure."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "AND-015",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 692,
+   "verdict": "false",
+   "reason": "androidx MediaTransferReceiver must be exported for system Output Switcher; its onReceive does nothing."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "AND-001",
+   "path": "modules/features/shared/src/main/res/xml/network_security_config.xml",
+   "line": 5,
+   "verdict": "overrated",
+   "reason": "base-config cleartextTrafficPermitted=true is real, but needed for arbitrary HTTP podcast feeds (public content); own APIs use HTTPS."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "XPL-013",
+   "path": "modules/services/preferences/src/main/java/au/com/shiftyjelly/pocketcasts/preferences/SettingsImpl.kt",
+   "line": 577,
+   "verdict": "real",
+   "reason": "Shipped code encrypts cached membership in prefs with PBEWithMD5AndDES using build-time secret and ANDROID_ID salt."
+  },
+  {
+   "tool": "masaudit",
+   "app": "pocket-casts-android",
+   "rule": "AND-059",
+   "path": "modules/services/views/src/main/java/au/com/shiftyjelly/pocketcasts/views/activity/WebViewActivity.kt",
+   "line": 104,
+   "verdict": "overrated",
+   "reason": "Activity loads only web URLs; default content access is defense-in-depth since web origins can't read content://."
+  },
+  {
+   "tool": "masaudit",
+   "app": "rustdesk",
+   "rule": "XPL-028",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 29,
+   "verdict": "overrated",
+   "reason": "No KeyguardManager check found, but screen-lock check is a weak hygiene control for a remote-desktop client."
+  },
+  {
+   "tool": "masaudit",
+   "app": "rustdesk",
+   "rule": "IOS-019",
+   "path": "ios/Runner.xcodeproj/project.pbxproj",
+   "line": 134,
+   "verdict": "overrated",
+   "reason": "No PrivacyInfo.xcprivacy found for Runner; App Store compliance issue, not a security weakness."
+  },
+  {
+   "tool": "masaudit",
+   "app": "rustdesk",
+   "rule": "XPL-010",
+   "path": "lib/common.dart",
+   "line": 2438,
+   "verdict": "false",
+   "reason": "Logs option name constant \"allow-deep-link-password\", not a password value."
+  },
+  {
+   "tool": "masaudit",
+   "app": "seal",
+   "rule": "CI-002",
+   "path": ".github/workflows/Issue-Handler.yaml",
+   "line": 10,
+   "verdict": "overrated",
+   "reason": "No permissions block is real, but job only runs safe github-script issue triage needing issues:write; no untrusted interpolation."
+  },
+  {
+   "tool": "masaudit",
+   "app": "seal",
+   "rule": "CI-001",
+   "path": ".github/workflows/Issue-Handler.yaml",
+   "line": 30,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/github-script@v7 in issue handler; first-party tag pin is low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "seal",
+   "rule": "CI-005",
+   "path": ".github/workflows/android_ci.yml",
+   "line": 13,
+   "verdict": "overrated",
+   "reason": "Triggered only by pull_request (fork tokens read-only); later steps run the PR's own Gradle code, no secrets used."
+  },
+  {
+   "tool": "masaudit",
+   "app": "seal",
+   "rule": "CI-005",
+   "path": ".github/workflows/sponsor.yml",
+   "line": 13,
+   "verdict": "overrated",
+   "reason": "checkout@v2 persists GITHUB_TOKEN, but scheduled/dispatch-only, no untrusted code; later steps already receive the more powerful PAT."
+  },
+  {
+   "tool": "masaudit",
+   "app": "seal",
+   "rule": "AND-016",
+   "path": "app/src/main/res/xml/provider_paths.xml",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "external-path '.' in non-exported FileProvider; only explicitly granted URIs exposed, external files not private."
+  },
+  {
+   "tool": "masaudit",
+   "app": "seal",
+   "rule": "AND-016",
+   "path": "app/src/main/res/xml/provider_paths.xml",
+   "line": 6,
+   "verdict": "overrated",
+   "reason": "cache-path '.' covers cookies.txt, but provider is non-exported and grants only for app-chosen download/APK files."
+  },
+  {
+   "tool": "masaudit",
+   "app": "simplenote-ios",
+   "rule": "IOS-021",
+   "path": "Simplenote.xcodeproj/project.pbxproj",
+   "line": 4465,
+   "verdict": "false",
+   "reason": "Release config isn't shipped; App Store archive uses 'Distribution AppStore' config without ENABLE_TESTABILITY."
+  },
+  {
+   "tool": "masaudit",
+   "app": "simplenote-ios",
+   "rule": "XPL-009",
+   "path": "Simplenote/SPCredentials-demo.swift",
+   "line": 17,
+   "verdict": "false",
+   "reason": "Placeholder in SPCredentials-demo.swift demo credentials file; not a real endpoint."
+  },
+  {
+   "tool": "masaudit",
+   "app": "simplenote-ios",
+   "rule": "IOS-001",
+   "path": "Simplenote/Supporting%20Files/Simplenote-Info.plist",
+   "line": 60,
+   "verdict": "real",
+   "reason": "Shipping Simplenote-Info.plist sets NSAllowsArbitraryLoads true, disabling ATS app-wide."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-002",
+   "path": ".github/workflows/maven-publish.yml",
+   "line": 7,
+   "verdict": "real",
+   "reason": "Maven publish workflow has no permissions block; default token plus signing/Maven secrets present while Gradle runs."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-publish-binary.yml",
+   "line": 75,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java tag; lower risk, though in a publish workflow."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-publish-binary.yml",
+   "line": 85,
+   "verdict": "real",
+   "reason": "Third-party gradle/actions/setup-gradle@v6 tag runs in render job whose packaging output is pushed to Flathub/AUR/winget/Chocolatey."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-publish-binary.yml",
+   "line": 88,
+   "verdict": "real",
+   "reason": "taiki-e/install-action@v2 runs in render job whose output is pushed to Flathub/AUR/winget/choco with secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-publish-binary.yml",
+   "line": 124,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v7 tag; first-party action, tag-move risk is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-release-binary.yml",
+   "line": 280,
+   "verdict": "real",
+   "reason": "Third-party android-actions/setup-android@v4 tag-pinned in release workflow producing distributed binaries."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-release-binary.yml",
+   "line": 302,
+   "verdict": "real",
+   "reason": "dtolnay/rust-toolchain@stable (movable branch) in release build jobs producing shipped binaries with GITHUB_TOKEN."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-005",
+   "path": ".github/workflows/spotube-release-binary.yml",
+   "line": 392,
+   "verdict": "overrated",
+   "reason": "Workflow permissions contents: read; persisted token is read-only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-release-binary.yml",
+   "line": 395,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/download-artifact@v8 tag pin; first-party, tag-move risk is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-release-binary.yml",
+   "line": 401,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java@v6 in Windows release job; first-party major-tag pin is low risk."
+  },
+  {
+   "tool": "masaudit",
+   "app": "spotube",
+   "rule": "CI-001",
+   "path": ".github/workflows/spotube-release-binary.yml",
+   "line": 464,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java@v6 tag pin; first-party, tag-move risk is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "thunder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci.yml",
+   "line": 110,
+   "verdict": "overrated",
+   "reason": "Third-party action on movable v1 tag, but ci.yml has contents: read, no secrets, only lint/test; limited blast radius."
+  },
+  {
+   "tool": "masaudit",
+   "app": "thunder",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci.yml",
+   "line": 116,
+   "verdict": "overrated",
+   "reason": "jungwinter/split@v2 tag-pinned, but job is read-only (contents: read), no secrets, version check only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "thunder",
+   "rule": "CI-001",
+   "path": ".github/workflows/instances.yml",
+   "line": 143,
+   "verdict": "real",
+   "reason": "Third-party peter-evans/create-pull-request@v6.0.1 tag pin in workflow with contents:write and pull-requests:write."
+  },
+  {
+   "tool": "masaudit",
+   "app": "thunder",
+   "rule": "CI-005",
+   "path": ".github/workflows/release.yml",
+   "line": 140,
+   "verdict": "real",
+   "reason": "checkout@v4 persists token with workflow contents: write; later steps run pub get/pod install third-party code."
+  },
+  {
+   "tool": "masaudit",
+   "app": "thunder",
+   "rule": "AND-003",
+   "path": "android/app/src/development/res/xml/network_security_config.xml",
+   "line": 4,
+   "verdict": "overrated",
+   "reason": "File is in development flavor; release.yml builds production flavor. Main config also trusts user CAs (self-hosted instances)."
+  },
+  {
+   "tool": "masaudit",
+   "app": "thunder",
+   "rule": "CI-007",
+   "path": "android/gradle/wrapper/gradle-wrapper.properties",
+   "line": 4,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org; defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "CI-005",
+   "path": ".github/workflows/_reusable_run_tests_parallel.yml",
+   "line": 56,
+   "verdict": "overrated",
+   "reason": "Reusable job on pull_request; persisted token only reachable by PR's own fastlane code; fork PRs get read-only token."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "CI-002",
+   "path": ".github/workflows/changelog.yml",
+   "line": 31,
+   "verdict": "overrated",
+   "reason": "Missing top-level permissions, but it's a reusable/dispatch workflow; caller _reusable_app_release restricts to checks: write."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "CI-005",
+   "path": ".github/workflows/changelog.yml",
+   "line": 39,
+   "verdict": "overrated",
+   "reason": "Token persisted, but callers restrict permissions (checks: write) and job only reads tags; low impact."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "CI-002",
+   "path": ".github/workflows/swiftlint.yml",
+   "line": 14,
+   "verdict": "overrated",
+   "reason": "No permissions block, but pull_request lint job with SHA-pinned actions and no secrets."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "IOS-019",
+   "path": "wire-ios-data-model/WireDataModel.xcodeproj/project.pbxproj",
+   "line": 377,
+   "verdict": "false",
+   "reason": "WireDataModelTestHost is a unit-test host target, not a shipped app."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "IOS-018",
+   "path": "wire-ios-request-strategy/Sources/Notifications/Push%20Notifications/Notification%20Types/Helpers/ZMLocalNotificationSet.swift",
+   "line": 60,
+   "verdict": "overrated",
+   "reason": "Insecure unarchiveObject is real, but data comes from app's own private key-value store it wrote itself."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "IOS-019",
+   "path": "wire-ios-utilities/WireUtilities.xcodeproj/project.pbxproj",
+   "line": 219,
+   "verdict": "false",
+   "reason": "WireUtilities-tests-host is a unit-test host app, never shipped; main app has PrivacyInfo.xcprivacy."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "IOS-025",
+   "path": "wire-ios-ziphy/Resources/Configurations/zmc-config/project-debug.xcconfig",
+   "line": 33,
+   "verdict": "overrated",
+   "reason": "Ziphy Release does use project-debug.xcconfig (-D DEBUG), but Ziphy contains no DEBUG-conditional code."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "IOS-021",
+   "path": "wire-ios-ziphy/Resources/Configurations/zmc-config/project-debug.xcconfig",
+   "line": 34,
+   "verdict": "overrated",
+   "reason": "Ziphy Release uses project-debug.xcconfig (ENABLE_TESTABILITY=YES); only exposes internal symbols of open-source framework."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wire-ios",
+   "rule": "IOS-020",
+   "path": "wire-ios/Wire-iOS/Sources/UserInterface/Conversation%20Options/CreateSecureGuestLink/CreateSecureConversationGuestLinkViewModel.swift",
+   "line": 100,
+   "verdict": "real",
+   "reason": "Guest-link password is written to UIPasteboard.general without localOnly or expiration, syncing via Universal Clipboard."
+  },
+  {
+   "tool": "masaudit",
+   "app": "wireguard-android",
+   "rule": "AND-031",
+   "path": "tunnel/src/main/java/com/wireguard/android/util/SharedLibraryLoader.java",
+   "line": 80,
+   "verdict": "false",
+   "reason": "Extracts .so from the app's own signed APK into private codeCacheDir; no external code source."
+  },
+  {
+   "tool": "masaudit",
+   "app": "woocommerce-ios",
+   "rule": "CI-005",
+   "path": ".github/workflows/screenshots.yml",
+   "line": 105,
+   "verdict": "overrated",
+   "reason": "Write token persisted, but job intentionally pushes and is limited to same-repo PRs whose authors already have write access."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/AnalysisWorker.kt",
+   "line": 50,
+   "verdict": "false",
+   "reason": "Logs only the WorkManager worker id at start; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/MainActivity.kt",
+   "line": 232,
+   "verdict": "false",
+   "reason": "Logs only lifecycle string \"onDestroy\"."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/channel/calls/MetadataFetchHandler.kt",
+   "line": 504,
+   "verdict": "false",
+   "reason": "Logs content URI of a media item on metadata failure; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/metadata/SphericalVideo.kt",
+   "line": 61,
+   "verdict": "false",
+   "reason": "Logs \"failed to parse XML\" with exception; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/model/provider/ImageProvider.kt",
+   "line": 246,
+   "verdict": "false",
+   "reason": "Log.d of media URI/path being deleted; not secret data, logcat not readable by other apps."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/deckers/thibault/aves/storage/StorageUtils.kt",
+   "line": 390,
+   "verdict": "false",
+   "reason": "Logs a SAF tree document URI on parse failure; storage path, not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_logging",
+   "path": "android/exifinterface/src/main/java/androidx/exifinterface/media/ExifInterfaceFork.java",
+   "line": 4943,
+   "verdict": "overrated",
+   "reason": "Dumps EXIF values (incl. GPS) but only when Log.isLoggable enabled via adb; off by default."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_logging",
+   "path": "android/exifinterface/src/main/java/androidx/exifinterface/media/ExifInterfaceFork.java",
+   "line": 6065,
+   "verdict": "false",
+   "reason": "Debug log gated by Log.isLoggable (off by default) and only logs an entry count."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_logging",
+   "path": "android/exifinterface/src/main/java/androidx/exifinterface/media/ExifInterfaceFork.java",
+   "line": 7258,
+   "verdict": "false",
+   "reason": "Log guarded by DEBUG constant and logs an EXIF offset integer."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "aves",
+   "rule": "android_logging",
+   "path": "android/exifinterface/src/main/java/androidx/exifinterface/media/ExifInterfaceFork.java",
+   "line": 7805,
+   "verdict": "false",
+   "reason": "Line is in writeExifSegment, not logging; fork's logs are gated by Log.isLoggable DEBUG and contain metadata parse info."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "sqlite_injection",
+   "path": "app/src/main/java/protect/card_locker/DBHelper.java",
+   "line": 160,
+   "verdict": "false",
+   "reason": "onUpgrade DDL concatenating schema constants only; no untrusted input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "sqlite_injection",
+   "path": "app/src/main/java/protect/card_locker/DBHelper.java",
+   "line": 434,
+   "verdict": "false",
+   "reason": "DBHelper line is a schema migration built from constant column names; no user input in SQL."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/protect/card_locker/MainActivity.kt",
+   "line": 193,
+   "verdict": "false",
+   "reason": "Logs only numeric loyalty card id during archive action."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "android_logging",
+   "path": "app/src/main/java/protect/card_locker/Utils.java",
+   "line": 365,
+   "verdict": "false",
+   "reason": "Logs pkpass parsing exception; no card data or secrets logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "android_logging",
+   "path": "app/src/main/java/protect/card_locker/cardview/LoyaltyCardViewActivity.java",
+   "line": 331,
+   "verdict": "false",
+   "reason": "Logs seekbar progress/scale values for barcode sizing; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "android_logging",
+   "path": "app/src/main/java/protect/card_locker/importexport/MultiFormatExporter.java",
+   "line": 30,
+   "verdict": "false",
+   "reason": "Logs export failure/unknown format name and exception; no user data or password."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/protect/card_locker/wearos/BluetoothServerService.kt",
+   "line": 201,
+   "verdict": "false",
+   "reason": "Logs command path (/V1/CARDS_REQUEST_PAGE/..) and device name; auth token on separate line isn't logged here."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "catima",
+   "rule": "android_kotlin_logging",
+   "path": "wear/src/main/java/me/hackerchick/catima/wear/WearCardRepository.kt",
+   "line": 38,
+   "verdict": "false",
+   "reason": "Log.d only logs the number of cards synced; no card data or secrets."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "habitica-android",
+   "rule": "android_kotlin_logging",
+   "path": "common/src/main/java/com/habitrpg/common/habitica/helpers/ExceptionHandler.kt",
+   "line": 38,
+   "verdict": "false",
+   "reason": "Logs exception stack traces; no sensitive data shown in what is logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "hiddify",
+   "rule": "android_certificate_transparency",
+   "path": "hiddify",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "No CT enforcement in network_security_config, but CT is defense-in-depth; HTTPS still validated by system CAs."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "icecubes",
+   "rule": "ios_custom_keyboard_disabled",
+   "path": "icecubes",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Mastodon client; iOS already blocks third-party keyboards in SecureFields; no sensitive input requiring app-wide ban."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "materialfiles",
+   "rule": "android_manifest_allow_backup",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "allowBackup true backs up stored SMB/SFTP passwords, but targetSdk 36 blocks adb backup on Android 12+."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "nextcloud-notes",
+   "rule": "hardcoded_api_key",
+   "path": "app/src/main/java/it/niedermann/owncloud/notes/edit/BaseNoteFragment.java",
+   "line": 70,
+   "verdict": "false",
+   "reason": "\"original_note\" is a savedInstanceState bundle key, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "nextcloud-notes",
+   "rule": "android_logging",
+   "path": "app/src/main/java/it/niedermann/owncloud/notes/main/MainViewModel.java",
+   "line": 237,
+   "verdict": "false",
+   "reason": "Line 237 logs sort method only. (Note: line 233 inverts BuildConfig.DEBUG and logs searchTerm in release.)"
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "nextcloud-notes",
+   "rule": "android_logging",
+   "path": "app/src/main/java/it/niedermann/owncloud/notes/main/MainViewModel.java",
+   "line": 602,
+   "verdict": "overrated",
+   "reason": "Log.v of account name (user@server) in release; logcat not readable by other apps, low sensitivity."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "nextcloud-notes",
+   "rule": "android_logging",
+   "path": "app/src/main/java/it/niedermann/owncloud/notes/persistence/NotesRepository.java",
+   "line": 208,
+   "verdict": "false",
+   "reason": "Logs network connection type only."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "nextcloud-notes",
+   "rule": "hardcoded_api_key",
+   "path": "app/src/main/java/it/niedermann/owncloud/notes/persistence/migration/Migration_13_14.java",
+   "line": 51,
+   "verdict": "false",
+   "reason": "Constant SharedPreferences key names (SP_WIDGET_KEY etc.) in a migration, not an API key."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_task_hijacking2",
+   "path": "modules/features/taskerplugin/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "StrandHogg 2.0 is an OS bug patched May 2020; these are Tasker plugin config activities with no credentials."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 216,
+   "verdict": "false",
+   "reason": "Static migration SQL with constant strings; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 387,
+   "verdict": "false",
+   "reason": "Static Room migration ALTER TABLE statements; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 890,
+   "verdict": "false",
+   "reason": "Static Room migration SQL (CREATE TABLE/INDEX) with no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 975,
+   "verdict": "false",
+   "reason": "Migration with constant CREATE TABLE SQL; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 1011,
+   "verdict": "false",
+   "reason": "Room migration executes constant DDL/DML strings; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 1449,
+   "verdict": "false",
+   "reason": "Room migration execSQL with constant CREATE TABLE/INDEX statements; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 1483,
+   "verdict": "false",
+   "reason": "Room migration execSQL with constant DDL; no user input concatenated."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 1488,
+   "verdict": "false",
+   "reason": "Migration DDL with constant SQL strings; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "modules/services/model/src/main/java/au/com/shiftyjelly/pocketcasts/models/db/AppDatabase.kt",
+   "line": 1658,
+   "verdict": "false",
+   "reason": "Legacy migration with constant ALTER TABLE statements."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_kotlin_logging",
+   "path": "modules/services/utils/src/main/java/au/com/shiftyjelly/pocketcasts/utils/TimberDebugTree.kt",
+   "line": 21,
+   "verdict": "false",
+   "reason": "TimberDebugTree planted only when BuildConfig.DEBUG; class itself logs nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "pocket-casts-android",
+   "rule": "android_task_hijacking2",
+   "path": "wear/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "StrandHogg 2.0 is an OS bug patched in 2020; wear minSdk 26 leaves only unpatched Android 8/9 watches."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "rustdesk",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/carriez/flutter_hbb/MainActivity.kt",
+   "line": 246,
+   "verdict": "false",
+   "reason": "Logs the literal \"onDestroy\"; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "rustdesk",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt",
+   "line": 353,
+   "verdict": "false",
+   "reason": "Logs service startId and thread name; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "rustdesk",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/carriez/flutter_hbb/MainService.kt",
+   "line": 607,
+   "verdict": "false",
+   "reason": "Logs only 'audio recorder start'/'failed' status string; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "rustdesk",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/carriez/flutter_hbb/RdClipboardManager.kt",
+   "line": 92,
+   "verdict": "false",
+   "reason": "Logs a static 'send clipboard data to the remote' message; clipboard content not logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "seal",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/junkfood/seal/Downloader.kt",
+   "line": 370,
+   "verdict": "false",
+   "reason": "Line logs the subtitle language preference; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "seal",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/junkfood/seal/ui/page/command/TaskLogPage.kt",
+   "line": 57,
+   "verdict": "false",
+   "reason": "Logs only an in-memory task hashCode for navigation; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "seal",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/junkfood/seal/ui/page/settings/about/SponsorPage.kt",
+   "line": 125,
+   "verdict": "false",
+   "reason": "Logs sponsor-list fetch failure exception; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "simplenote-ios",
+   "rule": "ios_detect_reversing",
+   "path": "simplenote-ios",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "No RE/jailbreak detection found in Swift sources; for a notes app this is defense-in-depth only."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "simplenote-ios",
+   "rule": "ios_log",
+   "path": "Simplenote/Classes/SimplenoteActivityItemSource.swift",
+   "line": 38,
+   "verdict": "false",
+   "reason": "NSLog of write error; target file named by note identifier in tmp dir, no note content."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "simplenote-ios",
+   "rule": "ios_log",
+   "path": "Simplenote/StoreManager.swift",
+   "line": 147,
+   "verdict": "false",
+   "reason": "NSLog of StoreKit product count/error; no user secrets."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "spotube",
+   "rule": "android_kotlin_logging",
+   "path": "composeApp/src/androidMain/kotlin/org/spotube/spotube/media/PlaybackService.kt",
+   "line": 251,
+   "verdict": "false",
+   "reason": "Logs media browse parentId and item count; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "thunder",
+   "rule": "android_root_detection",
+   "path": "thunder",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Thunder is a Lemmy client; no sensitive data warranting root detection."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wire-ios",
+   "rule": "ios_log",
+   "path": "WireLogging/Sources/WireLogging/SystemLogger.swift",
+   "line": 87,
+   "verdict": "false",
+   "reason": "Release branch uses OSLogMessage interpolation, which redacts dynamic strings as <private> by default; DEBUG branch is public."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wire-ios",
+   "rule": "ios_insecure_random_no_generator",
+   "path": "wire-ios-data-model/Support/Sources/MLS/MLSClientID%2Brandom.swift",
+   "line": 23,
+   "verdict": "false",
+   "reason": "Support/test helper building random MLS client IDs using UUID; not shipped security code."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wire-ios",
+   "rule": "ios_insecure_random_no_generator",
+   "path": "wire-ios-sync-engine/Source/Registration/RandomHandleGenerator.swift",
+   "line": 109,
+   "verdict": "false",
+   "reason": "Int.random uses SystemRandomNumberGenerator (CSPRNG); only generates suggested usernames, not security-sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wire-ios",
+   "rule": "ios_banned_api",
+   "path": "wire-ios-testing/Source/Public/NSUUID%2BWireTesting.m",
+   "line": 50,
+   "verdict": "false",
+   "reason": "wire-ios-testing test helper deterministically seeding UUIDs for tests; not shipped, not a security use."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wire-ios",
+   "rule": "ios_app_logging",
+   "path": "wire-ios-testing/Source/Public/ZMTImageComparator.m",
+   "line": 114,
+   "verdict": "false",
+   "reason": "NSAssert in wire-ios-testing test helper; not logging, not shipped."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wire-ios",
+   "rule": "ios_insecure_random_no_generator",
+   "path": "wire-ios/Wire-iOS/Sources/UserInterface/Components/Views/ConversationConnectAvatarView.swift",
+   "line": 62,
+   "verdict": "false",
+   "reason": "Deterministic UUID-seeded shuffle for stable avatar ordering in UI; not security-relevant randomness."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wireguard-android",
+   "rule": "android_certificate_transparency",
+   "path": "wireguard-android",
+   "line": 1,
+   "verdict": "false",
+   "reason": "WireGuard doesn't use TLS for tunnels; only updater uses HTTPS and verifies signify Ed25519 signatures."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "wireguard-android",
+   "rule": "android_kotlin_logging",
+   "path": "ui/src/main/java/com/wireguard/android/fragment/TunnelEditorFragment.kt",
+   "line": 265,
+   "verdict": "false",
+   "reason": "Logs a localized tunnel-rename error message and throwable; no keys or config contents."
+  },
+  {
+   "tool": "mobsfscan",
+   "app": "woocommerce-ios",
+   "rule": "ios_app_logging",
+   "path": "Modules/Sources/WPMediaPicker/WPDateTimeHelpers.m",
+   "line": 19,
+   "verdict": "false",
+   "reason": "NSAssert, not logging; assertions are compiled out in release and contain no data."
+  },
+  {
+   "tool": "rnsec",
+   "app": "blixt",
+   "rule": "EXCESSIVE_PERMISSIONS",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 11,
+   "verdict": "false",
+   "reason": "Camera for QR, location/maps for opt-in transaction geotagging (geolocation, react-native-maps deps); permissions are used."
+  },
+  {
+   "tool": "rnsec",
+   "app": "blixt",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/state/Fiat.ts",
+   "line": 106,
+   "verdict": "overrated",
+   "reason": "Coingecko fiat-rate fetch without timeout; at most a stale/hung rate request, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "blixt",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/state/LNURL.ts",
+   "line": 494,
+   "verdict": "overrated",
+   "reason": "LNURL withdraw callback fetch lacks timeout; only a UI hang/availability nuisance, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "app": "blixt",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/windows/Settings/PowerUserTools.tsx",
+   "line": 216,
+   "verdict": "false",
+   "reason": "Power-user debug tool alerting LND getNodeInfo error to the wallet owner about their own local node; nothing sensitive leaked."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "API_KEY_EXPOSED",
+   "path": "apps/ledger-live-mobile/.env.mock.prerelease",
+   "line": 9,
+   "verdict": "false",
+   "reason": "Braze SDK API key is a public client identifier meant to ship in apps; file is mock/Detox config."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "THIRD_PARTY_SDK_RISK",
+   "path": "apps/ledger-live-mobile/package.json",
+   "line": 239,
+   "verdict": "overrated",
+   "reason": "Segment is used, but initialization is gated by user analytics opt-in (analyticsEnabledSelector)."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "apps/ledger-live-mobile/src/actions/accounts.ts",
+   "line": 28,
+   "verdict": "false",
+   "reason": "console.error on local account decode failure; nothing shown to user, no backend error/stack exposed."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/components/Carousel/useCarouselCardModel.ts",
+   "line": 58,
+   "verdict": "false",
+   "reason": "Opens link from Ledger's own Braze content cards (vendor-controlled campaign data), not attacker input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/components/CheckTermOfUseUpdate.tsx",
+   "line": 34,
+   "verdict": "false",
+   "reason": "Terms URL comes from constant urls.terms map by locale."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/components/DeviceAction/rendering.tsx",
+   "line": 741,
+   "verdict": "false",
+   "reason": "Opens a constant localized support URL (urls.contact)."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/components/LinkingProviderWrapper.tsx",
+   "line": 21,
+   "verdict": "false",
+   "reason": "LinkingProvider calls assertSafeUrl (https/mailto only) before openExternal."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/components/NeedHelp.tsx",
+   "line": 12,
+   "verdict": "false",
+   "reason": "Linking.openURL(urls.faq) opens a hardcoded constant FAQ URL."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/components/Web3AppWebview/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "App-wide native blur overlay on backgrounding (AppDelegate/Overlay.swift) covers webview screen."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/components/WebPlatformPlayer/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "iOS AppDelegate shows blur overlay on applicationDidEnterBackground; snapshot protection is present app-wide."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/concordium/Onboard/OnboardScreen/components/StepOnboard.tsx",
+   "line": 52,
+   "verdict": "false",
+   "reason": "learnMoreUrl comes from app constant urls.concordium.learnMore via useLocalizedUrl."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/families/cosmos/Delegations/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate shows blur overlay in applicationDidEnterBackground (Overlay.swift); snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/cosmos/operationDetails.tsx",
+   "line": 44,
+   "verdict": "false",
+   "reason": "URL built by getAddressExplorer from currency's configured explorer; not attacker-controlled."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/polkadot/BondFlow/01-Started.tsx",
+   "line": 29,
+   "verdict": "false",
+   "reason": "Opens hardcoded constant urls.polkadotStaking."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/polkadot/TransactionConfirmFields.tsx",
+   "line": 42,
+   "verdict": "false",
+   "reason": "URL built by getAddressExplorer from currency explorer template and validator address; not arbitrary scheme."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/stellar/StellarFeeRow.tsx",
+   "line": 50,
+   "verdict": "false",
+   "reason": "Opens constant urls.feesMoreInfo; not untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/families/sui/Staking/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate shows blur overlay in applicationDidEnterBackground (Overlay.swift); snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/tezos/DelegationDetailsModal.tsx",
+   "line": 165,
+   "verdict": "false",
+   "reason": "URLs come from getAddressExplorer/getTransactionExplorer with app-defined explorer templates, not untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/tezos/Delegations/index.tsx",
+   "line": 155,
+   "verdict": "false",
+   "reason": "Opens explorer URLs from getAddressExplorer/getTransactionExplorer config; https explorer, not user-supplied scheme."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/families/tezos/TransactionConfirmFields.tsx",
+   "line": 48,
+   "verdict": "false",
+   "reason": "URL built by getAddressExplorer from configured explorer and recipient address; fixed https explorer scheme."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/mvvm/components/TopBar/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate shows blur overlay in applicationDidEnterBackground (Overlay.swift); snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/Accounts/screens/AccountsList/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate.applicationDidEnterBackground shows blur overlay (Overlay.swift); snapshot protection present."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/Accounts/screens/AddAccount/components/SelectAddAccountMethod/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "ios/AppDelegate.swift applicationDidEnterBackground calls showOverlay() (UIBlurEffect) in Overlay.swift; snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/Crypto/components/CryptoContent/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate shows blur overlay in applicationDidEnterBackground (Overlay.swift); snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/LNUpsell/components/LNUpsellBanner/useLNUpsellBannerModel.ts",
+   "line": 102,
+   "verdict": "false",
+   "reason": "ctaLink comes from Ledger feature-flag/remote config and is wrapped with UTM params; not untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/LedgerSyncEntryPoint/components/LedgerSyncBannerV4/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Native blur overlay on applicationDidEnterBackground protects all screens including this banner."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/ModularDrawer/screens/AccountSelection/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "iOS AppDelegate shows blur overlay in applicationDidEnterBackground (Overlay.swift), so snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/mvvm/features/SwapTransactionStatus/components/Details/DetailsSection.tsx",
+   "line": 167,
+   "verdict": "false",
+   "reason": "providerMainUrl comes from Ledger's swap provider config via live-common, not attacker input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/screens/Account/TokenContractAddress.tsx",
+   "line": 28,
+   "verdict": "false",
+   "reason": "URL is explorer link built from app's explorer config for token contract; not attacker-controlled."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/screens/Account/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate.applicationDidEnterBackground calls showOverlay() blur view; snapshot protection exists app-wide."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/screens/Discover/index.tsx",
+   "line": 115,
+   "verdict": "false",
+   "reason": "Opens constant urls.discover.earn; not untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/screens/Onboarding/steps/useCaseSelection.tsx",
+   "line": 80,
+   "verdict": "false",
+   "reason": "Deeplink comes from Ledger services feature-flag config, not untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/screens/Platform/v2/Catalog/Search/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AppDelegate shows blur overlay in applicationDidEnterBackground (Overlay.swift); snapshot protection exists."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/screens/Settings/About/TermsConditionsRow.tsx",
+   "line": 13,
+   "verdict": "false",
+   "reason": "termsUrl from useLocalizedTermsUrl app constant; not untrusted input."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "IOS_MISSING_APP_SNAPSHOT_PROTECTION",
+   "path": "apps/ledger-live-mobile/src/screens/Swap/History/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Blur overlay on applicationDidEnterBackground in AppDelegate provides snapshot protection."
+  },
+  {
+   "tool": "rnsec",
+   "app": "ledger-live",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/ledger-live-mobile/src/screens/Swap/History/index.tsx",
+   "line": 232,
+   "verdict": "false",
+   "reason": "feedbackFormUrl is a hardcoded const in the same file, not untrusted input."
+  },
+  {
+   "tool": "semgrep",
+   "app": "blixt",
+   "rule": "typescript.react.security.react-insecure-request.react-insecure-request",
+   "path": "src/windows/InitProcess/DEV_Commands.tsx",
+   "line": 593,
+   "verdict": "false",
+   "reason": "Plain-http .onion fetch in dev-only command screen; Tor onion is end-to-end encrypted."
+  },
+  {
+   "tool": "semgrep",
+   "app": "catima",
+   "rule": "java.lang.security.audit.crypto.use-of-sha1.use-of-sha1",
+   "path": "app/src/main/java/protect/card_locker/Utils.java",
+   "line": 1096,
+   "verdict": "false",
+   "reason": "SHA-1 only used as checksum comparing extracted import images; no security property relied on."
+  },
+  {
+   "tool": "semgrep",
+   "app": "materialfiles",
+   "rule": "kotlin.lang.security.use-of-md5.use-of-md5",
+   "path": "app/src/main/java/me/zhanghai/android/files/fileproperties/checksum/ChecksumInfo.kt",
+   "line": 23,
+   "verdict": "false",
+   "reason": "MD5 is one of several user-selectable file checksums shown in file properties, not a security signature."
+  }
+ ]
+}

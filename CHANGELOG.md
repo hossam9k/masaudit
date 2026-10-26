@@ -3,6 +3,15 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased
+
+### Docs
+
+- [Benchmark on unseen apps](docs/benchmark.md), round 2: 0.6.3 on 18 more apps no rule was tuned on.
+  45% of the sampled app-code findings were false alarms (35% without one outlier file), worse than
+  round 1; CI findings held up. The page lists the causes, the next release's work list.
+  `scripts/benchmark_compare.py --round 2` repeats it.
+
 ## 0.6.3 — 2026-10-26
 
 **Fewer false alarms and more found, measured on apps no rule was tuned on.** Rules 2.2.3. A new
