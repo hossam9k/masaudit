@@ -210,7 +210,7 @@
         "MASTG-TEST-0321",
         "MASTG-TEST-0236"
       ],
-      "confidence": "medium",
+      "confidence": "manual",
       "detector": "xpl_http_url"
     },
     {
@@ -490,6 +490,7 @@
     },
     {
       "id": "XPL-021",
+      "kind": "hardening",
       "title": "No root or jailbreak detection found",
       "platform": "cross",
       "severity": "low",
@@ -514,6 +515,7 @@
     },
     {
       "id": "XPL-022",
+      "kind": "hardening",
       "title": "No debugger detection found",
       "platform": "cross",
       "severity": "low",
@@ -645,6 +647,7 @@
     },
     {
       "id": "XPL-028",
+      "kind": "hardening",
       "title": "App never checks that the device has a screen lock",
       "platform": "cross",
       "severity": "low",
@@ -876,6 +879,7 @@
     },
     {
       "id": "XPL-038",
+      "kind": "hardening",
       "title": "No emulator detection found",
       "platform": "cross",
       "severity": "low",
@@ -899,6 +903,7 @@
     },
     {
       "id": "XPL-039",
+      "kind": "hardening",
       "title": "No hooking or instrumentation detection found",
       "platform": "cross",
       "severity": "low",
@@ -922,6 +927,7 @@
     },
     {
       "id": "XPL-040",
+      "kind": "hardening",
       "title": "App has no way to force an update",
       "platform": "cross",
       "severity": "low",

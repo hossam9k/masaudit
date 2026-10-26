@@ -77,7 +77,8 @@ $ uvx masaudit examples/acme-wallet --app-type news
 Profile:   content (News, video, music, reading, or learning); MAS-L1+P; from --app-type
 Clue:      Found a payment SDK (Stripe) in android/app/build.gradle.kts - ecommerce may fit
 
-Fix before release: 9   Fix soon: 12   Notes: 0   Not needed: 18   Accepted: 0
+Fix before release: 8   Fix soon: 12
+Check by hand: 1   Hardening: 0   Notes: 0   Not needed: 18   Accepted: 0
 
 Top fixes:
   1. [critical] Release build is debuggable (AND-002) - android/app/build.gradle.kts:17
@@ -89,9 +90,11 @@ The same code gets different advice under each app type:
 
 | | As a **banking** app | As a **news** app |
 |---|---|---|
-| Fix before release | 12 | 9 |
-| Fix soon | 27 | 12 |
-| Not needed for your app | 0 | 18: pinning, root and debugger detection, App Attest, Play Integrity, screenshot blocking, … each with the reason |
+| Fix before release | 10 | 8 |
+| Fix soon | 12 | 12 |
+| Check by hand (rules that often misread code) | 3 | 1 |
+| Hardening checklist (pinning, root and debugger detection, App Attest, Play Integrity, screenshot blocking, …) | 14 | 0 |
+| Not needed for your app | 0 | 18: the same protections, each with the reason a news app can skip it |
 | Full report | [banking report](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-banking.md) | [news report](https://github.com/hossam9k/masaudit/blob/main/docs/sample-report-news.md) |
 
 Each finding tells you why it matters, how to fix it (often with paste-ready code), how to verify the
@@ -157,6 +160,8 @@ scanned the apps again.
   CI findings held up (1 of 62 false in the latest round). mobsfscan, rnsec, and Semgrep's free rules did
   worse on the same apps. AI reviewers judged every sample:
   [Benchmark on unseen apps](https://github.com/hossam9k/masaudit/blob/main/docs/benchmark.md).
+  Rules that report a missing protection now go to a *Hardening checklist*, and the rules most often
+  wrong to *Check by hand*; neither fails `--fail-on`. The next round measures what that changes.
 
 Method and per-rule numbers: [Accuracy and speed](https://github.com/hossam9k/masaudit/blob/main/docs/precision.md).
 

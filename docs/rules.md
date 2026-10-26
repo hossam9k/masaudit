@@ -304,7 +304,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### AND-007: No certificate pinning (needed for high-risk apps)
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, identity, health, ecommerce-cards
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, identity, health, ecommerce-cards · **Reported in:** Hardening checklist
 
 **Why it matters:** Without pinning, any CA in the system trust store can issue a certificate for your server, so a rogue or hacked CA can intercept the app's traffic. Apps that move money or hold health data are worth that extra protection.
 
@@ -414,7 +414,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### AND-015: Exported component has no permission
 
-**Severity:** high · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** hours
+**Severity:** high · **Profiles:** MAS-L1 · **Confidence:** manual · **Effort:** hours
 
 **Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.
 
@@ -830,7 +830,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### AND-045: App never blocks screenshots or the recents thumbnail
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** high · **Effort:** hours
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** high · **Effort:** hours · **Reported in:** Hardening checklist
 
 **Why it matters:** Without `FLAG_SECURE`, screenshots, screen recording, casting and the recents-screen thumbnail capture whatever is on screen, including balances, card numbers and one-time codes.
 
@@ -844,7 +844,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### AND-046: App has no overlay (tapjacking) protection
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** high · **Effort:** hours · **Only for:** banking, identity, health, ecommerce-cards, device-control
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** high · **Effort:** hours · **Only for:** banking, identity, health, ecommerce-cards, device-control · **Reported in:** Hardening checklist
 
 **Why it matters:** Android 12+ blocks touches through most full-screen overlays from other apps, but not a partial overlay that covers everything except your button. A malicious overlay can then trick the user into approving a transfer or a permission.
 
@@ -874,7 +874,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### AND-048: Play Integrity is not integrated
 
-**Severity:** medium · **Profiles:** MAS-R · **Confidence:** high · **Effort:** days
+**Severity:** medium · **Profiles:** MAS-R · **Confidence:** high · **Effort:** days · **Reported in:** Hardening checklist
 
 **Why it matters:** Without Play Integrity the backend can't tell a request from your genuine app on a genuine device from one sent by a modified APK, an emulator farm or a script.
 
@@ -1284,7 +1284,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### IOS-007: No certificate pinning (needed for high-risk apps)
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, identity, health, ecommerce-cards
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Only for:** banking, identity, health, ecommerce-cards · **Reported in:** Hardening checklist
 
 **Why it matters:** Without pinning, any certificate from a CA the device trusts is accepted, including a root installed through a configuration profile or MDM. For money and health data, the book recommends SPKI pinning on an intermediate with a backup.
 
@@ -1396,7 +1396,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### IOS-015: Script message handler doesn't check who sent the message
 
-**Severity:** high · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** hours
+**Severity:** high · **Profiles:** MAS-L1 · **Confidence:** manual · **Effort:** hours
 
 **Why it matters:** WebKit has no origin allowlist for message handlers. Without a check on message.frameInfo, any page or iframe the web view loads, including an ad or an attacker's page, can call your native code.
 
@@ -1452,7 +1452,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### IOS-019: App target has no privacy manifest
 
-**Severity:** medium · **Profiles:** MAS-L1, MAS-P · **Confidence:** high · **Effort:** hours
+**Severity:** medium · **Profiles:** MAS-L1, MAS-P · **Confidence:** manual · **Effort:** hours
 
 **Why it matters:** Apple expects a PrivacyInfo.xcprivacy in your app that declares collected data, tracking domains, and the reason for each required-reason API (UserDefaults is one). App Store Connect rejects uploads that use these APIs without a declared reason.
 
@@ -1578,7 +1578,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### IOS-028: App Attest isn't integrated
 
-**Severity:** medium · **Profiles:** MAS-R · **Confidence:** high · **Effort:** days
+**Severity:** medium · **Profiles:** MAS-R · **Confidence:** high · **Effort:** days · **Reported in:** Hardening checklist
 
 **Why it matters:** Without App Attest, the server can't tell your genuine app from a repackaged copy, an emulator script or a bot replaying your API. DeviceCheck alone only flags devices, not the app.
 
@@ -1606,7 +1606,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### IOS-030: App never hides its screen in the app switcher or recordings
 
-**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** hours
+**Severity:** medium · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** hours · **Reported in:** Hardening checklist
 
 **Why it matters:** iOS stores a snapshot of the last screen for the app switcher, and screen recording or mirroring shows everything live. Without an overlay, balances, messages or one-time codes stay visible there.
 
@@ -1690,7 +1690,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### IOS-036: App doesn't refuse third-party keyboards
 
-**Severity:** low · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** minutes · **Only for:** banking, identity
+**Severity:** low · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** minutes · **Only for:** banking, identity · **Reported in:** Hardening checklist
 
 **Why it matters:** A third-party keyboard with Full Access can send everything typed into your app, including passwords and card numbers, to its developer. iOS disables custom keyboards only in secure text fields.
 
@@ -2450,7 +2450,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-009: Hardcoded plain-HTTP URL
 
-**Severity:** medium · **Profiles:** MAS-L1 · **Confidence:** medium · **Effort:** minutes
+**Severity:** medium · **Profiles:** MAS-L1 · **Confidence:** manual · **Effort:** minutes
 
 **Why it matters:** Anyone on the same network, such as public Wi-Fi, can read and change plain HTTP traffic. Even if the platform blocks cleartext today, an exception added later would let this URL through.
 
@@ -2620,7 +2620,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-021: No root or jailbreak detection found
 
-**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** days
+**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** days · **Reported in:** Hardening checklist
 
 **Why it matters:** A rooted or jailbroken device lets other code read the app's memory and storage and hook its checks. Without any signal, your backend can't weigh that risk for a payment or sign-in.
 
@@ -2634,7 +2634,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-022: No debugger detection found
 
-**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** hours
+**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** hours · **Reported in:** Hardening checklist
 
 **Why it matters:** An attached debugger can read keys from memory and skip any client-side check. Without a debugger signal, the backend can't tell a tampered session from a normal one.
 
@@ -2718,7 +2718,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-028: App never checks that the device has a screen lock
 
-**Severity:** low · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** hours
+**Severity:** low · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** hours · **Reported in:** Hardening checklist
 
 **Why it matters:** On a device with no PIN, pattern, or passcode, the Keystore and Keychain protect nothing from someone holding the phone. Without a check, the app can't warn the user or bind secrets to the lock.
 
@@ -2858,7 +2858,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-038: No emulator detection found
 
-**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** hours
+**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** hours · **Reported in:** Hardening checklist
 
 **Why it matters:** Fraud and cheating at scale run on emulators. Without an emulator signal, the backend can't tell a farm of virtual devices from real users.
 
@@ -2872,7 +2872,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-039: No hooking or instrumentation detection found
 
-**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** hours
+**Severity:** low · **Profiles:** MAS-R · **Confidence:** medium · **Effort:** hours · **Reported in:** Hardening checklist
 
 **Why it matters:** Frida, Xposed, and Substrate rewrite the app's checks at runtime. Without a hooking signal, the backend trusts results that the attacker computed.
 
@@ -2886,7 +2886,7 @@ Rules version 2.2.4, 207 rules. Severity applies when the app's profile includes
 
 ### XPL-040: App has no way to force an update
 
-**Severity:** low · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days
+**Severity:** low · **Profiles:** MAS-L2 · **Confidence:** medium · **Effort:** days · **Reported in:** Hardening checklist
 
 **Why it matters:** When a security bug ships, users on the old version stay exposed until they update. Without a forced update path, you can't retire a vulnerable version.
 

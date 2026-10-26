@@ -45,7 +45,8 @@ A rule is one entry in `src/masaudit/rules/<platform>.json`, plus either a decla
 | `maswe`, `masvs` | Only if the book gives one. MASWE v1.0.0 IDs; `masvs` must match the MASWE's control (`rules/_maswe.json`). |
 | `mastg` | Optional. MASTG v2 IDs the book cites: tests (`MASTG-TEST-0200` and above), best practices (`MASTG-BEST-*`), and other v2 IDs (`TECH`, `KNOW`, `DEMO`). |
 | `fix_code` | Optional paste-ready fix, taken from the book's verified code where possible. Released as MIT-0. |
-| `confidence` | `high` (a hit is almost always real), `medium`, or `manual` (a hit needs a human or AI to confirm). Aim for at least 90% precision for `high`. |
+| `confidence` | `high` (a hit is almost always real), `medium`, or `manual` (a hit needs a human or AI to confirm; it's reported under *Check by hand* and never fails `--fail-on`). Aim for at least 90% precision for `high`. |
+| `kind` | Optional. `weakness` (the default), or `hardening` for a rule that reports a protection the app has nowhere, such as root detection or App Attest. Hardening findings go to the *Hardening checklist* and never fail `--fail-on`. |
 | `safe_fix` | Only AND-002 has a safe fix today. Set it to `false` for new rules. |
 
 ## 2. Detect it

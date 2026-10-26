@@ -89,7 +89,7 @@ repos:
 ```
 
 The hook runs `masaudit --fail-on high --format text` and stops the commit on high or critical
-findings. It reads every key in `.masaudit.ini`, but its `--fail-on high` overrides `fail_on`. To use
+findings to fix (findings under *Check by hand* and the *Hardening checklist* never stop it). It reads every key in `.masaudit.ini`, but its `--fail-on high` overrides `fail_on`. To use
 another level, add it to `args`, for example `args: [--app-type, banking, --fail-on, medium]`. To pin
 the hook to a commit, run `pre-commit autoupdate --freeze`.
 

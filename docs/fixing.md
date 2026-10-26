@@ -16,8 +16,8 @@ with it.
 
 Each finding shows where it is (file and line), why it matters, how to fix it (often with
 paste-ready code), how to verify the fix, roughly how long it takes, its OWASP IDs, and the book
-section that explains it. Findings marked *Check by hand* need a person or an AI assistant to confirm
-them.
+section that explains it. Findings under *Check by hand* need a person or an AI assistant to confirm
+them. The *Hardening checklist* lists protections the app has nowhere: decide which your app needs.
 
 A finding in native test or debug code is still listed, at a lower severity, because that code usually
 doesn't ship. JavaScript and TypeScript tests aren't reported at all. The *Accepted earlier* section appears only when you have suppressions or a baseline.
@@ -27,6 +27,8 @@ doesn't ship. JavaScript and TypeScript tests aren't reported at all. The *Accep
 1. **Top fixes,** from the start of the report.
 2. The rest of **Fix before release**.
 3. **Fix soon,** in the order listed.
+4. **Check by hand:** confirm each one, then fix the real ones.
+5. **Hardening checklist:** plan the protections your app type needs.
 
 After each fix, run the finding's **How to verify** step, then scan again to confirm the finding is
 gone and nothing new appeared.

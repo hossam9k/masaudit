@@ -41,7 +41,15 @@ only to listed app types.
    already marked as intentional for another tool, such as Android Lint's `tools:ignore`, is lowered
    one level and shows that decision.
 3. **Which bucket?** Critical and high go to **Fix before release**; medium and low to **Fix soon**;
-   informational to **Notes**.
+   informational to **Notes**. Two kinds of finding go to their own buckets instead, which never fail
+   `--fail-on`:
+   - **Hardening checklist:** a protection the app has nowhere, such as root detection or App Attest.
+     It's advice for your app type, not a flaw in a line of code.
+   - **Check by hand:** a finding from a rule that often misreads code (its confidence is `manual`).
+     Confirm it before you fix it.
+
+   A missing protection reported from test or debug code keeps the usual downgrade instead; a *Check by
+   hand* finding there is lowered too, and stays in *Check by hand*.
 4. **Accepted?** A suppression with a reason, or a baseline entry, moves the finding to *Accepted
    earlier*. It stays visible but doesn't count.
 

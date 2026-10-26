@@ -52,7 +52,8 @@ def rule_block(r, heading: str = "###") -> str:
         "",
         f"**Severity:** {r.severity} · **Profiles:** {', '.join('MAS-' + p for p in r.profiles)}"
         f" · **Confidence:** {r.confidence} · **Effort:** {r.effort}"
-        + (f" · **Only for:** {', '.join(r.app_types)}" if r.app_types else ""),
+        + (f" · **Only for:** {', '.join(r.app_types)}" if r.app_types else "")
+        + (" · **Reported in:** Hardening checklist" if r.kind == "hardening" else ""),
         "",
         f"**Why it matters:** {r.why}",
         "",

@@ -40,6 +40,7 @@ class Rule:
     not_needed_reason: str = ""        # shown under "Not needed for your app"
     fix_code: Optional[Dict[str, str]] = None   # {"lang": "xml", "code": "..."}; MIT-0
     confidence: str = "high"           # high | medium | manual (manual = needs a human or AI look)
+    kind: str = "weakness"             # weakness | hardening (a protection the app has nowhere; a checklist item)
     safe_fix: bool = False
     detector: Optional[str] = None     # name of a registered Python detector
     pattern: Optional[Dict] = None     # declarative code pattern (see engine.run_pattern)
@@ -63,7 +64,7 @@ class Finding:
     status: str = "open"               # open | suppressed | baselined
     suppression_reason: str = ""
     effective_severity: str = ""       # filled in by calibration
-    bucket: str = ""                   # fix-before-release | fix-soon | notes | not-needed
+    bucket: str = ""                   # fix-before-release | fix-soon | check-by-hand | hardening | notes | not-needed
     bucket_reason: str = ""
     acknowledged: str = ""             # the team marked it intentional in the source (e.g. Lint tools:ignore)
     severity: str = ""                 # this hit's own severity when it differs from the rule's; "" = rule's

@@ -155,6 +155,7 @@
     },
     {
       "id": "IOS-007",
+      "kind": "hardening",
       "title": "No certificate pinning (needed for high-risk apps)",
       "platform": "ios",
       "severity": "medium",
@@ -396,7 +397,7 @@
         "lang": "swift",
         "code": "func userContentController(_ userContentController: WKUserContentController,\n                           didReceive message: WKScriptMessage) async -> (Any?, String?) {\n    // 1. Who is calling? WebKit has no origin allowlist for handlers, so check here.\n    let origin = message.frameInfo.securityOrigin\n    guard message.frameInfo.isMainFrame,\n          origin.protocol == \"https\",\n          origin.host == \"app.example.com\" else { return (nil, \"rejected\") }\n\n    // 2. What did they send? Untrusted input.\n    guard let code = message.body as? String,\n          code.range(of: #\"^[A-Z0-9]{8}$\"#, options: .regularExpression) != nil\n    else { return (nil, \"invalid\") }\n\n    // 3. The server authorizes. The bridge only relays.\n    do {\n        try await redeem(code)\n        return (\"received\", nil)\n    } catch {\n        return (nil, \"failed\")\n    }\n}"
       },
-      "confidence": "medium",
+      "confidence": "manual",
       "detector": "ios_message_handler_origin"
     },
     {
@@ -504,7 +505,7 @@
         "lang": "xml",
         "code": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n    <key>NSPrivacyTracking</key>\n    <false/>\n    <key>NSPrivacyTrackingDomains</key>\n    <array/>\n    <key>NSPrivacyCollectedDataTypes</key>\n    <array/>\n    <key>NSPrivacyAccessedAPITypes</key>\n    <array>\n        <dict>\n            <key>NSPrivacyAccessedAPIType</key>\n            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>\n            <key>NSPrivacyAccessedAPITypeReasons</key>\n            <array><string>CA92.1</string></array>\n        </dict>\n    </array>\n</dict>\n</plist>"
       },
-      "confidence": "high",
+      "confidence": "manual",
       "detector": "ios_privacy_manifest"
     },
     {
@@ -708,6 +709,7 @@
     },
     {
       "id": "IOS-028",
+      "kind": "hardening",
       "title": "App Attest isn't integrated",
       "platform": "ios",
       "severity": "medium",
@@ -752,6 +754,7 @@
     },
     {
       "id": "IOS-030",
+      "kind": "hardening",
       "title": "App never hides its screen in the app switcher or recordings",
       "platform": "ios",
       "severity": "medium",
@@ -911,6 +914,7 @@
     },
     {
       "id": "IOS-036",
+      "kind": "hardening",
       "title": "App doesn't refuse third-party keyboards",
       "platform": "ios",
       "severity": "low",

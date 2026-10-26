@@ -5,6 +5,35 @@ their own version (`rules_version`), shown in every report.
 
 ## Unreleased
 
+**Two new report buckets that never fail CI.** Three benchmark rounds on unseen apps judged 193 app-code
+findings: 52 came from rules that report a protection the app has nowhere, and 1 of those was a real
+vulnerability; four other rules were false alarms in two or more rounds. Fixing them case by case didn't
+carry over to new apps, so they move out of the fix lists.
+
+### Changed
+
+- **Hardening checklist.** Rules that report a missing protection (pinning AND-007/IOS-007, screenshot
+  blocking AND-045/IOS-030, tapjacking AND-046, Play Integrity AND-048, App Attest IOS-028, third-party
+  keyboards IOS-036, root, debugger, emulator, and hooking detection XPL-021/022/038/039, screen-lock
+  check XPL-028, forced update XPL-040) now report to *Hardening checklist*, a compact list of what your
+  app type should have. Rules carry a new `kind` (`weakness` or `hardening`), also in the JSON.
+- **Check by hand.** Findings from rules with `confidence: manual` go to their own *Check by hand* section
+  instead of *Fix before release* or *Fix soon*. AND-015 (exported component without a permission),
+  IOS-015 (script message handler), IOS-019 (privacy manifest), and XPL-009 (plain-HTTP URL) are now
+  `manual`: each was a false alarm in two or more benchmark rounds.
+- **`--fail-on` no longer counts either bucket**, and SARIF reports them at `note` level with a
+  security severity of low at most, so GitHub's default code scanning check doesn't fail on them. A
+  pipeline that failed on one of these rules before passes now; the findings are still in every report.
+- Severity, fingerprints, and baselines are unchanged. Test and debug code keeps the usual downgrade.
+
+**The trade-off.** Re-scored on the findings judged in benchmark rounds 1–3, false alarms in *Fix before
+release* and *Fix soon* drop from 50 to 15, and real findings from 17 to 15 (the other 2 are under *Check
+by hand*). That is the same data the rules were picked from, so round 4 will measure it on new apps. On
+the deliberately vulnerable recall apps, every finding is still reported at the same severity, but 17 real
+ones are now under *Check by hand* instead of *Fix before release*: AND-015 in DIVA and InsecureBankv2,
+RN-008 in DVRN and DIRNA, RN-007 in RN-CTF, IOS-012 in DVIA. A rule leaves *Check by hand* once it
+measures at 90% precision on unseen apps.
+
 ### Docs
 
 - [Benchmark on unseen apps](docs/benchmark.md), round 3: 0.6.4 on 16 more apps. 40% of the sampled

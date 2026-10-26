@@ -7,7 +7,7 @@
 - **Code clues (suggestions only, not applied):**
   - Found a payment SDK (Stripe) in android/app/build.gradle.kts — ecommerce may fit
 
-**Verdict: not ready to release.** 9 issues to fix before release for a content app, plus 12 to fix soon.
+**Verdict: not ready to release.** 8 issues to fix before release for a content app, plus 12 to fix soon. Also: 1 finding to check by hand.
 
 ## Top fixes
 
@@ -254,38 +254,7 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** MASWE-0026 · MASVS-NETWORK-1 · MASTG-TEST-0322 · **Book:** [§7.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/03-data-in-transit.md#71-the-baseline)
 
-### 8. Exported component has no permission
-
-- **Rule:** `AND-015` · **Severity:** high · **Confidence:** Medium confidence (review it)
-- **Where:** `android/app/src/main/AndroidManifest.xml:14`
-  - The activity .TransferActivity is exported with no permission: it has no intent filter, so any app can start it by its class name.
-
-Matched line (masked):
-
-```text
-<activity android:name=".TransferActivity" android:exported="true" />
-```
-
-**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.
-
-**Fix:** Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
-
-```xml
-<activity android:name=".InternalActivity" android:exported="false" />
-
-<!-- Shared only with your own apps: same signing key required -->
-<permission android:name="com.example.permission.SYNC"
-    android:protectionLevel="signature" />
-<service android:name=".SyncService"
-    android:exported="true"
-    android:permission="com.example.permission.SYNC" />
-```
-
-**How to verify:** Run `adb shell am start -n <package>/<component>` (or `am startservice`, `am broadcast`) from a shell and confirm it's refused.
-
-**Effort:** hours · **IDs:** MASWE-0018 · MASVS-AUTH-1 · MASTG-TEST-0364 · MASTG-TEST-0365 · MASTG-TEST-0366 · MASTG-TEST-0355 · **Book:** [§17.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#171-android-app-components-and-the-word-exported)
-
-### 9. AES in ECB mode, or with no mode named
+### 8. AES in ECB mode, or with no mode named
 
 - **Rule:** `XPL-004` · **Severity:** high · **Confidence:** High confidence
 - **Where:** `android/app/src/main/java/com/acme/wallet/WalletApi.kt:31`
@@ -333,7 +302,7 @@ fun decrypt(stored: ByteArray, key: SecretKey, aad: ByteArray): ByteArray {
 
 ## Fix soon
 
-### 10. HTTP bodies are logged in every build
+### 9. HTTP bodies are logged in every build
 
 - **Rule:** `AND-030` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/java/com/acme/wallet/WalletApi.kt:20`
@@ -360,7 +329,7 @@ val logging = HttpLoggingInterceptor().apply {
 
 **Effort:** minutes · **IDs:** MASWE-0005 · MASVS-STORAGE-2 · MASTG-TEST-0203 · MASTG-TEST-0231 · **Book:** [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
 
-### 11. Action is pinned to a tag or branch, not a commit SHA
+### 10. Action is pinned to a tag or branch, not a commit SHA
 
 - **Rule:** `CI-001` · **Severity:** medium (base: high) · **Confidence:** High confidence
 - **Where:** `.github/workflows/release.yml:8`
@@ -384,7 +353,7 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
 
-### 12. Workflow token permissions are not restricted
+### 11. Workflow token permissions are not restricted
 
 - **Rule:** `CI-002` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `.github/workflows/release.yml:4`
@@ -413,7 +382,7 @@ jobs:
 
 **Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
 
-### 13. actions/checkout leaves the job token on disk
+### 12. actions/checkout leaves the job token on disk
 
 - **Rule:** `CI-005` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `.github/workflows/release.yml:8`
@@ -439,7 +408,7 @@ Matched line (masked):
 
 **Effort:** minutes · **IDs:** none · **Book:** [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
 
-### 14. Protected resource used without a usable purpose string
+### 13. Protected resource used without a usable purpose string
 
 - **Rule:** `IOS-038` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `ios/AcmeWallet/TokenStore.swift:18`
@@ -464,7 +433,7 @@ LAContext().evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,
 
 **Effort:** minutes · **IDs:** MASWE-0066 · MASVS-PRIVACY-1 · MASTG-TEST-0360 · MASTG-BEST-0051 · **Book:** [§18.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#181-permissions-ask-for-less-later-and-explain-why)
 
-### 15. App Link is not verified
+### 14. App Link is not verified
 
 - **Rule:** `AND-019` · **Severity:** medium · **Confidence:** Medium confidence (review it)
 - **Where:** `android/app/src/main/AndroidManifest.xml:16`
@@ -495,7 +464,7 @@ Matched line (masked):
 
 **Effort:** hours · **IDs:** MASWE-0029 · MASVS-PLATFORM-1 · MASTG-TEST-0393 · MASTG-BEST-0070 · **Book:** [§17.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#175-deep-links-and-the-verification-that-makes-them-safe)
 
-### 16. Backup is on with no exclusion rules
+### 15. Backup is on with no exclusion rules
 
 - **Rule:** `AND-021` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `android/app/src/main/AndroidManifest.xml:4`
@@ -542,7 +511,7 @@ Matched line (masked):
 
 **Effort:** hours · **IDs:** MASWE-0006 · MASVS-STORAGE-2 · MASTG-TEST-0216 · MASTG-TEST-0262 · **Book:** [§6.5](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#65-the-leaks-that-are-not-about-encryption)
 
-### 17. R8 is off in the release build
+### 16. R8 is off in the release build
 
 - **Rule:** `AND-027` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `android/app/build.gradle.kts:16`
@@ -578,7 +547,7 @@ android {
 
 **Effort:** hours · **IDs:** MASWE-0059 · MASVS-RESILIENCE-3 · MASTG-TEST-0368 · **Book:** [§14.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/05-resilience.md#141-the-cheap-things-which-you-should-simply-do)
 
-### 18. Deprecated EncryptedSharedPreferences (Jetpack Security)
+### 17. Deprecated EncryptedSharedPreferences (Jetpack Security)
 
 - **Rule:** `AND-022` · **Severity:** medium · **Confidence:** High confidence
 - **Where (2 places):**
@@ -611,7 +580,7 @@ dependencies {
 
 **Effort:** days · **IDs:** MASWE-0046 · MASVS-CODE-3 · **Book:** [§6.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/02-data-at-rest.md#61-encryptedsharedpreferences-is-dead)
 
-### 19. targetSdk is below Google Play's requirement
+### 18. targetSdk is below Google Play's requirement
 
 - **Rule:** `AND-028` · **Severity:** medium · **Confidence:** High confidence
 - **Where:** `android/app/build.gradle.kts:12`
@@ -639,7 +608,7 @@ android {
 
 **Effort:** days · **IDs:** MASWE-0042 · MASVS-CODE-1 · **Book:** [§19.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency)
 
-### 20. minSdk is below 24
+### 19. minSdk is below 24
 
 - **Rule:** `AND-029` · **Severity:** low · **Confidence:** High confidence
 - **Where:** `android/app/build.gradle.kts:11`
@@ -666,6 +635,41 @@ android {
 **How to verify:** Run `aapt2 dump badging app-release.apk | grep sdkVersion` and confirm it shows 24 or more.
 
 **Effort:** hours · **IDs:** MASWE-0041 · MASVS-CODE-1 · MASTG-TEST-0245 · MASTG-TEST-0285 · MASTG-BEST-0010 · **Book:** [§19.6](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#196-free-compiler-protections-and-platform-currency)
+
+## Check by hand
+
+These rules often misread code, so they don't block a release or fail `--fail-on`. Each one needs a person (or your AI assistant) to confirm it; a confirmed one belongs with the fixes above.
+
+### 20. Exported component has no permission
+
+- **Rule:** `AND-015` · **Severity:** high · **Confidence:** Check by hand
+- **Where:** `android/app/src/main/AndroidManifest.xml:14`
+  - The activity .TransferActivity is exported with no permission: it has no intent filter, so any app can start it by its class name. This rule often needs context a scanner can't see: confirm it before fixing.
+
+Matched line (masked):
+
+```text
+<activity android:name=".TransferActivity" android:exported="true" />
+```
+
+**Why it matters:** Any app on the device can start an exported activity, service, receiver, or provider. Without a permission, a malicious app can skip your login screen or trigger the component's action directly. A custom action next to public intent filters, or a widget or media receiver, is reported as medium.
+
+**Fix:** Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
+
+```xml
+<activity android:name=".InternalActivity" android:exported="false" />
+
+<!-- Shared only with your own apps: same signing key required -->
+<permission android:name="com.example.permission.SYNC"
+    android:protectionLevel="signature" />
+<service android:name=".SyncService"
+    android:exported="true"
+    android:permission="com.example.permission.SYNC" />
+```
+
+**How to verify:** Run `adb shell am start -n <package>/<component>` (or `am startservice`, `am broadcast`) from a shell and confirm it's refused.
+
+**Effort:** hours · **IDs:** MASWE-0018 · MASVS-AUTH-1 · MASTG-TEST-0364 · MASTG-TEST-0365 · MASTG-TEST-0366 · MASTG-TEST-0355 · **Book:** [§17.1](https://github.com/hossam9k/mobile-app-security/blob/main/book/07-platform-surfaces-and-new-frontiers.md#171-android-app-components-and-the-word-exported)
 
 ## Notes
 
@@ -938,6 +942,7 @@ ref: ${{ github.event.pull_request.head.sha }}
 ### Task 8: Exported component has no permission (AND-015, high)
 
 - File: `android/app/src/main/AndroidManifest.xml:14`
+- First: confirm it's real (this rule often misreads code); if it isn't, skip this task.
 - Change: Set `android:exported="false"` unless other apps must reach the component. If they must, require a permission with `android:protectionLevel="signature"` and validate every input.
 - Verify: Run `adb shell am start -n <package>/<component>` (or `am startservice`, `am broadcast`) from a shell and confirm it's refused.
 - Current code (data, masked):

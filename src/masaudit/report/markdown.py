@@ -97,21 +97,34 @@ def applicable(rule: Rule, platforms: List[str]) -> bool:
 # ---------------------------------------------------------------------------- sections
 
 
+def _also(c: Dict[str, int]) -> str:
+    """The verdict's last sentence: what the two buckets that don't block a release hold."""
+    parts = []
+    if c["check-by-hand"]:
+        n = c["check-by-hand"]
+        parts.append(f"{n} finding{'s' if n != 1 else ''} to check by hand")
+    if c["hardening"]:
+        n = c["hardening"]
+        parts.append(f"{n} hardening item{'s' if n != 1 else ''} to consider")
+    return f" Also: {' and '.join(parts)}." if parts else ""
+
+
 def _verdict(result) -> str:
     c = counts(result.findings)
     app = result.profile.app_type
     fbr, soon = c["fix-before-release"], c["fix-soon"]
+    also = _also(c)
     if fbr:
         tail = f", plus {soon} to fix soon" if soon else ""
         return (f"**Verdict: not ready to release.** {fbr} issue{'s' if fbr != 1 else ''} to fix "
-                f"before release for {a_type(app)} app{tail}.")
+                f"before release for {a_type(app)} app{tail}.{also}")
     if soon:
         return (f"**Verdict: no release blockers found**, but {soon} issue{'s' if soon != 1 else ''} "
-                f"should be fixed soon for {a_type(app)} app.")
+                f"should be fixed soon for {a_type(app)} app.{also}")
     if result.profile.warnings:
         return (f"**Verdict: no issues found for {a_type(app)} app, but check your app type first** (see above): "
-                "a riskier type would run more checks.")
-    return (f"**Verdict: no issues found by the automated checks** for {a_type(app)} app. "
+                f"a riskier type would run more checks.{also}")
+    return (f"**Verdict: no issues found by the automated checks** for {a_type(app)} app.{also} "
             "Read \"Residual risk\" for what a scanner can't see.")
 
 
@@ -173,6 +186,35 @@ def _bucket_section(result, bucket: str, counter: List[int]) -> List[str]:
     for rule, severity, group in _group(items):
         counter[0] += 1
         out += _finding_block(counter[0], rule, severity, group)
+    return out
+
+
+def _check_by_hand_section(result, counter: List[int]) -> List[str]:
+    items = [f for f in open_findings(result.findings) if f.bucket == "check-by-hand"]
+    if not items:
+        return []
+    out = [f"## {BUCKET_TITLES['check-by-hand']}", "",
+           "These rules often misread code, so they don't block a release or fail `--fail-on`. Each one needs "
+           "a person (or your AI assistant) to confirm it; a confirmed one belongs with the fixes above.", ""]
+    for rule, severity, group in _group(items):
+        counter[0] += 1
+        out += _finding_block(counter[0], rule, severity, group)
+    return out
+
+
+def _hardening_section(result) -> List[str]:
+    items = [f for f in open_findings(result.findings) if f.bucket == "hardening"]
+    if not items:
+        return []
+    out = [f"## {BUCKET_TITLES['hardening']}", "",
+           f"Protections the app doesn't have anywhere, recommended for {a_type(result.profile.app_type)} app. "
+           "Each is a product decision, not a bug in a line of code, so none blocks a release or fails "
+           "`--fail-on`. Run `masaudit --explain <ID>` for how to add one.", ""]
+    for rule, _sev, group in _group(items):
+        places = ", ".join(where(f) for f in group[:3]) + (f" and {len(group) - 3} more" if len(group) > 3 else "")
+        out.append(f"- [ ] **{text(rule.title)}** ({code_span(rule.id)}, "
+                   f"{EFFORT_LABELS.get(rule.effort, rule.effort)}) at {places}. Book: {book_link(rule)}")
+    out.append("")
     return out
 
 
@@ -261,7 +303,7 @@ def _residual_section(result) -> List[str]:
     out = ["## Residual risk", ""]
     unknowns = list(result.project.unknowns)
     manual = [f for f in open_findings(result.findings)
-              if f.rule.confidence == "manual" and f.bucket != "not-needed"]
+              if f.rule.confidence == "manual" and f.bucket not in ("not-needed", "check-by-hand")]
     if unknowns:
         out += ["Things the scanner couldn't decide:", ""]
         out += [f"- {text(u)}" for u in unknowns]
@@ -285,7 +327,7 @@ def _residual_section(result) -> List[str]:
 
 
 def _fix_plan_section(result) -> List[str]:
-    items = sorted((f for f in open_findings(result.findings) if f.bucket in ACTIONABLE + ("notes",)),
+    items = sorted((f for f in open_findings(result.findings) if f.bucket in ACTIONABLE + ("check-by-hand", "notes")),
                    key=sort_key)
     out = ["## Fix plan for your AI assistant", ""]
     if not items:
@@ -303,6 +345,10 @@ def _fix_plan_section(result) -> List[str]:
             f"### Task {i}: {text(f.rule.title)} ({f.rule.id}, {f.effective_severity})",
             "",
             f"- File: {code_span(loc)}",
+        ]
+        if f.bucket == "check-by-hand":
+            out.append("- First: confirm it's real (this rule often misreads code); if it isn't, skip this task.")
+        out += [
             f"- Change: {f.rule.fix}",
             f"- Verify: {f.rule.verify}",
         ]
@@ -348,12 +394,17 @@ def render(result) -> str:
             out.append(f"{i}. **{text(f.rule.title)}** ({f.effective_severity}, "
                        f"{EFFORT_LABELS.get(f.rule.effort, f.rule.effort)}) at {where(f)}")
     else:
-        out.append("Nothing to fix right now.")
+        soft = [BUCKET_TITLES[b] for b in ("check-by-hand", "hardening")
+                if any(f.bucket == b for f in open_findings(result.findings))]
+        out.append("Nothing to fix right now." + (f" See {' and '.join(soft)} below." if soft else ""))
     out.append("")
 
     counter = [0]
-    for bucket in ("fix-before-release", "fix-soon", "notes"):
+    for bucket in ("fix-before-release", "fix-soon"):
         out += _bucket_section(result, bucket, counter)
+    out += _check_by_hand_section(result, counter)
+    out += _hardening_section(result)
+    out += _bucket_section(result, "notes", counter)
     out += _not_needed_section(result)
     out += _accepted_section(result)
     out += _held_section(result)

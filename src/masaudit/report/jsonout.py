@@ -17,10 +17,12 @@ from masaudit import profile as profile_mod
 from masaudit.model import SEVERITY_RANK, Finding
 
 SCHEMA_VERSION = 1
-BUCKETS = ["fix-before-release", "fix-soon", "notes", "not-needed"]
+BUCKETS = ["fix-before-release", "fix-soon", "check-by-hand", "hardening", "notes", "not-needed"]
 BUCKET_TITLES = {
     "fix-before-release": "Fix before release",
     "fix-soon": "Fix soon",
+    "check-by-hand": "Check by hand",
+    "hardening": "Hardening checklist",
     "notes": "Notes",
     "not-needed": "Not needed for your app (and why)",
 }
@@ -96,6 +98,7 @@ def finding_dict(f: Finding) -> dict:
         "bucket_reason": f.bucket_reason,
         "acknowledged": f.acknowledged,
         "confidence": r.confidence,
+        "kind": r.kind,
         "status": f.status,
         "suppression_reason": f.suppression_reason,
         "path": f.location.path,

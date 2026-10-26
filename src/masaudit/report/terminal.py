@@ -64,8 +64,9 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
     lines += [
         "",
         f"Fix before release: {_c(color, 'high', str(c['fix-before-release'])) if c['fix-before-release'] else 0}"
-        f"   Fix soon: {c['fix-soon']}   Notes: {c['notes']}   Not needed: {c['not-needed']}"
-        f"   Accepted: {c['suppressed'] + c['baselined']}",
+        f"   Fix soon: {c['fix-soon']}",
+        f"Check by hand: {c['check-by-hand']}   Hardening: {c['hardening']}   Notes: {c['notes']}"
+        f"   Not needed: {c['not-needed']}   Accepted: {c['suppressed'] + c['baselined']}",
     ]
     top = top_fixes(result.findings)
     if top:
@@ -75,8 +76,8 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
             sev = _c(color, f.effective_severity, a(f"[{f.effective_severity}]"))
             lines.append(f"  {i}. {sev} {a(f'{f.rule.title} ({f.rule.id}) - {loc}')}")
     else:
-        lines += ["", "No open findings to fix." + (" Check your app type first (see the warning above)."
-                                                    if result.profile.warnings else "")]
+        lines += ["", "No open findings to fix." + (_soft_tail(c) or (" Check your app type first (see the warning above)."
+                                                                if result.profile.warnings else ""))]
     notes = list(getattr(result, "notes", []))
     for n in notes:
         lines.append(a(f"Note: {n}"))
@@ -116,6 +117,27 @@ def invocation() -> str:
     return "masaudit"
 
 
+def _soft_tail(c) -> str:
+    """For an empty fix list: what the two buckets that never block a release still hold."""
+    parts = []
+    if c["check-by-hand"]:
+        parts.append(f"{c['check-by-hand']} to check by hand")
+    if c["hardening"]:
+        parts.append(f"{c['hardening']} hardening item{'s' if c['hardening'] != 1 else ''} to consider")
+    return f" Still: {' and '.join(parts)}." if parts else ""
+
+
+def _start_with(result) -> str:
+    if top_fixes(result.findings):
+        return "start with Top fixes"
+    c = counts(result.findings)
+    if c["check-by-hand"]:
+        return "start with Check by hand"
+    if c["hardening"]:
+        return "start with the Hardening checklist"
+    return "read Residual risk"
+
+
 def _next_step(result, report_path: Optional[str]) -> str:
     cmd = invocation()
     root = getattr(result, "root", None) or "."
@@ -130,7 +152,7 @@ def _next_step(result, report_path: Optional[str]) -> str:
     safe = bool(candidates) and bool(fix.plan(result.root, candidates).fixes)
     preview = f"`{cmd}{target} --fix-safe` previews the safe fixes (changes nothing)" if safe else ""
     if report_path:
-        start = "start with Top fixes" if top_fixes(result.findings) else "read Residual risk"
+        start = _start_with(result)
         return f"Next: open {os.path.basename(report_path)} and {start}." + (f" {preview[0].upper()}{preview[1:]}." if preview else "")
     return f"Next: run `{cmd}{target}` to write SECURITY-AUDIT.md." + (f" {preview[0].upper()}{preview[1:]}." if preview else "")
 
@@ -141,6 +163,8 @@ def explain(rule: Rule) -> str:
         f"Platform: {rule.platform}   Severity: {rule.severity}   Profiles: {', '.join('MAS-' + p for p in rule.profiles)}"
         f"   Confidence: {rule.confidence}   Effort: {rule.effort}",
     ]
+    if rule.kind == "hardening":
+        lines.append("Reported in the Hardening checklist: a protection the app has nowhere, not a flaw in a line of code.")
     if rule.app_types is not None:
         lines.append(f"Only needed for: {', '.join(rule.app_types)}")
         if rule.not_needed_reason:

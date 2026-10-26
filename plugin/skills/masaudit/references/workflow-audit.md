@@ -16,7 +16,7 @@ masaudit . --app-type TYPE --format md --output SECURITY-AUDIT.md
 
 Read `masaudit.json`: each finding has `rule_id`, `path`, `line`, `effective_severity` (for this app
 type and file; `severity` is the rule's default), `bucket` (`fix-before-release`, `fix-soon`,
-`notes`, `not-needed`), `status` (`open`, `suppressed`, `baselined`), `confidence`, and the rule's
+`check-by-hand`, `hardening`, `notes`, `not-needed`), `status` (`open`, `suppressed`, `baselined`), `confidence`, and the rule's
 `why`/`fix`.
 `unknowns` lists things the scanner couldn't decide.
 
@@ -25,14 +25,17 @@ If other tools already ran (Android Lint, mobsfscan, Semgrep, zizmor), pass thei
 
 ## 2. Triage, most severe first
 
-For each finding with `status: open` in `fix-before-release` and `fix-soon`, most severe
-`effective_severity` first:
+For each finding with `status: open` in `fix-before-release`, `fix-soon`, and `check-by-hand`, most
+severe `effective_severity` first:
 
 1. Open the file at the line. Read enough around it to understand the context.
 2. Decide: **confirmed** (the risk is real here), **false positive** (explain why in one line), or
    **check by hand** (you can't tell without runtime or server information; say what to check).
-3. Findings with `confidence: manual` need this step most. `high` ones are usually right, but
+3. Findings in `check-by-hand` (`confidence: manual`) need this step most: their rules often misread code. `high` ones are usually right, but
    still look: a debug-only path or a test helper changes the answer.
+
+`hardening` findings are protections the app has nowhere (root detection, App Attest, pinning): list
+them as a checklist for the user to plan, not as confirmed vulnerabilities.
 
 Don't re-litigate `not-needed` findings unless the code shows the profile is wrong (for example, a
 "content" app that stores card numbers). If it is wrong, tell the user and suggest re-running
