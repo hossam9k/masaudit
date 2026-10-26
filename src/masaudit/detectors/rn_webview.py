@@ -511,13 +511,28 @@ def _handler_body(f: _File, start: int, end: int) -> Optional[str]:
     return f.blank[span[0]:span[1]] if span else None
 
 
+_SPECIFIC_ORIGIN = re.compile(r"https://(?:\*\.)?[\w-]+(?:\.[\w-]+)+(?::\d+)?/?")
+
+
+def _specific_origins(f: _File, s: _Site) -> bool:
+    """originWhitelist is a literal list of named https origins (`["https://*.typeform.com"]`): the WebView only
+    loads those, so only they can send messages. `*`, `http://*` or a variable don't count."""
+    p = s.el.props.get("originWhitelist")
+    if p is None or p.kind != "expr":
+        return False
+    text = f.code[p.start:p.end].strip()
+    entries = re.findall(r"['\"]([^'\"]*)['\"]", text)
+    return (bool(entries) and re.fullmatch(r"\[\s*(?:['\"][^'\"]*['\"]\s*,?\s*)+\]", text) is not None
+            and all(_SPECIFIC_ORIGIN.fullmatch(e) for e in entries))
+
+
 def _message_hit(ctx: Context, f: _File, s: _Site) -> Optional[Hit]:
     p = s.el.props.get("onMessage")
     if p is None or p.kind != "expr" or p.end - p.start > _MAX_BODY:
         return None
     if _source(f, s).kind not in (REMOTE, URI_VAR):
         return None                   # bundled HTML, or a source this scan can't read
-    if s.el.spread or "onShouldStartLoadWithRequest" in s.el.props:
+    if s.el.spread or "onShouldStartLoadWithRequest" in s.el.props or _specific_origins(f, s):
         return None                   # the app already decides which pages load, so which pages send messages
     body = _handler_body(f, p.start, p.end)
     if body is None or not _READS_DATA.search(body) or _ORIGIN_CHECK.search(body) or not _ACTS.search(body):

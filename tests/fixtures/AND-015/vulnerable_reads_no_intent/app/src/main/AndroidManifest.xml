@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reading nothing from the intent does not make an exported screen safe: it may show or do something sensitive. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.files">
+    <application android:label="Files">
+        <activity android:name="com.example.files.FtpServerActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.files.intent.action.MANAGE_FTP_SERVER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

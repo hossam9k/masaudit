@@ -822,7 +822,7 @@
         "regex": "\\b(?:DexClassLoader|InMemoryDexClassLoader|PathClassLoader|DelegateLastClassLoader)\\s*\\(|\\bSystem\\.load\\s*\\(",
         "flags": "",
         "strings": "blank",
-        "unless_file": "",
+        "unless_file": "applicationInfo\\s*\\.\\s*(?:sourceDir|splitSourceDirs)\\b|\\bgetApplicationInfo\\s*\\(\\s*\\)\\s*\\.\\s*(?:sourceDir|splitSourceDirs)\\b|\\bgetPackageCodePath\\s*\\(",
         "message": "Code is loaded at runtime. Check that the file can't come from outside the signed app."
       }
     },

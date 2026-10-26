@@ -1030,12 +1030,17 @@ SAFE_HOSTS = re.compile(
     r"schemas\.microsoft\.com|www\.w3\.org|w3\.org|ns\.adobe\.com|ns\.apple\.com|www\.apple\.com|purl\.org|"
     r"maps\.apple\.com|"                       # Apple's documented Maps link: iOS opens the Maps app
     r"xmlpull\.org|(?:www\.)?itunes\.com|search\.yahoo\.com|podlove\.org|"
+    r"ns\.(?:[\w-]+\.)+[a-z]{2,}|"               # XML and XMP namespace names (ns.google.com/photos/1.0/)
+    # Captive-portal checks are plain HTTP by design: the OS and VPN clients look for the redirect.
+    r"captive\.apple\.com|connectivitycheck\.(?:gstatic|android)\.com|clients[13]\.google\.com|"
+    r"cp\.cloudflare\.com|detectportal\.firefox\.com|(?:www\.)?msftconnecttest\.com|"
     r"(?:[\w-]+\.)*(?:localhost|test|invalid|local))" + _PORT + "$",
     re.IGNORECASE,
 )
 PLACEHOLDER_HOST = re.compile(
     r"^(?:www\.)?(?:domain|mydomain|myserver|yourserver|your-server|server|host|hostname|foo|bar|local-ip|"
-    r"ip-address|ip|address|example)(?:\.(?:com|org|net|tld))?" + _PORT + "$", re.IGNORECASE)
+    r"ip-address|ip|address|example|not[.-]?required|not[.-]?set|change[.-]?me|replace[.-]?me|placeholder|todo)"
+    r"(?:\.(?:com|org|net|tld))?" + _PORT + "$", re.IGNORECASE)
 # Private address ranges are XPL-036's job (non-production endpoints).
 PRIVATE_IP = re.compile(r"^(?:10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)" + _PORT + "$")
 _NOT_A_FETCH = {"ns", "nsuri", "namespace", "namespaces", "xmlns", "dtd", "license", "licenses", "placeholder",
@@ -1054,6 +1059,37 @@ HTTP_SCHEME_CONST = re.compile(r"\b([A-Za-z_]\w*)\s*(?::\s*String\??)?\s*=\s*@?\
 
 
 _CONCAT_USE = re.compile(r"(?<![\w.])([A-Za-z_]\w*)\s*\+\s*(?:this\s*\.\s*)?[A-Za-z_]")
+
+
+_TYPE_DECL = re.compile(r"\b(?:class|object|enum|struct|interface|extension)\s+([A-Za-z_]\w*)")
+_NAMESPACE_WORDS = {"namespace", "namespaces", "ns", "xmlns", "xmp", "schema", "schemas", "uri", "uris"}
+
+
+def _in_namespace_type(blank: str, pos: int) -> bool:
+    """Inside the body of a type named for namespace URIs (XmpNamespaces, XmlNs, SchemaUris): identifiers, not
+    fetches. Types and their bodies come from one pass over the file; nested types are checked outward."""
+    def build() -> List[Tuple[int, int, str]]:
+        out = []
+        for m in _TYPE_DECL.finditer(blank):
+            brace = blank.find("{", m.end(), m.end() + 300)
+            end = bracket_match(blank, brace, "{", "}") if brace != -1 else m.end()
+            out.append((m.start(), end, m.group(1)))
+        return out
+    decls = text_memo(blank, ("xpl_type_decls",), build)
+    k = bisect.bisect_left(decls, (pos,)) - 1  # type: ignore[arg-type]
+    steps = 0                                  # bounded: past 64 closed types, report as before (no skip)
+    for _ in range(8):                         # the nearest enclosing types, innermost first
+        while k >= 0 and decls[k][1] < pos and steps < 64:  # type: ignore[index]
+            k -= 1
+            steps += 1
+        if steps >= 64:
+            return False
+        if k < 0:
+            return False
+        if _identifier_words(decls[k][2]) & _NAMESPACE_WORDS:  # type: ignore[index]
+            return True
+        k -= 1
+    return False
 
 
 @detector("xpl_http_url")
@@ -1084,6 +1120,10 @@ def http_url(ctx: Context, rule: Rule) -> Iterable[Hit]:
                 continue
             if _identifier_words(blank[line_start:line_end]) & _NOT_A_FETCH:
                 continue
+            if re.match(r"[^\"'\s]*/generate_204\b", code[m.end():m.end() + 80]):
+                continue                     # a connectivity check, plain HTTP by design (generate_204)
+            if _in_namespace_type(blank, m.start()):
+                continue                     # class XmpNamespaces { static const gImage = 'http://...' }
             line = ctx.line_of(code, m.start())
             if line not in seen:
                 seen.add(line)
@@ -1175,6 +1215,8 @@ def _secret_expr(expr: str, before: str) -> bool:
     secret_part = next((w for w in last if SENSITIVE_WORD.search(w)), head)
     if _NON_SECRET_ANYWHERE.search(secret_part) or _NON_SECRET_SUFFIX.search(secret_part) or secret_part.isupper():
         return False
+    if re.match(r"k[A-Z]|(?i:option)", secret_part):
+        return False                  # a constant naming an option (`$kOptionAllowDeepLinkPassword`), not its value
     if _SAFE_SUFFIX.search(e) or _WRAPPED.search(before):
         return False
     if re.search(r"\bR\.string\.\w*$|getString\s*\(\s*R\.string\.\s*$", before + head):
@@ -2031,11 +2073,20 @@ GRPC_PLAIN: List[Tuple[Pattern[str], str]] = [
 _LOCAL_TARGET = re.compile(r"[\"'](?:localhost|127\.0\.0\.1|10\.0\.2\.2|10\.0\.3\.2|0\.0\.0\.0|\[::1\])[\"':]")
 
 
+# The host a channel is opened to: ClientChannel('h', ...), forAddress("h", ...), forTarget("h:port"),
+# .connect(host: "h", ...).
+_GRPC_TARGET = re.compile(r"\b(?:ClientChannel|forAddress|forTarget)\s*\(\s*[\"']([^\"':]+)[\"':]"
+                          r"|\.connect\s*\(\s*host\s*:\s*\"([^\"]+)\"")
+
+
 @detector("xpl_grpc_plaintext")
 def grpc_plaintext(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, CODE, ("usePlaintext", "insecure", "plaintext")):
         if path.endswith(JVM) and not re.search(r"ChannelBuilder|io\.grpc", code):
             continue
+        targets = [a or b for a, b in _GRPC_TARGET.findall(code)]
+        if targets and all(_LOCAL_TARGET.match(f'"{t}"') for t in targets):
+            continue                  # every channel this file opens goes to the device itself (127.0.0.1)
         for regex, what in GRPC_PLAIN:
             for m in regex.finditer(code):
                 window = code[max(0, m.start() - 400):m.start()]
@@ -2478,7 +2529,8 @@ UPDATE_SHARED = re.compile(r"(?mi)^[ \t]+(?:upgrader|in_app_update|new_version_p
                            r"version_check|update_available)[ \t]*:|"
                            r"\b(?:min|minimum)_?(?:supported_?|required_?)?app_?version\b|"
                            r"\bforce_?update_?(?:required|version|app)\b|\brequired_?app_?version\b|"
-                           r"\bapp_?version_?(?:expired|unsupported|deprecated)\b")
+                           r"\bapp_?version_?(?:expired|unsupported|deprecated)\b|"
+                           r"[Vv]ersion_?[Bb]lock(?:er|ed|Check)")
 
 
 @detector("xpl_no_forced_update")
@@ -3923,7 +3975,9 @@ RN_UPDATE_JS = re.compile(r"min(?<!\wmin)(?:imum)?_?(?:supported_?|required_?)?a
                           r"|force(?<!\wforce)_?update_?(?:required|version|app|message|screen)\b"
                           r"|required(?<!\wrequired)_?app_?version\b"
                           r"|app(?<!\wapp)_?version_?(?:expired|unsupported|deprecated)\b"
-                          r"|isclientdeprecated(?<!\wisclientdeprecated)\b|itunes\.apple\.com/lookup")
+                          r"|isclientdeprecated(?<!\wisclientdeprecated)\b|itunes\.apple\.com/lookup"
+                          # useAppVersionBlockCheck, AppVersionBlocker: a screen that blocks an outdated version
+                          r"|version_?block(?:er|ed|check|_?check)")
 
 
 # Bundled config next to the JS: react-native-config and react-native-dotenv compile `.env` into the app,

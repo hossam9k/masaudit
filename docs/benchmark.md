@@ -153,9 +153,22 @@ is in [benchmark-judgments-2.json](benchmark-judgments-2.json).
   libraries unpacked from the app's own APK, AND-047 on R8 keep rules in a module that doesn't minify,
   and AND-048 for a self-custodial wallet with no backend.
 
-## After the fixes
+**After the fixes** (on `main`, not yet released): 21 of the 25 are gone, each with a test, and nothing a
+judge called real or overrated was lost. On the same sample, 4 of 34 app-code findings (12%) are still
+false. As after round 1, that number is optimistic: these are the findings the fixes were written for.
+Two are left on purpose:
 
-On `main` (unreleased), each false alarm in the sample was traced to its cause and fixed with a test,
+- AND-015 still reports an exported screen that reads nothing from its intent (Material Files, Habitica's
+  Wear OS app). DIVA's credential screen and InsecureBankv2's transfer screen read nothing either, yet
+  opening them is the flaw, so taking no input doesn't make a screen safe.
+- IOS-021 counts a Release configuration that a shared scheme archives, even when the App Store build uses
+  another (Simplenote archives Release from its screenshot and intents schemes).
+
+AND-048 for a wallet with no backend is the same judgment call as in round 1.
+
+## After the round 1 fixes
+
+In 0.6.3, each false alarm in the sample was traced to its cause and fixed with a test,
 and a check of the 29 tuned-corpus apps found no real finding lost. Of the 18 false alarms masaudit
 asked you to fix (2 more were already notes), 13 are gone or moved to the notes, 2 (IOS-017) are now
 rated low with a message that says what risk is left, and 3 are left on purpose:

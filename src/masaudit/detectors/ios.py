@@ -3466,6 +3466,21 @@ def _exists_under(ctx: Context, folder: str, name: str) -> bool:
     return found or not ctx.names_complete       # past the listing cap it may exist: all_names noted it
 
 
+# An app target that only hosts unit tests (WireDataModelTestHost, Utilities-tests-host).
+_TEST_HOST = re.compile(r"(?i)tests?[-_ ]?host(?:app)?$|^test[-_ ]?host")
+
+
+def _macos_only(proj: pbxproj.Project, target: pbxproj.Target) -> bool:
+    """A Mac app: SDKROOT macosx in the target's settings (or the project's, when the target sets none), or a
+    Flutter project's macos/ runner."""
+    if proj.path.startswith("macos/") or "/macos/" in proj.path:
+        return True
+    roots = {str(c.settings.get("SDKROOT", "")).strip('"') for c in target.configs.values()} - {""}
+    if not roots:
+        roots = {str(c.settings.get("SDKROOT", "")).strip('"') for c in proj.project_configs().values()} - {""}
+    return bool(roots) and roots <= {"macosx"}
+
+
 @detector("ios_privacy_manifest")
 def privacy_manifest(ctx: Context, rule: Rule) -> Iterable[Hit]:
     projects = list(_projects(ctx))
@@ -3482,8 +3497,8 @@ def privacy_manifest(ctx: Context, rule: Rule) -> Iterable[Hit]:
         in_project = any(isinstance(o, dict) and o.get("isa") == "PBXFileReference"
                          and proj.file_name(oid) == PRIVACY_MANIFEST for oid, o in proj.objects.items())
         for target in proj.targets():
-            if not target.is_app:
-                continue
+            if not target.is_app or _TEST_HOST.search(target.name) or _macos_only(proj, target):
+                continue                      # a unit-test host app or a Mac app: neither ships to the iOS App Store
             refs = proj.phase_files(target, "PBXResourcesBuildPhase")
             if any(proj.file_name(r) == PRIVACY_MANIFEST for r in refs):
                 continue
