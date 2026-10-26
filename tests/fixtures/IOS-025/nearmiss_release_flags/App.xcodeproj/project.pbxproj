@@ -1,0 +1,114 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+		/* Near miss: DEBUG only in Debug and Debug-Staging (never shipped) and the simulator-only conditional; Release names DEBUG_MENU_OFF and DEBUG=0. */
+		BB0000000000000000000010 /* Release.xcconfig */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.xcconfig;
+			path = Config/Release.xcconfig;
+			sourceTree = SOURCE_ROOT;
+		};
+		BB0000000000000000000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		BB0000000000000000000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BB0000000000000000000010 /* Release.xcconfig */;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) RELEASE DEBUG_MENU_OFF";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]" = "$(inherited) DEBUG";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=0",
+					"NDEBUG=1",
+				);
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		BB000000000000000000000B /* Debug-Staging */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG STAGING";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Debug-Staging";
+		};
+		BB0000000000000000000004 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB0000000000000000000002,
+				BB0000000000000000000003,
+				BB000000000000000000000B,
+			);
+			defaultConfigurationName = Release;
+		};
+		BB0000000000000000000005 = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		BB0000000000000000000001 /* App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB0000000000000000000004;
+			buildPhases = (
+				BB0000000000000000000005,
+			);
+			name = App;
+			productType = "com.apple.product-type.application";
+		};
+		BB0000000000000000000006 = {
+			isa = PBXGroup;
+			children = (
+				BB0000000000000000000010,
+			);
+			sourceTree = "<group>";
+		};
+		BB0000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		BB0000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		BB000000000000000000000C /* Debug-Staging */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = "Debug-Staging";
+		};
+		BB0000000000000000000009 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB0000000000000000000007,
+				BB0000000000000000000008,
+				BB000000000000000000000C,
+			);
+		};
+		BB000000000000000000000A /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = BB0000000000000000000009;
+			mainGroup = BB0000000000000000000006;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BB0000000000000000000001,
+			);
+		};
+	};
+	rootObject = BB000000000000000000000A /* Project object */;
+}

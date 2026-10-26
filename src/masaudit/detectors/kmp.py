@@ -11,7 +11,7 @@ import re
 from typing import Iterable, List, Set
 
 from masaudit.guards import guarded_by
-from masaudit.textscan import bracket_match
+from masaudit.textscan import bracket_match, first_in_span, found_in_span, name_index
 from masaudit.engine import Context, Hit, detector
 from masaudit.model import Rule
 
@@ -135,6 +135,7 @@ def ktor_pinning(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 KTOR_LOGGING = re.compile(r"\binstall\s*\(\s*Logging\s*\)\s*\{")
 KTOR_LEVEL = re.compile(r"\blevel\s*=\s*LogLevel\s*\.\s*(ALL|BODY|HEADERS)\b")
+_SANITIZE = re.compile(r"\bsanitizeHeader\s*[({]")
 
 
 def _kmp_debug(cond: str) -> bool:
@@ -152,14 +153,15 @@ def ktor_logging(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         blank = ctx.code(path, keep_strings=False) or ""
         for m in KTOR_LOGGING.finditer(blank):
-            body = blank[m.end() - 1:bracket_match(blank, m.end() - 1, "{", "}") + 1]
-            lv = KTOR_LEVEL.search(body)
+            # The block's span, looked up rather than sliced: nested blocks made a slice per block quadratic.
+            body = (m.end() - 1, min(len(blank), bracket_match(blank, m.end() - 1, "{", "}") + 1))
+            lv = first_in_span(blank, KTOR_LEVEL, *body)
             if lv is None:
                 continue                         # INFO, NONE, or a level chosen at runtime
             level = lv.group(1)
-            if level != "BODY" and re.search(r"\bsanitizeHeader\s*[({]", body):
+            if level != "BODY" and found_in_span(blank, _SANITIZE, *body):
                 continue
-            idx = m.end() - 1 + lv.start()
+            idx = lv.start()
             line = ctx.line_of(blank, idx)
             scope = "debug" if guarded_by(blank, m.start(), _kmp_debug) else ""
             what = "request and response bodies" if level == "BODY" else "headers, including `Authorization`,"
@@ -215,15 +217,15 @@ def _settings_receiver(code: str, name: str) -> bool:
         return False
     if re.search(r"(?i)settings$|^settings", name):
         return True
-    return bool(re.search(r"\b" + re.escape(name) + r"\s*(?::\s*\w*Settings\b|=\s*\w*Settings\s*\()", code))
+    return name in name_index(code, r"\s*(?::\s*\w*Settings\b|=\s*\w*Settings\s*\()")
 
 
 def _settings_key(code: str, arg: str) -> str:
     if arg.startswith('"'):
         return arg.strip('"')
     name = arg.rsplit(".", 1)[-1]
-    m = re.search(r"\b" + re.escape(name) + r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"", code)
-    return name + " " + (m.group(1) if m else "")
+    m = name_index(code, r"\s*(?::\s*String)?\s*=\s*\"([^\"\n]*)\"").get(name)
+    return name + " " + (m.group(2) if m else "")
 
 
 @detector("kmp_settings_token")
@@ -247,7 +249,7 @@ def settings_token(ctx: Context, rule: Rule) -> Iterable[Hit]:
             recv, arg = (m.group(1), m.group(2)) if m.group(1) else (m.group(4), m.group(5))
             if not _settings_receiver(blank, recv):
                 continue
-            if re.search(r"\b" + re.escape(recv) + r"\s*(?::|=)\s*KeychainSettings\b", blank):
+            if recv in name_index(blank, r"\s*(?::|=)\s*KeychainSettings\b"):
                 continue
             key = _settings_key(code, arg)
             if not _SECRET_KEY.search(key) or _PUBLIC_KEY.search(key):

@@ -274,15 +274,21 @@ every rule runs), on an Apple M5 laptop with Python 3.14, version 0.6.0 (best of
 
 JavaScript apps take longer per file: their source files are larger, and more than 50 rules read them.
 
-Crafted inputs can't make a scan slow: the parsers are fuzzed in CI, and tests check that files built
-to trigger worst cases (thousands of nested blocks, unclosed brackets, huge single lines) still scan in
-linear time. `scripts/benchmark.py` times a scan per rule.
+Crafted inputs are a known risk for a scanner that reads code it doesn't trust, so the parsers are
+fuzzed in CI, and tests rebuild every slow input found so far (thousands of nested blocks, unclosed
+brackets, huge single lines, xcconfig files that include each other many times) and check that each
+scans in well under a second. Audits since 0.6.0 found 18 such inputs that took from 3 seconds to
+hours; more may exist in code no audit has reached. `scripts/benchmark.py` times a scan per rule.
 
 ## What this doesn't measure
 
 - **Recall on real apps.** The recall apps above are deliberately vulnerable samples. No scanner sees
   server behavior, runtime state, or business logic, which is where many breaches happen. Every report
   has a *Residual risk* section for that reason.
+- **Flutter and Kotlin Multiplatform rest on a small corpus.** Two Flutter apps (Lichess, Immich) and
+  one KMP app (KotlinConf) were reviewed, so the FLT and KMP precision numbers come from few findings.
+  Their fixtures cover more forms than the corpus does, but expect more false alarms there than on
+  Android or iOS.
 - **Your app is not the corpus.** If a rule is wrong for your code, a
   [false-positive report](https://github.com/hossam9k/masaudit/issues/new?template=false-positive.yml)
   is the most useful contribution you can make.

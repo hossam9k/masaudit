@@ -18,7 +18,7 @@ import posixpath
 import re
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from masaudit import safety
+from masaudit import config, safety
 from masaudit.detect import depends_on, scope_of
 from masaudit.detectors import reactnative as rn
 from masaudit.detectors.reactnative import JS, DevGuard, has_dep, js_files, memo
@@ -470,7 +470,8 @@ def _committed_maps(ctx: Context) -> Iterable[str]:
             except OSError:
                 continue
             for name in names:
-                yield f"{rel}/{name}"
+                if not config.is_excluded(f"{rel}/{name}", ctx.project.exclude):
+                    yield f"{rel}/{name}"
 
 
 @detector("rn_sourcemap_shipped")

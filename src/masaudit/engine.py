@@ -65,10 +65,32 @@ class Context:
         self._stripped: Dict[tuple, str] = {}
         self._lower: Dict[str, str] = {}
         self._listing: Dict[tuple, List[str]] = {}
+        self._all_names: Optional[tuple] = None
+        self.names_complete = True          # set by all_names(): False when the name listing hit its cap
         self._listing_of: Optional[tuple] = None
         self._lines: Dict[str, List[str]] = {}
         # id(text) -> (text, offsets of its newlines once a second lookup asks for them); a few recent texts.
         self._newlines: "OrderedDict[int, tuple]" = OrderedDict()
+
+    def all_names(self, links: bool = False, excluded: bool = False) -> List[str]:
+        """Every file in the project, not only the scanned types: names, never contents (safety.walk_names).
+        Symbolic links are left out unless `links`. The config's `exclude` globs apply unless `excluded`:
+        a rule that reports a file honors them; one that only asks whether a file exists (a lockfile, a
+        privacy manifest) shouldn't report it missing because its folder isn't scanned."""
+        if self._all_names is None:
+            from masaudit import config
+            names, linked, complete = safety.walk_names(self.root)
+            self.names_complete = complete
+            if not complete:
+                self.note_unknown(f"The file listing stopped after {safety.MAX_FILES:,} names, so rules that look "
+                                  "for a file by name (keystores, keys, lockfiles, privacy manifests) saw only part "
+                                  "of the project.")
+            exclude = self.project.exclude
+            kept = [n for n in names if not config.is_excluded(n, exclude)] if exclude else names
+            self._all_names = (names, kept, linked)
+        names, kept, linked = self._all_names
+        out = names if excluded else kept
+        return out if links else [n for n in out if n not in linked]
 
     def files(self, *suffixes: str, name: Optional[str] = None) -> List[str]:
         # Detectors ask for the same few listings hundreds of times; filter the project once per listing.
@@ -256,9 +278,10 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
             findings.append(
                 Finding(
                     rule=rule,
-                    location=Location(path=h.path, line=h.line, snippet=safety.mask_names(h.snippet),
+                    location=Location(path=h.path, line=h.line,
+                                      snippet=safety.clean_text(safety.mask_names(h.snippet)),
                                       fingerprint_text=h.snippet),
-                    message=h.message,
+                    message=safety.clean_text(h.message),
                     scope=h.scope or (scope_of(h.path) if h.path else "main"),
                     acknowledged=h.acknowledged,
                     severity=h.severity,

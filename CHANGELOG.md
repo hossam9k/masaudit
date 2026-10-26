@@ -3,6 +3,66 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## 0.6.2 — 2026-10-26
+
+**Fixes from a third audit, aimed at the code the first two reached least:** iOS build settings, Flutter,
+Kotlin Multiplatform, `--fix-safe`, SARIF import, and the workflow reader. Rules 2.2.2. On the 29-app
+corpus (19 native, 10 React Native) every finding is unchanged, with the same fingerprints, so a baseline
+from 0.6.1 keeps working.
+
+### Crashes and hangs
+
+- **A lone UTF-16 surrogate stopped every report** (exit 2). An Xcode project string such as `"\UD800"`
+  decoded to one, and JSON, SARIF, and Markdown output couldn't encode it. Such characters are now
+  replaced in every snippet, message, imported SARIF result, and file masaudit writes, and in terminal
+  output. A file whose name isn't valid UTF-8 is skipped and listed under *Not scanned*.
+- **xcconfig files that include each other many times** were re-read for every path through the includes:
+  nine files with six includes each took 12 seconds, and more never finished. Each file is now resolved
+  once per configuration, with at most 500 files. The result is the same, including where the depth limit
+  and include cycles cut the chain.
+- **Nine more crafted inputs** took 3 to 17 seconds on a 200 KB file and now take under 0.5 s: FLT-001,
+  FLT-002, FLT-003, FLT-004, and FLT-005 (callback references, constant keys, nested calls and closures),
+  KMP-004 (nested `install(Logging)` blocks), KMP-006 and Android `putString` with thousands of constant
+  keys, and a 200 KB xcconfig that includes itself. `--fix-safe` on a manifest with thousands of comments
+  took hours and now takes 0.01 s. Each rewrite gives the same results as before; tests compare the two.
+- A deeply nested SARIF file or baseline gives a clear error instead of "internal error".
+
+### Safety
+
+- `--fix-safe --yes` writes the manifest the way reports are written: a new file replaces it, so a link
+  planted at that path is never written through. The file keeps its permissions.
+- Saving the app type replaces a hard-linked `.masaudit.ini` instead of reading it.
+- The Kotlin and Java files masaudit reads to detect Android skip links, like every other read.
+
+### Accuracy
+
+- **`exclude` now applies to files masaudit reports by name without reading them:** keystores (CI-006),
+  private key files (XPL-019), and source maps (RN-017). A lockfile or privacy manifest in an excluded
+  folder still counts as present (CI-008, IOS-019). When a project has more than 200,000 files, the report
+  says the name listing stopped, and CI-008 and IOS-019 don't report a file missing.
+- **YAML anchors in workflows:** `permissions: *defaults` and `- *checkout` now stand for what the anchor
+  marks, as GitHub reads them, so CI rules see aliased permissions and steps. Aliases can add at most 5,000
+  nodes per file and nest 32 levels, so a file of aliases to aliases can't stall the scan. An unclosed `[`
+  or quote in a workflow no longer hides the rest of the file.
+- **SARIF import:** results for files outside the scanned folder are skipped with a note instead of being
+  reported with another machine's path; a relative path under another machine's `%SRCROOT%` is read
+  against the scanned folder. The 20,000-result limit now covers all runs in a file, and each source file
+  is read once.
+- False alarms fixed, each with a fixture: FLT-002 on constant values such as
+  `setString('token_type', 'Bearer')`; FLT-008 on `--obfuscate` written on the next line of a folded
+  (`run: >`) command; IOS-026 when the prompt is requested from Objective-C; IOS-040 on links to a
+  vendor's help or docs site; IOS-042 on `options &= ~XML_PARSE_NOENT`; IOS-043 counted a text field built
+  in a closure twice.
+- Reports list the iOS notes in the same order on every run.
+
+### Tests and docs
+
+- 31 thinly tested Flutter, KMP, and iOS rules have a second vulnerable case and a near miss each.
+- The fuzzer covers the Flutter and KMP rules, xcconfig includes, and the SARIF importer.
+- [Accuracy and speed](docs/precision.md) says how small the Flutter and KMP corpus is, and that crafted
+  slow inputs are fixed as audits find them rather than ruled out.
+- Bug-report and pull-request templates, and CODEOWNERS.
+
 ## 0.6.1 — 2026-10-25
 
 **A security fix for the GitHub Action, and fixes from a five-part audit of 0.6.0** (code, safety,

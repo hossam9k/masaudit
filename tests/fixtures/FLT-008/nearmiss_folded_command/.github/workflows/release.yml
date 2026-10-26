@@ -1,0 +1,12 @@
+# The flags sit on the lines a folded block (`>`) joins onto the build command.
+name: release
+on: push
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - run: >
+          flutter build appbundle
+          --release
+          --obfuscate
+          --split-debug-info=build/symbols

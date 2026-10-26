@@ -319,7 +319,7 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     prof = resolve_profile(cli_type, cfg, root, [c.describe() for c in clues], allow_prompt, clues, all_rules,
                            platforms)
 
-    project = Project(root=root, platforms=platforms, files=files)
+    project = Project(root=root, platforms=platforms, files=files, exclude=excludes)
     findings = engine.run(project, all_rules, prof)
     project.unknowns += _skipped_messages(skipped)
     notes: List[str] = []
@@ -400,6 +400,7 @@ def asciify(s: str) -> str:
 
 
 def _write_stdout(text: str) -> None:
+    text = safety.clean_text(text)
     data = text.encode("utf-8")
     buf = getattr(sys.stdout, "buffer", None)
     if buf is not None:
@@ -496,6 +497,11 @@ def run_fix_safe(result: ScanResult, args) -> int:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    # Text from the scanned project reaches the terminal: a character the console can't encode (a lone
+    # surrogate, or anything outside a legacy code page) is replaced, never an error that stops the scan.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure") and getattr(stream, "errors", "") == "strict":
+            stream.reconfigure(errors="replace")
     parser = build_parser()
     args = parser.parse_args(argv)
     # `--import-sarif a.sarif PATH` puts PATH into the list; take a trailing directory back as PATH.

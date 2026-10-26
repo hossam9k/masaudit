@@ -105,7 +105,7 @@ def load_baseline(path: str) -> "BaselineSet":
             data = json.load(fh)
     except FileNotFoundError:
         raise BaselineError(f"baseline file not found: {path} (create it with --update-baseline)") from None
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:  # RecursionError: deeply nested JSON
         raise BaselineError(f"can't read baseline {path}: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("findings"), dict):
         raise BaselineError(f"{path} is not a masaudit baseline (expected a 'findings' object)")

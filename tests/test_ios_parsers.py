@@ -397,6 +397,29 @@ class XcconfigTests(unittest.TestCase):
         self.assertTrue(any("Late.xcconfig" in m for m in missing))
         self.assertIsNone(xcconfig.include_path("a/b.xcconfig", "../../outside.xcconfig"))
 
+    def test_resolve_reuses_a_file_only_where_the_same_cuts_apply(self):
+        # Shared.xcconfig is resolved first one level down (whole), then eight levels down, where its own
+        # include lies past the depth cap: the second use must be cut there, not copied from the first.
+        files = {f"L{k}.xcconfig": f'#include "L{k + 1}.xcconfig"\n' for k in range(1, 7)}
+        files["Top.xcconfig"] = '#include "Shared.xcconfig"\n#include "L1.xcconfig"\n'
+        files["L7.xcconfig"] = '#include "Shared.xcconfig"\n'
+        files["Shared.xcconfig"] = '#include "Leaf.xcconfig"\nS = 1\n'
+        files["Leaf.xcconfig"] = "LEAF = 1\n"
+        unknowns = []
+        out = xcconfig.resolve("/", "Top.xcconfig", read=lambda _r, rel: files.get(rel), unknowns=unknowns)
+        self.assertEqual(out["LEAF"].value, "1")
+        self.assertEqual(unknowns, ["xcconfig include chain too deep or circular at Leaf.xcconfig",
+                                    "Couldn't read Leaf.xcconfig, included from Shared.xcconfig:1"])
+
+    def test_resolve_include_fan_out_is_linear(self):
+        # Eight files that each include the next one six times: 6**8 expansions without reuse.
+        files = {f"F{k}.xcconfig": f'#include "F{k + 1}.xcconfig"\n' * 6 + f"K{k} = {k}\n" for k in range(8)}
+        files["F8.xcconfig"] = "LAST = 1\n"
+        reads = []
+        out = xcconfig.resolve("/", "F0.xcconfig", read=lambda _r, rel: reads.append(rel) or files.get(rel))
+        self.assertEqual(out["LAST"].value, "1")
+        self.assertEqual(len(reads), 9)
+
 
 class DebugBlockTests(unittest.TestCase):
     def test_blank_debug(self):

@@ -348,7 +348,7 @@ def _debug_only_plists(ctx: Context) -> Set[str]:
         for proj in _projects(ctx):
             configs = proj.project_configs()
             for target in proj.targets():
-                for name in set(target.configs) | set(configs):
+                for name in sorted(set(target.configs) | set(configs)):
                     value = _effective(ctx, proj, target, name).get("INFOPLIST_FILE", (None, "", 0))[0]
                     if not value:
                         continue
@@ -2573,8 +2573,13 @@ def keyboard_cache(ctx: Context, rule: Rule) -> Iterable[Hit]:
         assigned: Dict[str, List[str]] = {}
         for lb in _NAMED_FIELD_LABEL.finditer(code):
             assigned.setdefault(lb.group(1), []).append(lb.group(2))
+        closure_end = -1        # `let field = UITextField()` inside a `var x: UITextField = { ... }()` is the same field
         for m in _UIKIT_FIELD_DECL.finditer(code):
+            if m.start() < closure_end:
+                continue
             name = m.group(1) or m.group(2) or m.group(3)
+            if m.group(2):
+                closure_end = bracket_match(code, m.end() - 1, "{", "}")
             if name in configured:
                 continue
             labels = [name] + assigned.get(name, [])
@@ -2800,7 +2805,7 @@ def _entitlements(ctx: Context) -> List[Tuple[PlistDoc, bool]]:
         configs = set(proj.project_configs())
         demo = _demo_project(ctx, proj)
         for target in proj.targets():
-            for name in set(target.configs) | configs:
+            for name in sorted(set(target.configs) | configs):
                 value = _effective(ctx, proj, target, name).get("CODE_SIGN_ENTITLEMENTS", (None, "", 0))[0]
                 if not value or xcconfig.is_unresolved(value):
                     continue
@@ -2935,13 +2940,15 @@ def idfa_without_att(ctx: Context, rule: Rule) -> Iterable[Hit]:
             uses.append((path, ctx.line_of(code, m.start())))
     if not uses:
         return
-    asks = _search_code(ctx, re.compile(r"\brequestTrackingAuthorization\b"), CODE_SUFFIXES + (".dart", ".kt"),
+    # Swift `requestTrackingAuthorization {`, Objective-C `requestTrackingAuthorizationWithCompletionHandler:`.
+    asks = _search_code(ctx, re.compile(r"\brequestTrackingAuthorization(?:WithCompletionHandler)?\b"),
+                        CODE_SUFFIXES + (".dart", ".kt"),
                         literals=("requestTrackingAuthorization",))
     purpose = any("NSUserTrackingUsageDescription" in d.data for d in _shipping_plists(ctx) if isinstance(d.data, dict)) \
         or "NSUserTrackingUsageDescription" in _infoplist_keys(ctx)
     if asks and purpose:
         return
-    missing = "the App Tracking Transparency prompt (requestTrackingAuthorization)" if not asks \
+    missing = "App Tracking Transparency prompt (requestTrackingAuthorization)" if not asks \
         else "an NSUserTrackingUsageDescription purpose string"
     for path, line in uses:
         yield Hit(path, line, ctx.snippet(path, line),
@@ -3183,6 +3190,9 @@ _TRACKING_DOMAINS = (
 )
 _HOST_LITERAL = re.compile(r"\"(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})(/[^\"\s]*)?\"", re.IGNORECASE)
 _NON_TRACKING_PATH = re.compile(r"privacy|terms|legal|policy|help|support|docs|blog|about|opt-?out", re.IGNORECASE)
+# A vendor's website, not its SDK endpoint: help.branch.io, docs.mixpanel.com, www.amplitude.com.
+_NON_TRACKING_HOST = re.compile(r"^(?:www|help|support|docs|developers?|blog|legal|privacy|status|dashboard)\.",
+                                re.IGNORECASE)
 
 
 def _tracking_domain(host: str) -> Optional[str]:
@@ -3214,7 +3224,8 @@ def tracking_domains(ctx: Context, rule: Rule) -> Iterable[Hit]:
         for m in _HOST_LITERAL.finditer(code or ""):
             host = m.group(1).lower()
             dom = _tracking_domain(host)
-            if dom is None or (m.group(2) and _NON_TRACKING_PATH.search(m.group(2))):
+            if dom is None or (m.group(2) and _NON_TRACKING_PATH.search(m.group(2))) \
+                    or (host != dom and _NON_TRACKING_HOST.match(host)):
                 continue
             covered = tracking and any(host == x or host.endswith("." + x) or x.endswith(dom) for x in declared)
             if covered or host in seen:
@@ -3235,6 +3246,10 @@ _XXE = re.compile(
     r"|\bXML_PARSE_NOENT\b|\bXML_PARSE_DTDLOAD\b|\bxmlSubstituteEntitiesDefault\s*\(\s*1\s*\)")
 
 
+# A `~` before the flag in the same expression: the flag is being masked out, not set.
+_CLEARED_FLAG = re.compile(r"~\s*\(?[^;=~\n]*$")
+
+
 @detector("ios_xml_external_entities")
 def xml_external_entities(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path in ctx.files(*CODE_SUFFIXES + (".c", ".cc", ".cpp")):
@@ -3243,6 +3258,8 @@ def xml_external_entities(ctx: Context, rule: Rule) -> Iterable[Hit]:
             continue
         code = _release_code(ctx, path, keep_strings=False)
         for m in _XXE.finditer(code or ""):
+            if m.group().startswith("XML_PARSE_") and _CLEARED_FLAG.search(code, max(0, m.start() - 200), m.start()):
+                continue                         # `options &= ~(XML_PARSE_NOENT | XML_PARSE_DTDLOAD)` turns them off
             line = ctx.line_of(code, m.start())
             yield Hit(path, line, ctx.snippet(path, line),
                       "This XML parser resolves external entities or loads DTDs, so a crafted document can read "
@@ -3256,18 +3273,11 @@ PRIVACY_MANIFEST = "PrivacyInfo.xcprivacy"
 
 
 def _exists_under(ctx: Context, folder: str, name: str) -> bool:
-    prefix = folder.rstrip("/") + "/" if folder else ""
-    if any(f.startswith(prefix) and f.rsplit("/", 1)[-1] == name for f in ctx.project.files):
-        return True
-    base = os.path.join(ctx.root, folder)
-    if not safety.is_within(ctx.root, base) or not os.path.isdir(base):
-        return False
-    for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
-        dirnames[:] = [d for d in dirnames if d not in safety.SKIP_DIRS
-                       and not os.path.islink(os.path.join(dirpath, d))]
-        if name in filenames:
-            return True
-    return False
+    folder = posixpath.normpath(folder) if folder else ""
+    prefix = "" if folder in ("", ".") else folder.rstrip("/") + "/"
+    found = any(f.startswith(prefix) and f.rsplit("/", 1)[-1] == name
+                for listing in (ctx.project.files, ctx.all_names(links=True, excluded=True)) for f in listing)
+    return found or not ctx.names_complete       # past the listing cap it may exist: all_names noted it
 
 
 @detector("ios_privacy_manifest")

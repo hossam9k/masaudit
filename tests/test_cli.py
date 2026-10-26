@@ -252,6 +252,66 @@ class ImportSarif(unittest.TestCase):
         # Lint's SetJavaScriptEnabled has no masaudit equivalent; it must not borrow AND-012's title.
         self.assertIsNone(importers._find_rule("SetJavaScriptEnabled", rules))
 
+    def test_result_paths_outside_the_folder_are_skipped(self):
+        from masaudit import engine, importers
+
+        def at(uri, base=None):
+            loc = {"uri": uri, **({"uriBaseId": "SRCROOT"} if base else {})}
+            return {"ruleId": "X", "level": "error", "message": {"text": "m"},
+                    "locations": [{"physicalLocation": {"artifactLocation": loc, "region": {"startLine": 1}}}]}
+        path = self._sarif([at("/etc/passwd"), at("../elsewhere/A.kt"), at("file:///home/runner/work/r/r/A.kt"),
+                            at("app/A.kt", base=True), at(os.path.join(self.dir, "app", "B.kt"))])
+        with open(path) as fh:
+            doc = json.load(fh)
+        doc["runs"][0]["originalUriBaseIds"] = {"SRCROOT": {"uri": "file:///home/runner/work/r/r/"}}
+        with open(path, "w") as fh:
+            json.dump(doc, fh)
+        findings, notes = importers.import_sarif(path, self.dir, engine.load_rules())
+        # %SRCROOT% from the machine that ran the tool: the relative part is read against this folder.
+        self.assertEqual([f.location.path for f in findings], ["app/A.kt", "app/B.kt"])
+        self.assertIn("Skipped 3 result(s) in 0.sarif for files outside the scanned folder.", notes)
+
+    def test_lone_surrogates_in_imported_results_are_written(self):
+        from masaudit import engine, importers
+
+        bad = "r\ud800"
+        loc = [{"physicalLocation": {"artifactLocation": {"uri": "gone/A\ud800.kt"},
+                                     "region": {"startLine": 1, "snippet": {"text": "x = \ud800"}}}}]
+        path = self._sarif([{"ruleId": bad, "message": {"text": bad}, "locations": loc}])
+        findings, _notes = importers.import_sarif(path, self.dir, engine.load_rules())
+        self.assertEqual(len(findings), 1)
+        findings[0].fingerprint()                                       # raised UnicodeEncodeError
+        for fmt in ("json", "sarif"):
+            out = os.path.join(self.dir, "out." + fmt)
+            code, _o, err = run_cli(VULN, "--app-type", "banking", "--format", fmt, "--output", out,
+                                    "--import-sarif", path)
+            self.assertIn(code, (0, 1), err)
+
+    def test_result_cap_covers_all_runs(self):
+        from masaudit import engine, importers
+
+        loc = [{"physicalLocation": {"artifactLocation": {"uri": "a.kt"}, "region": {"startLine": 1}}}]
+        run = {"tool": {"driver": {"name": "T"}},
+               "results": [{"ruleId": "X", "message": {"text": "m"}, "locations": loc}] * 3}
+        path = os.path.join(self.dir, "many.sarif")
+        with open(path, "w") as fh:
+            json.dump({"version": "2.1.0", "runs": [run] * 4}, fh)
+        with mock.patch.object(importers, "MAX_RESULTS", 5):
+            findings, notes = importers.import_sarif(path, self.dir, engine.load_rules())
+        self.assertEqual(len(findings), 5)
+        self.assertIn("Read only the first 5 results in many.sarif.", notes)
+
+    def test_deeply_nested_sarif_or_baseline_is_a_clean_error(self):
+        deep = os.path.join(self.dir, "deep.json")
+        with open(deep, "w") as fh:
+            fh.write("[" * 200_000 + "]" * 200_000)
+        code, _o, err = run_cli(VULN, "--format", "json", "--import-sarif", deep)
+        self.assertEqual(code, 2)
+        self.assertIn("not valid SARIF", err)
+        code, _o, err = run_cli(VULN, "--format", "json", "--baseline", deep)
+        self.assertEqual(code, 2)
+        self.assertIn("can't read baseline", err)
+
     def test_bad_sarif_exits_2(self):
         bad = os.path.join(self.dir, "bad.sarif")
         with open(bad, "w") as fh:

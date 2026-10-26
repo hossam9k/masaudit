@@ -1,0 +1,3 @@
+// Near miss: release base config with a DEBUG-prefixed symbol that is not DEBUG itself.
+OTHER_SWIFT_FLAGS = $(inherited) -DRELEASE -DDEBUG_LOGGING_OFF
+SWIFT_OPTIMIZATION_LEVEL = -O

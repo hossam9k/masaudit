@@ -7,7 +7,8 @@ maps each of them to masaudit, so you can see what masaudit covers, what it cove
 leaves out on purpose.
 
 **How it was checked:** for each rnsec rule (version 1.4.0, commit `a04fff6`), a small React Native
-project was written with the code that rule flags, and masaudit 0.6.0 scanned it as a banking app. The
+project was written with the code that rule flags, and masaudit 0.6.0 scanned it as a banking app (re-run
+with 0.6.2: every rule listed below still fires). The
 "masaudit" column lists the rules that fired. "Partial" means some forms that rnsec flags fire and others
 don't; the note names the one that doesn't. Rules about Android or iOS settings need the project's
 `android/` or `ios/` folder, or an Expo `app.json`. No rnsec code or rule text is copied here.

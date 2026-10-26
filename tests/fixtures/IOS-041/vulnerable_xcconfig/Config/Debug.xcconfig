@@ -1,0 +1,2 @@
+// Debug signs with the development App Attest entitlements.
+CODE_SIGN_ENTITLEMENTS = App/App-Dev.entitlements

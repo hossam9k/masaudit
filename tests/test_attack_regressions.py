@@ -275,3 +275,27 @@ class PlantedLinks(unittest.TestCase):
         reasons = {path: why for path, why in skipped}
         self.assertEqual(reasons.get("Alias.kt"), "hard link")
         self.assertTrue(any("\n" not in p and "FORGED" in p for p in reasons))
+
+
+class LoneSurrogates(unittest.TestCase):
+    """A `\\UD800` escape in a project file, or `"\\ud800"` in JSON, decodes to a lone surrogate, which can't
+    be written as UTF-8: in 0.6.1 it stopped every report with an internal error."""
+
+    def test_pbxproj_escapes_and_every_writer(self):
+        from masaudit.parsers import pbxproj
+        from masaudit.report import jsonout, markdown, sarif
+        self.assertEqual(pbxproj.loads('{ a = "x\\UD83D\\UDE00y\\UD800"; }').get("a"), "x\U0001F600y\ufffd")
+        self.assertEqual(safety.clean_text("a\ud800b"), "a\ufffdb")
+        tmp = tempfile.mkdtemp()
+        try:
+            shutil.copytree(os.path.join(helpers.FIXTURES, "IOS-030", "clean_notification"), os.path.join(tmp, "app"))
+            pbx = os.path.join(tmp, "app", "App.xcodeproj", "project.pbxproj")
+            with open(pbx, encoding="utf-8") as fh:
+                text = fh.read()
+            with open(pbx, "w", encoding="utf-8") as fh:
+                fh.write(text.replace("name = ", 'name = "Bad\\UD800Name"; nameWas = ', 1))
+            result = cli.scan(os.path.join(tmp, "app"), cli_type="banking", allow_prompt=False)
+            for render in (jsonout.render, markdown.render, sarif.render):
+                render(result).encode("utf-8")              # raised UnicodeEncodeError in 0.6.1
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)

@@ -1,0 +1,4 @@
+// Generated Info.plist: the tracking purpose string is a build setting, not a plist key.
+GENERATE_INFOPLIST_FILE = YES
+INFOPLIST_KEY_NSUserTrackingUsageDescription = We use this to measure which ads brought you to the app.
+INFOPLIST_KEY_UILaunchScreen_Generation = YES
