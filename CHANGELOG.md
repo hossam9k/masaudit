@@ -44,6 +44,12 @@ their own version (`rules_version`), shown in every report.
   - KMP-005: each challenge handler is judged on its own, so a file where one function evaluates trust
     and another doesn't is reported.
 
+### Speed
+
+- SARIF import checks whether a result's path is inside the scanned folder by name before looking it up.
+  Another machine's paths (`/home/runner/...`, an automount on macOS) cost about 2 ms a result to look
+  up, so a 20,000-result file took about 40 seconds.
+
 ### Docs
 
 - [Benchmark on unseen apps](docs/benchmark.md): masaudit, mobsfscan, Semgrep, and rnsec on 21 apps no
