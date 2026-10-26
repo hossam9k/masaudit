@@ -36,6 +36,8 @@ Facts to look up:
 
 Background, to understand the results:
 
+- **[Benchmark on unseen apps](benchmark.md):** masaudit and three other free scanners on 21 apps no
+  rule was tuned on, with every loss.
 - **[How masaudit works](how-it-works.md):** app types, OWASP MAS profiles, how a finding gets its
   bucket, and what masaudit never does.
 - **[Accuracy and speed](precision.md):** how the rules were measured on 19 open-source apps and 10 React Native apps, and how fast scans are.

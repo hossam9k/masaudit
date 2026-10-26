@@ -44,6 +44,11 @@ their own version (`rules_version`), shown in every report.
   - KMP-005: each challenge handler is judged on its own, so a file where one function evaluates trust
     and another doesn't is reported.
 
+### Docs
+
+- [Benchmark on unseen apps](docs/benchmark.md): masaudit, mobsfscan, Semgrep, and rnsec on 21 apps no
+  rule was tuned on, with a judged sample and every loss; `scripts/benchmark_compare.py` repeats it.
+
 IOS-022 still checks Podfiles and imports only: a Swift package is linked only when code imports it, and
 the import check covers that.
 

@@ -1,0 +1,562 @@
+{
+  "findings": [
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/add-example-model.js",
+      "line": 61,
+      "snippet": "  dl.on( \"end\", () => console.log( \"Download Completed\" ) );\n  dl.on( \"error\", err => console.log( \"Download Failed\", err ) );\n  await dl.start().catch( err => console.error( err ) );\n  console.log( \"Downloaded!\" );\n  const dl2 = new DownloaderHelper( androidGeo, androidDestination );",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "c373456e4c5cb4847f67cc1d843865d16f89f824a09c49fa39682de5cca9776d"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/add-example-model.js",
+      "line": 66,
+      "snippet": "  dl2.on( \"end\", () => console.log( \"Download Completed\" ) );\n  dl2.on( \"error\", err => console.log( \"Download Failed\", err ) );\n  await dl2.start().catch( err => console.error( err ) );\n  console.log( \"Downloaded!\" );\n  const dl3 = new DownloaderHelper( taxonomyCSV, androidDestination );",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "11c5df7eb333ea4020a6f52af92060478426213b46ee74bd29fe1e9782eac704"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/add-example-model.js",
+      "line": 71,
+      "snippet": "  dl3.on( \"end\", () => console.log( \"Download Completed\" ) );\n  dl3.on( \"error\", err => console.log( \"Download Failed\", err ) );\n  await dl3.start().catch( err => console.error( err ) );\n  console.log( \"Downloaded!\" );\n",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "9af7bdd6526f3a43c1b4c77b11b84cf7b70eb33a9153e150e02917dbbcff33fa"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/add-example-model.js",
+      "line": 104,
+      "snippet": "  dl.on( \"end\", () => console.log( \"Download Completed\" ) );\n  dl.on( \"error\", err => console.log( \"Download Failed\", err ) );\n  await dl.start().catch( err => console.error( err ) );\n  console.log( \"Downloaded!\" );\n  const dl2 = new DownloaderHelper( iosGeo, iosDestination );",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "053ab2c94d78ceecf9ac2bda6efcc265b383f9188d738fb6fa76961d16ed565e"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/add-example-model.js",
+      "line": 109,
+      "snippet": "  dl2.on( \"end\", () => console.log( \"Download Completed\" ) );\n  dl2.on( \"error\", err => console.log( \"Download Failed\", err ) );\n  await dl2.start().catch( err => console.error( err ) );\n  console.log( \"Downloaded!\" );\n  const dl3 = new DownloaderHelper( taxonomyJSON, iosDestination );",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "6ece597dd2c527a5f5bb799c0b95ce8d0007b640a4985269e07a34d79418a445"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/add-example-model.js",
+      "line": 114,
+      "snippet": "  dl3.on( \"end\", () => console.log( \"Download Completed\" ) );\n  dl3.on( \"error\", err => console.log( \"Download Failed\", err ) );\n  await dl3.start().catch( err => console.error( err ) );\n  console.log( \"Downloaded!\" );\n",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "9b1d70004997a90dfec2a17fa06e305d56810eb95b301c36d88bf34020a77cd2"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/scripts/i18ncli/ftl.js",
+      "line": 215,
+      "snippet": "    console.error( `❌ ${errors.length} errors found in ${ftlPath}:` );\n    errors.forEach( error => {\n      console.error( chalk.red( \"[Error]\" ), error );\n    } );\n    if ( options.noExit ) {",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "ac1a2fd1dd6590a9da402a2ce86502e9cb81c82a559a3c367deb95d92853cce8"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/api/error.ts",
+      "line": 174,
+      "snippet": "  // handled, it will get logged when it gets caught by the app-wide error\n  // handler\n  console.error(\n    `Error requesting ${e.response.url} (status: ${e.response.status}):\n    ${JSON.stringify( errorJson )}`,",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "2bee6730a42c0339460d773c62752a94df64a7ec3c70726c20e9bf9c05677a80"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Catch block shows raw error message to user - may expose sensitive backend details",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/realmModels/Observation.js",
+      "line": 494,
+      "snippet": "      const newObservation = await readExifFromMultiplePhotos( photoUris );\n      return Observation.new( newObservation );\n    } catch ( createObservationFromGalleryError ) {\n      logger.error(\n        \"Error reading EXIF from multiple gallery photos\",",
+      "suggestion": "Replace with user-friendly generic messages. Example: \"An error occurred. Please try again.\" Log details securely.",
+      "fingerprint": "3b00af25ee8937ec0321da48ab5939a8a79f8ce85ce7ecddbe67b9bbcc2aff04"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHelpers/dateAndTime.ts",
+      "line": 396,
+      "snippet": "    );\n  } catch ( error ) {\n    console.warn( \"Error formatting date\", error );\n    // In case of: RangeError: Incorrect timeZone information provided\n    if ( error instanceof RangeError ) {",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "38c54eefc822c98d6e8cff1a97a69c9cfde75437a378e1b3f54cf7ce1e386f65"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHelpers/fetchAccurateUserLocation.ts",
+      "line": 27,
+      "snippet": "    const highAccuracyResult = await getCurrentPositionWithOptions( highAccuracyOptions )\n      .catch( error => {\n        console.warn( \"High accuracy location failed, falling back to low accuracy\", error );\n        return null;\n      } );",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "829ab828161c1e5860eb69ae31cc92186a620f0ec12309d4fa9ff862a588e996"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHelpers/sentinelFiles.ts",
+      "line": 37,
+      "snippet": "    return sentinelFileName;\n  } catch ( error ) {\n    console.error( \"Failed to create sentinel file:\", error );\n    return \"\";\n  }",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "dd4d1e961c2bd3016d28c5bd66849add10afe245e65b6a8f990cbc35a8690abf"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHelpers/sentinelFiles.ts",
+      "line": 61,
+      "snippet": "  } catch ( error ) {\n    console.log( error, sentinelFileName, stageName, \"Failed to log stage to sentinel file\" );\n    console.error( \"Failed to log stage to sentinel file:\", error, sentinelFileName, stageName );\n  }\n};",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "0596aecc03f628c2e78b78246224fd6bddc526301355aee2eb1c24a9f1b2826e"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHooks/useAuthenticatedQuery.ts",
+      "line": 37,
+      "snippet": "        setUserLoggedIn( result );\n      } catch ( error ) {\n        console.warn( \"Auth check failed:\", error );\n        setUserLoggedIn( false );\n      }",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "879e813a1fae53a4888ba140abd401f2a6ae424f58d4b457b43b4dcd8426389c"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHooks/useTaxonSearch.ts",
+      "line": 120,
+      "snippet": "        if ( isSubscribed ) setLocalTaxa( results );\n      } catch ( error ) {\n        console.error( \"Local search failed:\", error );\n        if ( isSubscribed ) setLocalTaxa( [] );\n      }",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "3f12bdbf9ab7c5ca18186363deaa146fa64467a216c005745840b340cc9809e8"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/sharedHooks/useWatchPosition.ts",
+      "line": 74,
+      "snippet": "    const failure = ( error: GeolocationError ) => {\n      if ( cancelledRef.current ) return;\n      console.warn( \"useWatchPosition error:\", error );\n      stop( );\n    };",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "c6d5c3d19e5399ed9c5554d2ab23f1766789469b40a86a2a2035736e117c13ff"
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/FullPageWebView/FullPageWebView.tsx",
+      "line": 131,
+      "snippet": "    // Note we can't use openExternalWebBrowser here b/c this function needs\n    // to be synchronous\n    Linking.openURL( request.url ).catch( e => {\n      const linkingError = e as Error;\n      logger.info( \"Failed to open \", request.url, \", error: \", linkingError );",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs.",
+      "fingerprint": "1f9180c179c8cc4b3b8ad66398a55c7b46a940f872ff3ddc6fcdbf08e46ff1bb"
+    },
+    {
+      "ruleId": "WEBVIEW_POSTMESSAGE_NO_ORIGIN_CHECK",
+      "description": "WebView onMessage handler does not validate message origin",
+      "severity": "HIGH",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/FullPageWebView/FullPageWebView.tsx",
+      "line": 229,
+      "snippet": "      <ScreenShell>\n        {( !params.loggedIn || source.headers ) && (\n          <WebView\n            // eslint-disable-next-line @typescript-eslint/no-empty-function\n            onMessage={() => { }} // onMessage prop required to inject JS into webview",
+      "suggestion": "Always validate event.nativeEvent.url or message origin before processing postMessage data",
+      "fingerprint": "be0f346f606864b62737f1c1d505d6b200e532dc44098676d46dd17172758a9a"
+    },
+    {
+      "ruleId": "MISSING_SECURITY_HEADERS",
+      "description": "WebView loading external content without security headers",
+      "severity": "LOW",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/FullPageWebView/FullPageWebView.tsx",
+      "line": 229,
+      "snippet": "      <ScreenShell>\n        {( !params.loggedIn || source.headers ) && (\n          <WebView\n            // eslint-disable-next-line @typescript-eslint/no-empty-function\n            onMessage={() => { }} // onMessage prop required to inject JS into webview",
+      "suggestion": "Add security headers to WebView source: X-Frame-Options, Content-Security-Policy. Validate origin of loaded content.",
+      "fingerprint": "157904b2c8a6292e1a1cbc200298de99f58e75df43543902b1dab034df9ad1c9"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/AuthenticationService.ts",
+      "line": 240,
+      "snippet": "    return result;\n  } catch ( error ) {\n    console.warn( \"Auth check failed:\", error );\n    return false;\n  }",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "a508675d2f5ddced1b41968eb0cf21adab54c429d0a3d1453b22a927e0a07787"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/ForgotPassword.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "f394c6aa3f558cadd452a426f0ddb34fd4a05c4e2b40f01cce1a8f54f3f0dde3"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/ForgotPasswordForm.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "2644d1377f4fbad3a4472cc2f7ac257c47cfd066fa739234983646c7227ed5b4"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/LearnMore.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "8e1265c119bdeb501d95f00d8ac2d0558464a0c1f12c3c147e3d291bb91a787a"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/Login.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "30dac81c928392ba01bb8e0448316078b7e36b0c451e690306c9203b505606ff"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/LoginForm.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "ced5170f4a4de05e64aebdfe66cd9941dad228b260350e4d8dacb6db6de5dc91"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/LoginSignUpInputField.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "d358e5c6f55764452558637a4bedbae8ab540cba70f9487fc617acbbf5fab5e3"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/LoginSignUpWrapper.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "93f22649e994fee173cda236c106c38a31c37078e3caa8a2899d11dab05148e9"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/SignUp.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "605673df813d21fa1ab2d29a76bba32dd8dcbb824e3ecd814be2f6910e28ae69"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/SignUpConfirmation.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "31c5fd3e99d0a7eb167509a0f502a1d9ee0dd6070ae05bf64fde0bab94ec6221"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/SignUpConfirmationForm.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "18b6da8d4f58c6360d28183a6e752c099a2b6262a6721b6b67c1a03e61b4b0ab"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/SignUpForm.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "573e02148c569f79c7185fa6b89bf2816cf9bc8727abf40e95b296ceaf35d629"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/LoginSignUp/loginFormHelpers.ts",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "9cb4105ee95a988c3a8941a1acca76ac8de8b125687bc5f4c9561a2b6191db4d"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/MyObservations/LoginBanner.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "912981709f68f9d896997a2932f76b037d2946db4fd098c7180b9bf86abe64df"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/MyObservations/LoginSheet.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "fe884e5a5a3698c6ec87f37e9e7524be1e88f09014649ace1a29b05d06a4979c"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Catch block shows raw error message to user - may expose sensitive backend details",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/ObsDetailsDefaultMode/HeaderKebabMenu.js",
+      "line": 49,
+      "snippet": "    try {\n      return await Share.share( sharingOptions );\n    } catch ( error ) {\n      Alert.alert( error.message );\n      return null;",
+      "suggestion": "Replace with user-friendly generic messages. Example: \"An error occurred. Please try again.\" Log details securely.",
+      "fingerprint": "c8aef1178cb7a7c42739e958671e5c9b2a016f40119c8d94ad63a99698e3540c"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Catch block shows raw error message to user - may expose sensitive backend details",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/ObsDetailsDefaultMode/HeaderKebabMenu.js",
+      "line": 71,
+      "snippet": "    try {\n      return await toggleSubscriptionMutate( { uuid } );\n    } catch ( error ) {\n      Alert.alert( error.message );\n      return null;",
+      "suggestion": "Replace with user-friendly generic messages. Example: \"An error occurred. Please try again.\" Log details securely.",
+      "fingerprint": "27e9e4e743e93cb4eee583dbfdbb823fe36fcc2ebaafb53e3825dce27d474bbe"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Error object logged directly - may contain sensitive data or stack traces",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/Onboarding/OnboardingCarousel.js",
+      "line": 183,
+      "snippet": "          }\n        } )\n        .catch( error => console.error( \"Error loading image:\", error ) );\n    } );\n  }, [ONBOARDING_SLIDES, totalImages] );",
+      "suggestion": "Log only safe error properties (message, code). Sanitize error messages before displaying to users. Never expose stack traces in production.",
+      "fingerprint": "1a844e69b91b7fdc2f684de5f416eeeaf9bb7f235140030bad3a45c4e1aa75bf"
+    },
+    {
+      "ruleId": "INSECURE_LINKING_OPEN",
+      "description": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
+      "severity": "HIGH",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/SharedComponents/UserText.tsx",
+      "line": 231,
+      "snippet": "        }\n        // This is any other regular link\n        Linking.openURL( href );\n      },\n    },",
+      "suggestion": "Validate URL scheme against an allowlist before calling Linking.openURL. Use Linking.canOpenURL() first and restrict to https:// URLs.",
+      "fingerprint": "5f86773c3078938f3530fc7e7f039836cfc2e475596c170c3bd8bbe7ac4c2a73"
+    },
+    {
+      "ruleId": "INSECURE_DEEPLINK_HANDLER",
+      "description": "Deep link handled without URL validation",
+      "severity": "HIGH",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/hooks/useLinking.ts",
+      "line": 66,
+      "snippet": "\n  useEffect( ( ) => {\n    Linking.addEventListener( \"url\", async ( { url } ) => {\n      if ( !url ) { return; }\n      handleUrl( url );",
+      "suggestion": "Validate deep link URLs against a whitelist of allowed schemes and paths before navigation",
+      "fingerprint": "ec670089dbf90a8fd88e66238075eaa99b11bb325abc8d0f55349c669ee3b137"
+    },
+    {
+      "ruleId": "MISSING_SESSION_TIMEOUT",
+      "description": "Authentication session without timeout or inactivity expiry",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/navigation/StackNavigators/LoginStackNavigator.tsx",
+      "line": 1,
+      "suggestion": "Implement session timeout for authentication. Auto-logout users after inactivity period. Set token expiration and validate on each request.",
+      "fingerprint": "edc6c468954f28edcb25d44d3d21d77ad738f7fe24e823715c898e3223b959e8"
+    },
+    {
+      "ruleId": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+      "description": "Catch block shows raw error message to user - may expose sensitive backend details",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/ObsDetails/DetailsTab/DetailsTab.js",
+      "line": 46,
+      "snippet": "  try {\n    return await Share.share( sharingOptions );\n  } catch ( err ) {\n    Alert.alert( err.message );\n    return null;",
+      "suggestion": "Replace with user-friendly generic messages. Example: \"An error occurred. Please try again.\" Log details securely.",
+      "fingerprint": "3d7232da3605a35a7bb0c9fae7e67db49a6e681f99eaf7b7a750fb8b38acb64b"
+    },
+    {
+      "ruleId": "NO_REQUEST_TIMEOUT",
+      "description": "fetch() without timeout - a stalled server can hang the request indefinitely",
+      "severity": "LOW",
+      "confidence": "medium",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/src/components/SharedComponents/Map/helpers/mapHelpers.ts",
+      "line": 155,
+      "snippet": "  };\n\n  const response = await fetch( gridUrlTemplate, options );\n  const json = await response.json( );\n",
+      "suggestion": "Add timeout to fetch using AbortSignal with setTimeout, or use a library like axios with timeout config.",
+      "fingerprint": "56ed96e65456347ffd190512d85baf395b01297e82ba4b518ba2443a76a6fd45"
+    },
+    {
+      "ruleId": "DEPENDENCY_NONREGISTRY_SOURCE",
+      "description": "\"inaturalistjs\" in dependencies uses git dependency pinned to a commit or tag: \"github:inaturalist/inaturalistjs#e1bef3c5ab3a73d98673230ae3d0770fa8d436b4\"",
+      "severity": "LOW",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/package.json",
+      "line": 94,
+      "reason": "Code fetched from git or a URL bypasses registry integrity and provenance checks, and a moving branch or tag can change under you.",
+      "suggestion": "Publish and install \"inaturalistjs\" from your registry, or pin the git dependency to a full 40-character commit SHA.",
+      "category": "npm",
+      "fingerprint": "fe8378adc9500d357bc9801dc71c08aa86d197b2f957903dee02597c3a34684d"
+    },
+    {
+      "ruleId": "DEPENDENCY_NONREGISTRY_SOURCE",
+      "description": "\"react-native-mail\" in dependencies uses git dependency without a commit pin: \"github:chirag04/react-native-mail\"",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/package.json",
+      "line": 125,
+      "reason": "Code fetched from git or a URL bypasses registry integrity and provenance checks, and a moving branch or tag can change under you.",
+      "suggestion": "Publish and install \"react-native-mail\" from your registry, or pin the git dependency to a full 40-character commit SHA.",
+      "category": "npm",
+      "fingerprint": "11f6c45f25d97ccd187c77add8b2d5afbec916693b359f6f6c34c08bd733e15c"
+    },
+    {
+      "ruleId": "DEPENDENCY_NONREGISTRY_SOURCE",
+      "description": "\"react-native-orientation-locker\" in dependencies uses git dependency without a commit pin: \"github:wonday/react-native-orientation-locker\"",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/package.json",
+      "line": 133,
+      "reason": "Code fetched from git or a URL bypasses registry integrity and provenance checks, and a moving branch or tag can change under you.",
+      "suggestion": "Publish and install \"react-native-orientation-locker\" from your registry, or pin the git dependency to a full 40-character commit SHA.",
+      "category": "npm",
+      "fingerprint": "614accf1bb44bd28509b122cf13b0e228c73eb183d7c53772f2fc518f16d9858"
+    },
+    {
+      "ruleId": "DEPENDENCY_NONREGISTRY_SOURCE",
+      "description": "\"react-native-share-menu\" in dependencies uses git dependency pinned to a commit or tag: \"github:inaturalist/react-native-share-menu#892d4ffcad6e48607679c519be2448a3a878834a\"",
+      "severity": "LOW",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/package.json",
+      "line": 143,
+      "reason": "Code fetched from git or a URL bypasses registry integrity and provenance checks, and a moving branch or tag can change under you.",
+      "suggestion": "Publish and install \"react-native-share-menu\" from your registry, or pin the git dependency to a full 40-character commit SHA.",
+      "category": "npm",
+      "fingerprint": "482a72746cd2636a8122e9c2d65999c93af9523d0218958407f6b7cdc8e06f9a"
+    },
+    {
+      "ruleId": "DEPENDENCY_NONREGISTRY_SOURCE",
+      "description": "\"vision-camera-plugin-inatvision\" in dependencies uses git dependency pinned to a commit or tag: \"github:inaturalist/vision-camera-plugin-inatvision#0354705c124e3a9fabcca3e5881e64cd93d2f0df\"",
+      "severity": "LOW",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/package.json",
+      "line": 157,
+      "reason": "Code fetched from git or a URL bypasses registry integrity and provenance checks, and a moving branch or tag can change under you.",
+      "suggestion": "Publish and install \"vision-camera-plugin-inatvision\" from your registry, or pin the git dependency to a full 40-character commit SHA.",
+      "category": "npm",
+      "fingerprint": "0544ed78ab890d7626a77703a047f1a2b20d872aca1cb5d78a345ce0c29c4c4c"
+    },
+    {
+      "ruleId": "DEPENDENCY_NONREGISTRY_SOURCE",
+      "description": "\"jest-fetch-mock\" in devDependencies uses git dependency without a commit pin: \"github:jefflau/jest-fetch-mock\"",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/package.json",
+      "line": 212,
+      "reason": "Code fetched from git or a URL bypasses registry integrity and provenance checks, and a moving branch or tag can change under you.",
+      "suggestion": "Publish and install \"jest-fetch-mock\" from your registry, or pin the git dependency to a full 40-character commit SHA.",
+      "category": "npm",
+      "fingerprint": "0dd7877c29be1ab569e52664841eef8ae68b00e7ebaeed7d35b6d9c4f079c7da"
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.VIEW: Can be invoked by any app",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/android/app/src/main/AndroidManifest.xml",
+      "line": 51,
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required.",
+      "fingerprint": "de18cbf44c994fc9edfa695917ac8399e9486e622670286ec21d6c5638dfb4b5"
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.VIEW: Can be invoked by any app",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/android/app/src/main/AndroidManifest.xml",
+      "line": 61,
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required.",
+      "fingerprint": "eb7d9996b512eef50a69f1981138334e74f35fc4c1f2d1fdc253be2c4f159e6f"
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.SEND: Can receive data from any app",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/android/app/src/main/AndroidManifest.xml",
+      "line": 41,
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required.",
+      "fingerprint": "41bdb3abf7fbcb217218c5a9c8669b5a955c373b661a87b457f9c1103829e0fb"
+    },
+    {
+      "ruleId": "ANDROID_INTENT_FILTER_PERMISSIVE",
+      "description": "Permissive intent filter with android.intent.action.SEND: Can receive data from any app",
+      "severity": "MEDIUM",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/android/app/src/main/AndroidManifest.xml",
+      "line": 46,
+      "suggestion": "Validate all incoming intents and restrict with custom permissions if external access is not required.",
+      "fingerprint": "06e44774a8df3749150eca60307b0e178540efbcdde80dbfbea17d96bd34b903"
+    },
+    {
+      "ruleId": "EXCESSIVE_PERMISSIONS",
+      "description": "Potentially excessive permissions declared: android.permission.READ_EXTERNAL_STORAGE, android.permission.WRITE_EXTERNAL_STORAGE, android.permission.CAMERA...",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/android/app/src/main/AndroidManifest.xml",
+      "line": 7,
+      "suggestion": "Review declared permissions and remove those not actively used. Request permissions at runtime only when needed.",
+      "fingerprint": "fd87b8ea75d99f9ffe8aad6fb4623ab46185b3f959eafddd85a478969d462464"
+    },
+    {
+      "ruleId": "IOS_CUSTOM_URL_SCHEME_UNPROTECTED",
+      "description": "Custom URL scheme detected (inaturalistmobile, com.googleusercontent.apps.796686868523-4m5ne09fa17p5me04s1qdlsnci9e8qeo) - ensure deep link validation is implemented",
+      "severity": "LOW",
+      "confidence": "low",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/ios/iNaturalistReactNative/Info.plist",
+      "line": 25,
+      "suggestion": "Implement URL validation in application:openURL:options: to prevent deep link exploits. Validate scheme, host, and parameters.",
+      "fingerprint": "64d1b2d17579c2d6d724c05bae39e7637856fc75d6d629385c2e4d46ef4688a3"
+    },
+    {
+      "ruleId": "IOS_ATS_DISABLED",
+      "description": "NSAllowsArbitraryLoads is enabled, disabling ATS",
+      "severity": "HIGH",
+      "filePath": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench/src/inaturalist-rn/ios/iNaturalistReactNative-ShareExtension/Info.plist",
+      "line": 11,
+      "suggestion": "Enable ATS and use exception domains only for specific servers that require it",
+      "fingerprint": "3f533c94f3877d1a19151e8a84170cc8979fd6dd85621b45fdf7bc9c3d41a364"
+    }
+  ],
+  "scannedFiles": 778,
+  "duration": 14256,
+  "timestamp": "2026-10-26T11:46:20.857Z",
+  "ignoredRules": []
+}
