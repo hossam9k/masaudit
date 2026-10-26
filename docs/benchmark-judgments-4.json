@@ -1,0 +1,2438 @@
+{
+ "round": 4,
+ "seed": 4,
+ "masaudit": "0.6.5 (each app's own type)",
+ "draws": "masaudit: 70 from the fix lists in app code (--buckets fix --where app), 30 from Check by hand and the Hardening checklist (--buckets soft --where app), 30 from the fix lists in CI (--buckets fix --where ci); mobsfscan 70 and rnsec 40 (--where app); all 3 Semgrep findings",
+ "judged": [
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "edge-wallet",
+   "rule": "CI-002",
+   "path": ".github/workflows/pr-rebase.yml",
+   "line": 5,
+   "verdict": "real",
+   "reason": "issue_comment-triggered by any commenter, no permissions block; default token plus third-party EdgeApp/rebase@branch can push."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "edge-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/pr-rebase.yml",
+   "line": 18,
+   "verdict": "real",
+   "reason": "actions/checkout@v3 tag-pinned in issue_comment workflow with GITHUB_TOKEN; message already rates it lower risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-005",
+   "path": ".github/workflows/ci.yml",
+   "line": 134,
+   "verdict": "overrated",
+   "reason": "pull_request CI builds PR code in same job anyway; fork token read-only; artifacts upload only APKs."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci.yml",
+   "line": 143,
+   "verdict": "overrated",
+   "reason": "dtolnay/rust-toolchain@stable in PR-only CI with no secrets and debug builds; supply-chain risk is limited."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci.yml",
+   "line": 227,
+   "verdict": "real",
+   "reason": "Third-party dtolnay/rust-toolchain referenced by mutable branch 'stable' rather than commit SHA."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 148,
+   "verdict": "real",
+   "reason": "actions/checkout@v4 tag-pinned in tag-triggered release job with contents: write; message calibrated as lower risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 210,
+   "verdict": "real",
+   "reason": "Third-party subosito/flutter-action@v2 in tag-triggered release job with contents: write building published macOS binaries."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 280,
+   "verdict": "real",
+   "reason": "release.yml uses actions/upload-artifact@v4 tag in a job handling signing secrets; tag is mutable, finding correctly rates it lower risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-005",
+   "path": ".github/workflows/release.yml",
+   "line": 292,
+   "verdict": "overrated",
+   "reason": "checkout persists token, but it is job-scoped and actions in-job could access it anyway; defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 316,
+   "verdict": "real",
+   "reason": "thedoctor0/zip-release@main (branch) in tag release job with contents: write packaging published Linux zip."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 461,
+   "verdict": "real",
+   "reason": "dtolnay/rust-toolchain@stable (branch) in tag-triggered release deb job with contents: write producing published artifacts."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "mangayomi",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 489,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v4 tag in release job; low risk compared to third-party actions."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/beta.build-push.yml",
+   "line": 254,
+   "verdict": "overrated",
+   "reason": "upload-artifact@v7 tag-pinned; GitHub-owned action with permissions {} default — low risk, hygiene issue."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-005",
+   "path": ".github/workflows/develop-push.yml",
+   "line": 37,
+   "verdict": "overrated",
+   "reason": "Trusted push-to-develop trigger, token limited to actions: write; file under RUNNER_TEMP removed after job."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/develop-push.yml",
+   "line": 121,
+   "verdict": "real",
+   "reason": "develop-push.yml uses actions/upload-artifact@v7 tag on self-hosted runner job with secrets; mutable tag, risk correctly stated as lower."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/develop-push.yml",
+   "line": 137,
+   "verdict": "overrated",
+   "reason": "Own-org monal-im/xmpp-notifier@master receives bot creds; same org already controls workflow; limited added risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/publish-stable-release.yml",
+   "line": 93,
+   "verdict": "real",
+   "reason": "Third-party cbrgm/mastodon-github-action pinned to mutable tag and given MASTODON_ACCESS_TOKEN secret."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/quicksy.build-push.yml",
+   "line": 128,
+   "verdict": "overrated",
+   "reason": "upload-artifact@v7 tag-pinned; GitHub-owned action, top-level permissions {} — low supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/stable.build-push.yml",
+   "line": 33,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/checkout@v6 tag on self-hosted release job; lower risk than third-party actions."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-005",
+   "path": ".github/workflows/test.yml",
+   "line": 22,
+   "verdict": "overrated",
+   "reason": "Token persisted by checkout, but workflow sets permissions: {} so job token has no scopes."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "monal",
+   "rule": "CI-001",
+   "path": ".github/workflows/test.yml",
+   "line": 69,
+   "verdict": "overrated",
+   "reason": "upload-artifact@v7 tag-pinned in test workflow with permissions {} and no secrets; GitHub-owned, low risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "tasks",
+   "rule": "CI-001",
+   "path": ".github/workflows/android.yml",
+   "line": 112,
+   "verdict": "real",
+   "reason": "android.yml uses actions/upload-artifact@v7 tag in job with signing secrets; mutable tag, lower risk as stated."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "tasks",
+   "rule": "CI-001",
+   "path": ".github/workflows/check.yml",
+   "line": 119,
+   "verdict": "real",
+   "reason": "check.yml uses actions/upload-artifact@v7 tag, not SHA; finding correctly calls it lower risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "tasks",
+   "rule": "CI-001",
+   "path": ".github/workflows/release.yml",
+   "line": 72,
+   "verdict": "real",
+   "reason": "release.yml uses actions/checkout@v7 tag in release workflow with secrets; mutable tag, risk correctly described as lower."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "termux",
+   "rule": "CI-001",
+   "path": ".github/workflows/debug_build.yml",
+   "line": 104,
+   "verdict": "overrated",
+   "reason": "upload-artifact@v6 tag-pinned; GitHub-owned action in build workflow without secrets; hygiene only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "tivi",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 81,
+   "verdict": "real",
+   "reason": "build.yml uses actions/upload-artifact@v4 tag while checkout is SHA-pinned; job env carries many secrets; lower risk as stated."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "tivi",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 103,
+   "verdict": "real",
+   "reason": "Third-party gradle/wrapper-validation-action@v3 tag-pinned in job with workflow-level env secrets (keystore passwords, API keys)."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "tivi",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 354,
+   "verdict": "real",
+   "reason": "Third-party ruby/setup-ruby@v1 in publish-playstore job on main; workflow env exposes App Store, keystore and ENCRYPT_KEY secrets."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "wger",
+   "rule": "CI-001",
+   "path": ".github/workflows/build-android.yml",
+   "line": 50,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/upload-artifact@v7 tag; workflow has contents: read; low supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "zeus",
+   "rule": "CI-001",
+   "path": ".github/workflows/coverage-comment.yml",
+   "line": 22,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/github-script@v9 tag pin; workflow_run with limited permissions; low risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "bluebubbles",
+   "rule": "AND-043",
+   "path": "android/app/src/main/kotlin/com/bluebubbles/messaging/utils/FilesystemUtils.kt",
+   "line": 100,
+   "verdict": "real",
+   "reason": "_display_name from foreign content provider used unsanitized in File(cacheDir, fileName); reached via share intents (intents_service.dart)."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "bluebubbles",
+   "rule": "AND-016",
+   "path": "android/app/src/main/res/xml/filepaths.xml",
+   "line": 4,
+   "verdict": "overrated",
+   "reason": "external-path \".\" shares external storage which isn't app-private; FileProvider not exported, needs explicit grants."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "bluebubbles",
+   "rule": "AND-003",
+   "path": "android/app/src/main/res/xml/network_security_config.xml",
+   "line": 7,
+   "verdict": "real",
+   "reason": "Main network_security_config base-config trusts user CAs and cleartext for all release traffic."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "bluebubbles",
+   "rule": "CI-007",
+   "path": "android/gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org; supply-chain defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "deltachat-android",
+   "rule": "AND-029",
+   "path": "build.gradle",
+   "line": 37,
+   "verdict": "overrated",
+   "reason": "minSdkVersion 21 confirmed; deliberate legacy device support, not an app code flaw."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "deltachat-android",
+   "rule": "AND-040",
+   "path": "src/main/java/org/thoughtcrime/securesms/WebRtcHolder.java",
+   "line": 144,
+   "verdict": "false",
+   "reason": "WebView has setBlockNetworkLoads(true), no file/content access; Safe Browsing irrelevant without network loads."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "deltachat-android",
+   "rule": "AND-016",
+   "path": "src/main/res/xml/file_provider_paths.xml",
+   "line": 10,
+   "verdict": "overrated",
+   "reason": "external-files-path '.' is broad, but FileProvider is exported=false with per-URI grants; files aren't private anyway."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "edge-wallet",
+   "rule": "AND-001",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 40,
+   "verdict": "real",
+   "reason": "Main manifest sets usesCleartextTraffic=\"true\" with no networkSecurityConfig; HTTP allowed app-wide in release wallet."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "edge-wallet",
+   "rule": "IOS-001",
+   "path": "ios/edge/Info.plist",
+   "line": 86,
+   "verdict": "real",
+   "reason": "Edge wallet main Info.plist sets NSAllowsArbitraryLoads true globally (plus localhost exception) in shipped crypto wallet."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "edge-wallet",
+   "rule": "XPL-033",
+   "path": "src/components/scenes/DuressPinScene.tsx",
+   "line": 81,
+   "verdict": "false",
+   "reason": "DigitInput's TextInput is hidden (opacity 0, size 0); PIN shown as PinDots, not text."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "edge-wallet",
+   "rule": "XPL-003",
+   "path": "src/constants/plugins/GuiPlugins.ts",
+   "line": 284,
+   "verdict": "false",
+   "reason": "Xanpool widget apiKey is a public partner key placed in widget URL query; not a secret."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "edge-wallet",
+   "rule": "RN-005",
+   "path": "src/plugins/gui/scenes/FiatPluginWebView.tsx",
+   "line": 85,
+   "verdict": "overrated",
+   "reason": "allowUniversalAccessFromFileURLs set needlessly, but this WebView loads only remote https provider URLs, no file:// pages."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kickstarter-ios",
+   "rule": "IOS-043",
+   "path": "Kickstarter-Framework/Sources/Kickstarter-Framework/Kickstarter-iOS/Features/DesignSystem/Controller/DesignSystemViewController.swift",
+   "line": 52,
+   "verdict": "false",
+   "reason": "Demo password field in DesignSystemViewController, reachable only via internal BetaTools; no real credentials entered."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kickstarter-ios",
+   "rule": "IOS-043",
+   "path": "Kickstarter-Framework/Sources/Kickstarter-Framework/Resources/Settings.storyboard",
+   "line": 223,
+   "verdict": "false",
+   "reason": "settingsNewPasswordFormFieldAutoFillStyle applies passwordFieldStyle which sets secureTextEntry=true in code."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kickstarter-ios",
+   "rule": "IOS-043",
+   "path": "Kickstarter-Framework/Sources/Kickstarter-Framework/Resources/Settings.storyboard",
+   "line": 259,
+   "verdict": "false",
+   "reason": "Field styled at runtime via settingsNewPasswordFormFieldAutoFillStyle -> passwordFieldStyle with secureTextEntry=true."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kickstarter-ios",
+   "rule": "IOS-017",
+   "path": "Library/Sources/Library/Library/OAuth.swift",
+   "line": 56,
+   "verdict": "false",
+   "reason": "ASWebAuthenticationSession captures custom-scheme callback itself with PKCE verifier; no interception path."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kiwix-apple",
+   "rule": "IOS-014",
+   "path": "ViewModel/BrowserViewModel.swift",
+   "line": 121,
+   "verdict": "real",
+   "reason": "isProduction returns true only for sandboxReceipt in release, so App Store builds set isInspectable=true."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kiwix-apple",
+   "rule": "IOS-014",
+   "path": "ViewModel/BrowserViewModel.swift",
+   "line": 718,
+   "verdict": "real",
+   "reason": "isProduction is true only for sandboxReceipt in release; App Store builds get !isProduction, so isInspectable=true ships."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "mangayomi",
+   "rule": "IOS-017",
+   "path": "lib/services/sync_server.dart",
+   "line": 89,
+   "verdict": "overrated",
+   "reason": "Custom scheme callback, but uses PKCE S256 plus state check; ASWebAuthenticationSession captures callback itself on iOS."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "mangayomi",
+   "rule": "IOS-017",
+   "path": "lib/services/trackers/myanimelist.dart",
+   "line": 56,
+   "verdict": "overrated",
+   "reason": "ASWebAuthenticationSession receives callback itself; PKCE verifier used; only MAL tracker token at stake."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "mangayomi",
+   "rule": "IOS-001",
+   "path": "macos/Runner/Info.plist",
+   "line": 7,
+   "verdict": "real",
+   "reason": "macOS Info.plist sets NSAllowsArbitraryLoads=true, disabling ATS for all hosts in shipped app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-027",
+   "path": "Monal/Classes/HelperTools.m",
+   "line": 283,
+   "verdict": "overrated",
+   "reason": "stat() in crash callback and PrivacyInfo.xcprivacy lacks FileTimestamp reason; App Store compliance, not security."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-020",
+   "path": "Monal/Classes/NotificationDebugging.swift",
+   "line": 84,
+   "verdict": "false",
+   "reason": "APNs push token copied only via explicit user action on debug screen; push token is not a credential."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-001",
+   "path": "Monal/Monal-Info.plist",
+   "line": 78,
+   "verdict": "overrated",
+   "reason": "NSAllowsArbitraryLoads true in shipped plist, but XMPP uses own TLS and file transfers enforce https in MLFiletransfer genCanonicalUrl."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-001",
+   "path": "Monal/Monal.Alpha-Info.plist",
+   "line": 78,
+   "verdict": "overrated",
+   "reason": "NSAllowsArbitraryLoads=true is present, but this plist is the Alpha tester build (bundle monal.alpha); XMPP traffic itself isn't governed by ATS."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 2816,
+   "verdict": "overrated",
+   "reason": "STRIP_INSTALLED_PRODUCT=NO in AppStore NotificationService leaves symbols; app is open source, so reverse-engineering gain is negligible."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 2817,
+   "verdict": "overrated",
+   "reason": "STRIP_SWIFT_SYMBOLS=NO in NotificationService AppStore config; open-source app, symbols only aid reverse engineering."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 2871,
+   "verdict": "overrated",
+   "reason": "ENABLE_TESTABILITY=YES in AppStore project config is real, but only affects symbol visibility/optimization of an open-source app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 2938,
+   "verdict": "overrated",
+   "reason": "AppStore config has ENABLE_TESTABILITY=YES, but Monal is open source; symbol exposure adds little."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 2973,
+   "verdict": "overrated",
+   "reason": "STRIP_STYLE non-global with STRIP_INSTALLED_PRODUCT=NO in AppStore keeps symbols; open-source app, little practical impact."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 2974,
+   "verdict": "overrated",
+   "reason": "STRIP_SWIFT_SYMBOLS=NO in AppStore config, but source is public; defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3062,
+   "verdict": "false",
+   "reason": "AppStore exported with Stable_iOS_ExportOptions (app-store, stripSwiftSymbols defaults true), so Swift symbols are stripped at export despite STRIP_SWIFT_SYMBOLS=NO."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3184,
+   "verdict": "overrated",
+   "reason": "monalxmpp AppStore config STRIP_INSTALLED_PRODUCT=NO, but Monal is open source; symbols reveal nothing secret."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3186,
+   "verdict": "false",
+   "reason": "monalxmpp AppStore build exported with app-store options defaulting stripSwiftSymbols=true; Swift symbols stripped at export."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3688,
+   "verdict": "overrated",
+   "reason": "ENABLE_TESTABILITY=YES only in Beta pre-release config, not AppStore config; open-source app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3760,
+   "verdict": "overrated",
+   "reason": "ENABLE_TESTABILITY=YES in Beta config; open-source code, minimal impact."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3795,
+   "verdict": "overrated",
+   "reason": "STRIP_STYLE non-global in Beta config for open-source Monal; symbol exposure has minimal impact."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3859,
+   "verdict": "overrated",
+   "reason": "STRIP_INSTALLED_PRODUCT=NO in NotificationService Beta config is real, but Monal is open source; symbol stripping is defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 3899,
+   "verdict": "overrated",
+   "reason": "STRIP_SWIFT_SYMBOLS=NO in Beta config of open-source app; negligible reverse-engineering gain."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-025",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 4116,
+   "verdict": "overrated",
+   "reason": "DEBUG=1 is in Alpha configuration, a separate monal.alpha tester build from develop-push; AppStore config defines no DEBUG."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 4224,
+   "verdict": "overrated",
+   "reason": "STRIP_INSTALLED_PRODUCT=NO in Alpha pre-release config of open-source app; symbols leak nothing secret."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 4257,
+   "verdict": "overrated",
+   "reason": "STRIP_INSTALLED_PRODUCT=NO for shareSheet in Alpha config, a tester build; open-source code anyway."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "monal",
+   "rule": "IOS-021",
+   "path": "Monal/Monal.xcodeproj/project.pbxproj",
+   "line": 4326,
+   "verdict": "overrated",
+   "reason": "STRIP_INSTALLED_PRODUCT=NO is in Alpha pre-release config of open-source monalxmpp; symbols reveal nothing secret."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "mullvad-android",
+   "rule": "AND-037",
+   "path": "app/build.gradle.kts",
+   "line": 571,
+   "verdict": "false",
+   "reason": "leakCanary is a separate build type initWith(debug) with .leakcanary suffix; not in release."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-072",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 10,
+   "verdict": "overrated",
+   "reason": "QUERY_ALL_PACKAGES needed for autofill app matching in password manager; SYSTEM_ALERT_WINDOW only in dev/alpha flavors."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-021",
+   "path": "pass/autofill/e2e-app/src/main/AndroidManifest.xml",
+   "line": 8,
+   "verdict": "false",
+   "reason": "pass/autofill/e2e-app is a test harness app, not the shipped Proton Pass app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-001",
+   "path": "pass/common-test/src/main/res/xml/network_security_config.xml",
+   "line": 3,
+   "verdict": "false",
+   "reason": "pass/common-test is only testImplementation; its network config never ships in app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-021",
+   "path": "pass/features/home-demo/src/main/AndroidManifest.xml",
+   "line": 25,
+   "verdict": "false",
+   "reason": "home-demo is a standalone feature demo app module (FeatureHomeApp), not the shipped Proton Pass app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-039",
+   "path": "pass/features/home-demo/src/main/kotlin/proton/android/pass/features/demoapp/FeatureHomeApp.kt",
+   "line": 110,
+   "verdict": "false",
+   "reason": "FeatureHomeApp is a separate demo application with fake data, not the shipped Pass app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proxypin",
+   "rule": "AND-021",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 27,
+   "verdict": "real",
+   "reason": "allowBackup unset (defaults true), no rules; app stores CA private key ca_key.pem and captured traffic in app support dir."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proxypin",
+   "rule": "IOS-001",
+   "path": "ios/Runner/Info.plist",
+   "line": 40,
+   "verdict": "overrated",
+   "reason": "ATS off, but ProxyPin is an intercepting proxy; Dart sockets aren't subject to ATS anyway."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proxypin",
+   "rule": "FLT-001",
+   "path": "lib/network/components/js/xhr.dart",
+   "line": 279,
+   "verdict": "overrated",
+   "reason": "Accept-all callback only on client routed through ProxyPin's own local MITM proxy (PROXY 127.0.0.1); intended for a debugging proxy tool."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proxypin",
+   "rule": "XPL-042",
+   "path": "lib/network/util/system_proxy.dart",
+   "line": 246,
+   "verdict": "false",
+   "reason": "Interpolated name comes from NetworkInterface.list() (OS interface like en0), not user input; other args use _shellQuote."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proxypin",
+   "rule": "XPL-042",
+   "path": "lib/network/util/system_proxy.dart",
+   "line": 267,
+   "verdict": "overrated",
+   "reason": "Unquoted proxyPassDomains in bash -c, but value is the local user's own setting on macOS desktop; self-injection."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "proxypin",
+   "rule": "XPL-042",
+   "path": "lib/ui/mobile/setting/ssl.dart",
+   "line": 436,
+   "verdict": "false",
+   "reason": "su command built from app's own CA file path and computed cert hash; no external input."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "session-ios",
+   "rule": "IOS-002",
+   "path": "Session/Meta/Session-Info.plist",
+   "line": 72,
+   "verdict": "overrated",
+   "reason": "Exception exists but NSAllowsArbitraryLoads already true globally; Session payloads are onion-encrypted, so incremental impact minimal."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "session-ios",
+   "rule": "IOS-020",
+   "path": "Session/Settings/DeveloperSettings/DeveloperSettingsNetworkViewModel.swift",
+   "line": 399,
+   "verdict": "overrated",
+   "reason": "Push token copied only on explicit tap in hidden developer settings; APNs token is low-sensitivity identifier."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "tasks",
+   "rule": "AND-021",
+   "path": "composeApp/src/androidMain/AndroidManifest.xml",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "composeApp allowBackup=true, but data is to-do items and credentials use AndroidKeyStoreEncryption (keys not backed up)."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "tivi",
+   "rule": "XPL-037",
+   "path": "data/traktauth/src/androidMain/kotlin/app/tivi/data/traktauth/AndroidTraktRefreshTokenAction.kt",
+   "line": 30,
+   "verdict": "real",
+   "reason": "Trakt OAuth disables PKCE (setCodeVerifier(null)); flagged line is refresh grant, actual auth request in LoginTraktActivityResultContract."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "tivi",
+   "rule": "AND-037",
+   "path": "shared/qa/build.gradle.kts",
+   "line": 29,
+   "verdict": "false",
+   "reason": "shared:qa (Chucker) is added only via qaImplementation in qa flavor; standard release flavor excludes it."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "wger",
+   "rule": "AND-036",
+   "path": "android/app/src/main/res/xml/data_extraction_rules.xml",
+   "line": 8,
+   "verdict": "false",
+   "reason": "Intentional (commented) omission; device-to-device transfer is user-controlled to own device; data is fitness DB."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "wger",
+   "rule": "CI-007",
+   "path": "android/gradle/wrapper/gradle-wrapper.properties",
+   "line": 5,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org; build-time defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "RN-020",
+   "path": "android/app/src/main/java/app/zeusln/zeus/ZipUtils.java",
+   "line": 136,
+   "verdict": "false",
+   "reason": "Only caller NodeConfigUtils passes fixed cache-dir paths; JS bundle is trusted app code, not an external boundary."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "AND-001",
+   "path": "android/app/src/main/res/xml/network_security_config.xml",
+   "line": 2,
+   "verdict": "real",
+   "reason": "src/main network config allows cleartext for all hosts and trusts user CAs in release build."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "AND-003",
+   "path": "android/app/src/main/res/xml/network_security_config.xml",
+   "line": 5,
+   "verdict": "real",
+   "reason": "Release base-config trusts <certificates src=\"user\"/> for all hosts in a Bitcoin wallet; no debug-overrides scoping."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "XPL-043",
+   "path": "components/AccountFilter.tsx",
+   "line": 62,
+   "verdict": "false",
+   "reason": "selectedPin is the selected account-filter pill ('default'), not a PIN credential."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "IOS-039",
+   "path": "ios/zeus/zeusRelease.entitlements",
+   "line": 7,
+   "verdict": "false",
+   "reason": "App uses react-native-nfc-manager (utils/NFCUtils.ts, NFCButton), so NFC tag entitlement is needed."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "RN-012",
+   "path": "utils/BiometricUtils.ts",
+   "line": 26,
+   "verdict": "real",
+   "reason": "verifyBiometry uses simplePrompt() boolean only; no keystore/keychain key bound to biometric, so hooking bypasses the gate."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "RN-009",
+   "path": "utils/LinkingUtils.ts",
+   "line": 118,
+   "verdict": "false",
+   "reason": "Line only calls Linking.openURL for urls starting with 'nostr:' (scheme-restricted handoff); others go through handleAnything parsing."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "zeus",
+   "rule": "XPL-044",
+   "path": "utils/SwapUtils.ts",
+   "line": 785,
+   "verdict": "overrated",
+   "reason": "User-initiated rescue-key export via save dialog; plaintext staged in app-private cache and unlinked in finally."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "deltachat-android",
+   "rule": "AND-015",
+   "path": "src/gplay/AndroidManifest.xml",
+   "line": 22,
+   "verdict": "overrated",
+   "reason": "FcmReceiveService exported without permission; spoofed intents only trigger a fetch or token update; low impact."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "deltachat-android",
+   "rule": "XPL-010",
+   "path": "src/gplay/java/org/thoughtcrime/securesms/notifications/FcmReceiveService.java",
+   "line": 69,
+   "verdict": "overrated",
+   "reason": "FCM token logged via android.util.Log.i in gplay release; push token alone can't send pushes, adb-only logcat."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "edge-wallet",
+   "rule": "XPL-040",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 40,
+   "verdict": "overrated",
+   "reason": "Server-driven update prompt exists (versionCheck.tsx via infoServer), just dismissible; force-update is defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "edge-wallet",
+   "rule": "XPL-022",
+   "path": "ios/edge.xcodeproj/project.pbxproj",
+   "line": 265,
+   "verdict": "overrated",
+   "reason": "No debugger detection found in Edge, but it is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "edge-wallet",
+   "rule": "XPL-028",
+   "path": "ios/edge.xcodeproj/project.pbxproj",
+   "line": 265,
+   "verdict": "overrated",
+   "reason": "No device passcode check found, but Edge requires own PIN/password via edge-login-ui-rn; defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "kickstarter-ios",
+   "rule": "IOS-007",
+   "path": "Kickstarter.xcodeproj/project.pbxproj",
+   "line": 1422,
+   "verdict": "overrated",
+   "reason": "No NSPinnedDomains/TrustKit/trust delegate found in repo; but Kickstarter is not banking-grade, pinning is defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "kickstarter-ios",
+   "rule": "XPL-009",
+   "path": "KsApi/Sources/KsApi/models/templates/AuthorTemplates.swift",
+   "line": 15,
+   "verdict": "false",
+   "reason": "Test/preview template avatar URLs in model templates; no network request made with them."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "kickstarter-ios",
+   "rule": "XPL-009",
+   "path": "KsApi/Sources/KsApi/models/templates/AuthorTemplates.swift",
+   "line": 16,
+   "verdict": "false",
+   "reason": "Template/fixture model data (Avatar.template) for tests/previews; URLs not used for network requests."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "kickstarter-ios",
+   "rule": "XPL-009",
+   "path": "KsApi/Sources/KsApi/models/templates/Project.VideoTemplates.swift",
+   "line": 5,
+   "verdict": "false",
+   "reason": "Project.Video.template is a test/fixture template, not a network endpoint used in production."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "kickstarter-ios",
+   "rule": "XPL-009",
+   "path": "KsApi/Sources/KsApi/models/templates/User.AvatarTemplates.swift",
+   "line": 5,
+   "verdict": "false",
+   "reason": "User.Avatar test template with placeholder http://www.kickstarter.com/large.jpg; fixture data, not a network endpoint used by app."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "mangayomi",
+   "rule": "IOS-019",
+   "path": "ios/Runner.xcodeproj/project.pbxproj",
+   "line": 203,
+   "verdict": "overrated",
+   "reason": "No PrivacyInfo.xcprivacy for Runner; App Store compliance issue, not security; app largely sideload-distributed."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/HelperTools.m",
+   "line": 2699,
+   "verdict": "false",
+   "reason": "http://jabber.org/... is an XMPP feature namespace identifier, never fetched."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLIQProcessor.m",
+   "line": 564,
+   "verdict": "false",
+   "reason": "jabber.org URL is an XMPP disco feature namespace string, not a network request."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLIQProcessor.m",
+   "line": 569,
+   "verdict": "false",
+   "reason": "http://jabber.org/protocol/... strings are XMPP namespace identifiers, not URLs loaded."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLIQProcessor.m",
+   "line": 588,
+   "verdict": "false",
+   "reason": "http://jabber.org/protocol/pubsub#item-ids is an XMPP namespace identifier string, never fetched."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLIQProcessor.m",
+   "line": 589,
+   "verdict": "false",
+   "reason": "http://jabber.org/protocol/pubsub#item-ids is an XMPP namespace identifier, not a network URL."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLIQProcessor.m",
+   "line": 710,
+   "verdict": "false",
+   "reason": "http://jabber.org/protocol/... is an XMPP XML namespace identifier, never fetched."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLIQProcessor.m",
+   "line": 723,
+   "verdict": "false",
+   "reason": "http://jabber.org/protocol/muc is an XMPP feature namespace string compared in disco results."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLPubSub.m",
+   "line": 519,
+   "verdict": "false",
+   "reason": "jabber.org URL is an XMPP namespace identifier (pubsub#publish-options), never fetched."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/MLPubSub.m",
+   "line": 922,
+   "verdict": "false",
+   "reason": "http://www.process-one.net/en/ejabberd/ compared to server identity string; not fetched."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "monal",
+   "rule": "XPL-009",
+   "path": "Monal/Classes/XMPPIQ.m",
+   "line": 119,
+   "verdict": "false",
+   "reason": "http://jabber.org/protocol/disco#items is an XMPP namespace URI, not a network request."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-048",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 10,
+   "verdict": "overrated",
+   "reason": "No Play Integrity, but Proton Pass is E2E-encrypted open-source client; server security does not rely on client attestation."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "proton-pass-android",
+   "rule": "XPL-022",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 10,
+   "verdict": "overrated",
+   "reason": "No isDebuggerConnected/TracerPid checks found; true, but debugger detection is resilience-only defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-015",
+   "path": "pass/autofill/test-app/src/main/AndroidManifest.xml",
+   "line": 32,
+   "verdict": "false",
+   "reason": "pass/autofill/test-app is a sample test app, not shipped."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "proton-pass-android",
+   "rule": "AND-015",
+   "path": "pass/autofill/test-app/src/main/AndroidManifest.xml",
+   "line": 41,
+   "verdict": "false",
+   "reason": "CreditCardActivity is in pass/autofill/test-app sample app, not shipped."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "tasks",
+   "rule": "AND-015",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 602,
+   "verdict": "false",
+   "reason": "Tasker/Locale EDIT_SETTING activity must be exported by plugin API; only shows config UI returning user-entered bundle."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "wger",
+   "rule": "IOS-030",
+   "path": "ios/Runner.xcodeproj/project.pbxproj",
+   "line": 110,
+   "verdict": "overrated",
+   "reason": "No app-switcher overlay found, but wger fitness/workout data is low sensitivity."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "wger",
+   "rule": "XPL-028",
+   "path": "ios/Runner.xcodeproj/project.pbxproj",
+   "line": 131,
+   "verdict": "overrated",
+   "reason": "No LAContext/local_auth check exists, but wger is a fitness tracker; screen-lock check is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "zeus",
+   "rule": "XPL-022",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 29,
+   "verdict": "overrated",
+   "reason": "No debugger detection found, but it is defense-in-depth only for an open-source wallet."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "zeus",
+   "rule": "RN-015",
+   "path": "babel.config.js",
+   "line": 16,
+   "verdict": "overrated",
+   "reason": "No console stripping in babel/metro, so logs ship; but sensitive logs (tokens, quotes) are __DEV__-gated; remaining are benign status messages."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "bluebubbles",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/bluebubbles/messaging/utils/PersistentLog.kt",
+   "line": 63,
+   "verdict": "false",
+   "reason": "Line logs fixed string 'Failed to write persistent log entry' with exception; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_detect_tapjacking",
+   "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench4/src/deltachat-android",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "No filterTouchesWhenObscured found, but Android 12+ blocks untrusted overlay touches; messenger has few overlay-critical actions."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/ApplicationContext.java",
+   "line": 197,
+   "verdict": "false",
+   "reason": "Logs number of profiles only; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_hidden_ui",
+   "path": "src/main/java/org/thoughtcrime/securesms/ConversationItem.java",
+   "line": 559,
+   "verdict": "false",
+   "reason": "setVisibility(GONE) toggles message view stubs; not hiding sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/ConversationListFragment.java",
+   "line": 291,
+   "verdict": "false",
+   "reason": "Logs only getChatlist() timing in ms; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/audio/AudioFocusHolder.java",
+   "line": 64,
+   "verdict": "false",
+   "reason": "Logs only the integer audio-focus request result; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallActivity.java",
+   "line": 121,
+   "verdict": "false",
+   "reason": "Logs the intent action constant only (decline/hangup); not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallActivity.java",
+   "line": 199,
+   "verdict": "false",
+   "reason": "Logs intent action string only."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallCoordinator.java",
+   "line": 713,
+   "verdict": "false",
+   "reason": "Logs setVideoEnabled boolean; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallCoordinator.java",
+   "line": 891,
+   "verdict": "false",
+   "reason": "Logs an integer audio endpoint error code; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallCoordinator.java",
+   "line": 1184,
+   "verdict": "false",
+   "reason": "Logs PeerConnectionState enum on call end; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallCoordinator.java",
+   "line": 1459,
+   "verdict": "false",
+   "reason": "Logs callType on onAnswer; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/CallService.java",
+   "line": 336,
+   "verdict": "false",
+   "reason": "Logs boolean video-enabled flag only."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/calls/MediaStreamManager.java",
+   "line": 292,
+   "verdict": "false",
+   "reason": "Logs camera device name when switching cameras; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/components/ThumbnailView.java",
+   "line": 233,
+   "verdict": "false",
+   "reason": "Logs internal attachment data URI when skipping reload; local identifier, not sensitive content."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/mms/AttachmentManager.java",
+   "line": 366,
+   "verdict": "false",
+   "reason": "Line 366 is not a log; nearby logs print media size/timing only."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "hardcoded_api_key",
+   "path": "src/main/java/org/thoughtcrime/securesms/preferences/AdvancedPreferenceFragment.java",
+   "line": 184,
+   "verdict": "false",
+   "reason": "\"tmp-keys-file\" is a temp file prefix, not a hardcoded key."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/qr/BackupProviderFragment.java",
+   "line": 168,
+   "verdict": "false",
+   "reason": "Line reads progress permille int from event; no logging of sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/service/GenericForegroundService.java",
+   "line": 100,
+   "verdict": "false",
+   "reason": "Logs foreground-notification entry (title/channel/progress), app-generated UI strings, not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/util/SaveAttachmentTask.java",
+   "line": 86,
+   "verdict": "false",
+   "reason": "Line 86 computes MIME type; no logging there."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/webrtc/WebRTCClient.java",
+   "line": 499,
+   "verdict": "false",
+   "reason": "Log.d prints only DataChannel state enum (mutedState channel state); nothing sensitive logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/webrtc/WebRTCClient.java",
+   "line": 1221,
+   "verdict": "false",
+   "reason": "Logs WebRTC setLocalDescription failure string; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "deltachat-android",
+   "rule": "android_logging",
+   "path": "src/main/java/org/thoughtcrime/securesms/webrtc/WebRTCClient.java",
+   "line": 1387,
+   "verdict": "false",
+   "reason": "Logs WebRTC setRemote failure error string; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "kickstarter-ios",
+   "rule": "ios_insecure_random_no_generator",
+   "path": "Library/Sources/Library/Library/ViewModels/ThanksViewModel.swift",
+   "line": 386,
+   "verdict": "false",
+   "reason": "arc4random_uniform (CSPRNG anyway) used to shuffle recommended projects for UI; not security-relevant."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "mangayomi",
+   "rule": "android_manifest_usescleartext",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "real",
+   "reason": "usesCleartextTraffic=true in release manifest, no network security config; app fetches arbitrary sources."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "monal",
+   "rule": "ios_cert_pinning",
+   "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench4/src/monal",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Federated XMPP client connecting to arbitrary user-chosen servers; certificate pinning is not applicable."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "monal",
+   "rule": "ios_sha1_collision",
+   "path": "Monal/Classes/HelperTools.m",
+   "line": 3170,
+   "verdict": "false",
+   "reason": "HMAC-SHA1 (CCHmac) is not affected by SHA1 collisions; used for SCRAM-style HMAC."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "monal",
+   "rule": "ios_weak_hash",
+   "path": "Monal/Classes/IPC.m",
+   "line": 12,
+   "verdict": "false",
+   "reason": "Line 12 only imports CommonDigest.h; IPC.m uses no MD5/SHA1."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "monal",
+   "rule": "ios_hardcoded_secret",
+   "path": "Monal/Classes/OneClickRegistration.swift",
+   "line": 36,
+   "verdict": "false",
+   "reason": "Empty-string @State username/password fields for user input; nothing hardcoded."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "monal",
+   "rule": "ios_banned_api",
+   "path": "Monal/Classes/snprintf.m",
+   "line": 2122,
+   "verdict": "false",
+   "reason": "sprintf usage is inside #if TEST_SNPRINTF test harness block (lines 1621-2158), not compiled into app."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "mullvad-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "lib/ui/component/src/main/kotlin/net/mullvad/mullvadvpn/lib/ui/component/relaylist/RelayListItem.kt",
+   "line": 104,
+   "verdict": "false",
+   "reason": "Flagged value is a LazyList key \"automatic_relay_list_item\", not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "mullvad-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "lib/ui/component/src/main/kotlin/net/mullvad/mullvadvpn/lib/ui/component/relaylist/RelayListItem.kt",
+   "line": 104,
+   "verdict": "false",
+   "reason": "\"automatic_relay_list_item\" is a Compose list item key, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_safetynet",
+   "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench4/src/proton-pass-android",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "No SafetyNet/Play Integrity in repo, but E2E-encrypted vault doesn't rely on device attestation; SafetyNet deprecated."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_manifest_missing_explicit_allow_backup",
+   "path": "app/src/gms/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "false",
+   "reason": "gms flavor overlay manifest; merged main manifest sets android:allowBackup=\"false\"."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_manifest_missing_explicit_allow_backup",
+   "path": "pass/autofill/e2e-app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "false",
+   "reason": "pass/autofill/e2e-app is an E2E test app, not the shipped Proton Pass app."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_manifest_missing_explicit_allow_backup",
+   "path": "pass/clipboard/impl/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Library module manifest; merged app manifest sets android:allowBackup=\"false\" in app/src/main/AndroidManifest.xml."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_manifest_missing_explicit_allow_backup",
+   "path": "pass/common-test/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "false",
+   "reason": "common-test is a test-support library manifest; shipping app manifest sets allowBackup=false."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/item-create/src/main/kotlin/proton/android/pass/features/itemcreate/common/customsection/CustomSectionGraph.kt",
+   "line": 35,
+   "verdict": "false",
+   "reason": "Nav arg key 'sectionindex'/'title', not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/item-create/src/main/kotlin/proton/android/pass/features/itemcreate/custom/createupdate/navigation/CreateCustomItemGraph.kt",
+   "line": 68,
+   "verdict": "false",
+   "reason": "\"templateType\" is a navigation argument key name, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/security-center/src/main/kotlin/proton/android/pass/features/security/center/shared/navigation/SecurityCenterNavArgId.kt",
+   "line": 25,
+   "verdict": "false",
+   "reason": "\"CustomEmailID\" is a navigation argument key name, not a hardcoded secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/sharing/src/main/kotlin/proton/android/pass/features/sharing/manage/bottomsheet/MemberOptionsBottomSheetGraph.kt",
+   "line": 41,
+   "verdict": "false",
+   "reason": "\"inviteId\" is a navigation argument key name, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/sharing/src/main/kotlin/proton/android/pass/features/sharing/manage/bottomsheet/MemberOptionsBottomSheetGraph.kt",
+   "line": 92,
+   "verdict": "false",
+   "reason": "Nav arg key 'shareRole', not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/sharing/src/main/kotlin/proton/android/pass/features/sharing/manage/bottomsheet/MemberOptionsBottomSheetGraph.kt",
+   "line": 102,
+   "verdict": "false",
+   "reason": "\"isGroup\" is a navigation argument key, not a credential."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/sharing/src/main/kotlin/proton/android/pass/features/sharing/manage/bottomsheet/MemberOptionsBottomSheetGraph.kt",
+   "line": 102,
+   "verdict": "false",
+   "reason": "Navigation arg key 'memberShareId'/route builder, not a credential."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/sharing/src/main/kotlin/proton/android/pass/features/sharing/sharingpermissions/bottomsheet/SharingPermissionsBottomSheetGraph.kt",
+   "line": 42,
+   "verdict": "false",
+   "reason": "Navigation argument key 'editPermissionsMode', not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/features/sharing/src/main/kotlin/proton/android/pass/features/sharing/sharingpermissions/bottomsheet/SharingPermissionsBottomSheetGraph.kt",
+   "line": 47,
+   "verdict": "false",
+   "reason": "\"email\" is a navigation argument key name, not a hardcoded credential."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/navigation/api/src/main/kotlin/proton/android/pass/navigation/api/CommonNavArgId.kt",
+   "line": 80,
+   "verdict": "false",
+   "reason": "GROUP_ID_KEY is a navigation argument key constant, not a secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_kotlin_hardcoded",
+   "path": "pass/navigation/api/src/main/kotlin/proton/android/pass/navigation/api/CommonNavArgId.kt",
+   "line": 143,
+   "verdict": "false",
+   "reason": "Flagged value is a navigation argument key \"aliasTitle\", not a credential."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "android_manifest_missing_explicit_allow_backup",
+   "path": "pass/tracing/no-op/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Library module manifest (tracing no-op) merged into app whose main manifest sets allowBackup=false."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proxypin",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/network/proxy/vpn/ProxyVpnThread.kt",
+   "line": 79,
+   "verdict": "false",
+   "reason": "Logs InterruptedException message ('Sleep interrupted'); no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proxypin",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/network/proxy/vpn/ProxyVpnThread.kt",
+   "line": 86,
+   "verdict": "false",
+   "reason": "Static message \"VPN read channel closed\"; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proxypin",
+   "rule": "android_logging",
+   "path": "android/app/src/main/kotlin/com/network/proxy/vpn/socket/SocketChannelReader.java",
+   "line": 54,
+   "verdict": "overrated",
+   "reason": "Log.d of Connection toString (IPs/ports) in debugging proxy; app-private logcat, low sensitivity metadata."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proxypin",
+   "rule": "android_logging",
+   "path": "android/app/src/main/kotlin/com/network/proxy/vpn/socket/SocketChannelReader.java",
+   "line": 106,
+   "verdict": "false",
+   "reason": "Log.e of socket exception message; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "proxypin",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/com/network/proxy/vpn/util/ProcessInfoManager.kt",
+   "line": 203,
+   "verdict": "false",
+   "reason": "Static log message about /proc/net/tcp restriction; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "session-ios",
+   "rule": "ios_hardcoded_secret",
+   "path": "_SharedTestUtilities/TestConstants.swift",
+   "line": 8,
+   "verdict": "false",
+   "reason": "Public test-vector keys in _SharedTestUtilities test target; not shipped in app."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 163,
+   "verdict": "false",
+   "reason": "Constant tasks table rebuild SQL in migration; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 182,
+   "verdict": "false",
+   "reason": "Static CREATE TABLE/ALTER migration SQL; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 241,
+   "verdict": "false",
+   "reason": "Room migration execSQL with constant DDL/INSERT...SELECT strings; no user input concatenated."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 284,
+   "verdict": "false",
+   "reason": "Static DDL in Room migration (CREATE INDEX); no user input involved."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 314,
+   "verdict": "false",
+   "reason": "Room migration execSQL with constant ALTER/UPDATE statements; no user input concatenated."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 326,
+   "verdict": "false",
+   "reason": "Constant migration SQL (CREATE/INSERT...SELECT caldav_tasks); no untrusted input."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 345,
+   "verdict": "false",
+   "reason": "Constant ALTER TABLE ADD COLUMN migration statements; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 417,
+   "verdict": "false",
+   "reason": "Constant CREATE TABLE principals migration SQL; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "app/src/main/java/org/tasks/db/Migrations.kt",
+   "line": 443,
+   "verdict": "false",
+   "reason": "Static migration SQL with compile-time constants; no user input."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "termux",
+   "rule": "object_deserialization",
+   "path": "termux-shared/src/main/java/com/termux/shared/file/FileUtils.java",
+   "line": 1636,
+   "verdict": "overrated",
+   "reason": "ObjectInputStream reads app-written ReportInfo file via non-exported ReportActivity; no external attacker-controlled input path."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "termux",
+   "rule": "hardcoded_api_key",
+   "path": "termux-shared/src/main/java/com/termux/shared/termux/settings/preferences/TermuxPreferenceConstants.java",
+   "line": 260,
+   "verdict": "false",
+   "reason": "Flagged value is preference key \"terminal_view_key_logging_enabled\", not an API key."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "termux",
+   "rule": "hardcoded_api_key",
+   "path": "termux-shared/src/main/java/com/termux/shared/termux/settings/properties/TermuxPropertyConstants.java",
+   "line": 251,
+   "verdict": "false",
+   "reason": "KEY_TERMINAL_TRANSCRIPT_ROWS is a properties key name, not an API key."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "termux",
+   "rule": "hardcoded_api_key",
+   "path": "termux-shared/src/main/java/com/termux/shared/termux/settings/properties/TermuxPropertyConstants.java",
+   "line": 392,
+   "verdict": "false",
+   "reason": "Line lists property key name constants (KEY_DISABLE_...); no API key present."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "tivi",
+   "rule": "android_manifest_allow_backup",
+   "path": "android-app/app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "false",
+   "reason": "allowBackup=true but backup_rules/data_extraction_rules include only app preference files; auth stored via BlockStore, not backed up."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "wger",
+   "rule": "android_task_hijacking2",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "minSdk 26, singleTop launch mode; StrandHogg 2.0 is OS bug patched 2020; fitness app data, limited impact."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "IOS_BACKGROUND_MODES_UNNECESSARY",
+   "path": "ios/edge/Info.plist",
+   "line": 172,
+   "verdict": "false",
+   "reason": "Background fetch used for pending-login security alerts and push token refresh; legitimate use."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "scripts/ratesCacheReplay.ts",
+   "line": 259,
+   "verdict": "false",
+   "reason": "scripts/ratesCacheReplay.ts is a developer script, not shipped in app."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_NAVIGATION_PARAMS",
+   "path": "src/actions/DeepLinkingActions.tsx",
+   "line": 447,
+   "verdict": "false",
+   "reason": "tokenId is a public crypto asset/contract identifier, not sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/actions/PaymentProtoActions.tsx",
+   "line": 200,
+   "verdict": "overrated",
+   "reason": "Payment protocol fetch lacks timeout; availability/UX only, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/components/cards/InfoCardCarousel.tsx",
+   "line": 101,
+   "verdict": "false",
+   "reason": "console.error of promo card notification failure; no sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_NAVIGATION_PARAMS",
+   "path": "src/components/scenes/CoinRankingDetailsScene.tsx",
+   "line": 638,
+   "verdict": "false",
+   "reason": "tokenId is a public token identifier passed to stakeOptions; not sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "WEBVIEW_FILE_ACCESS",
+   "path": "src/components/scenes/ExtraTabScene.tsx",
+   "line": 38,
+   "verdict": "false",
+   "reason": "Plain WebView branch only when extraTab.tabType isn't edgeProvider; edge config has no extraTab; loads https URL, not file://."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/components/scenes/Fio/FioAddressRegisterScene.tsx",
+   "line": 134,
+   "verdict": "false",
+   "reason": "console.warn of error from public FIO domain list fetch; no secrets in that error."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/components/scenes/SendScene2.tsx",
+   "line": 917,
+   "verdict": "false",
+   "reason": "console.warn of pending-tx refresh error; no sensitive data in that error."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_NAVIGATION_PARAMS",
+   "path": "src/components/scenes/SettingsScene.tsx",
+   "line": 365,
+   "verdict": "overrated",
+   "reason": "Password passed to changeUsername route params; no navigation state persistence configured (no onStateChange/initialState), so stays in memory only."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "INSECURE_RANDOM",
+   "path": "src/components/services/NotificationService.ts",
+   "line": 138,
+   "verdict": "false",
+   "reason": "Date.now() compared against OTP reminder interval timestamps; time comparison, not randomness."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/components/services/WipeLogsService.tsx",
+   "line": 55,
+   "verdict": "false",
+   "reason": "Logs error from wiping expired logs; no sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_NAVIGATION_PARAMS",
+   "path": "src/components/themed/WalletListSwipeableCurrencyRow.tsx",
+   "line": 101,
+   "verdict": "false",
+   "reason": "tokenId is a public currency/token contract identifier, not secret; navigation params not sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/controllers/action-queue/runtime/executeActionProgram.ts",
+   "line": 99,
+   "verdict": "false",
+   "reason": "console.error of dry-run action program error; no secrets in error content."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/plugins/gift-cards/phazeApi.ts",
+   "line": 186,
+   "verdict": "overrated",
+   "reason": "fetch lacks timeout, but this is availability/UX, not a meaningful security weakness."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/plugins/gui/providers/kadoOtcProvider.ts",
+   "line": 272,
+   "verdict": "overrated",
+   "reason": "fetch to Kado API lacks timeout; availability issue only, not a meaningful security weakness."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/plugins/ramps/simplex/simplexRampPlugin.ts",
+   "line": 575,
+   "verdict": "overrated",
+   "reason": "Simplex quote fetch without timeout; only availability/UX hang, no security impact."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "src/plugins/stake-plugins/generic/util/stakeKitUtils.ts",
+   "line": 112,
+   "verdict": "overrated",
+   "reason": "fetch without timeout only risks hung requests (availability), not a security weakness of note."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "src/util/cryptoTextUtils.ts",
+   "line": 87,
+   "verdict": "false",
+   "reason": "Logs number formatting error; amounts formatting, no secrets."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "edge-wallet",
+   "rule": "HARDCODED_SECRETS",
+   "path": "src/util/fake-user.ts",
+   "line": 75,
+   "verdict": "false",
+   "reason": "fake-user.ts is a test user dump for MakeFakeEdgeWorld (CONFIG.USE_FAKE_CORE); hashes for in-memory fake server."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "components/QRCodeScanner.tsx",
+   "line": 133,
+   "verdict": "false",
+   "reason": "Logs error from toggling torch state; nothing sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "models/LoginRequest.ts",
+   "line": 1,
+   "verdict": "false",
+   "reason": "LoginRequest.ts is just a TypeScript interface {login,password}; no session logic."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/CashuStore.ts",
+   "line": 4631,
+   "verdict": "false",
+   "reason": "console.error of CDK restore error; error from mint restore contains no secrets shown in code."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/CashuStore.ts",
+   "line": 5593,
+   "verdict": "overrated",
+   "reason": "console.error of token-state check error ships in release, but error is library/mint error text, not token secret."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/CashuStore.ts",
+   "line": 6303,
+   "verdict": "overrated",
+   "reason": "console.error ships (no remove-console), but logs sweep failure error from mint; no secret shown in logged object."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/CashuStore.ts",
+   "line": 6583,
+   "verdict": "false",
+   "reason": "Shows local Cashu data-deletion error message to device owner; no backend secrets involved."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/NostrWalletConnectStore.ts",
+   "line": 979,
+   "verdict": "overrated",
+   "reason": "console.error of NWC update error ships in release, but it is a generic failure error; no secret evidently included."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/NostrWalletConnectStore.ts",
+   "line": 1047,
+   "verdict": "false",
+   "reason": "Logs failure loading NWC connections from storage; error object holds no connection secrets."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/NostrWalletConnectStore.ts",
+   "line": 1407,
+   "verdict": "false",
+   "reason": "Logs a storage save failure error for NWC; no secrets in error shown."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/NostrWalletConnectStore.ts",
+   "line": 2597,
+   "verdict": "false",
+   "reason": "Logs reconcile failure error; no secrets in error object."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/SwapStore.ts",
+   "line": 1048,
+   "verdict": "false",
+   "reason": "Reverse swap creation errors are API/validation messages; no secrets logged."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "stores/SwapStore.ts",
+   "line": 1970,
+   "verdict": "false",
+   "reason": "Logs storage update error for swap record; no secret material in error, normal error logging."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "stores/SweepStore.ts",
+   "line": 47,
+   "verdict": "overrated",
+   "reason": "fetch of mempool UTXO endpoint lacks timeout; availability/UX hang only, no confidentiality or integrity impact."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "stores/SweepStore.ts",
+   "line": 145,
+   "verdict": "overrated",
+   "reason": "Plain fetch to mempool API has no timeout; robustness issue, negligible security impact."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "utils/KeychainRecoveryUtils.ts",
+   "line": 789,
+   "verdict": "false",
+   "reason": "clearLegacyLocations returns early when !__DEV__; this logging never runs in release."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "utils/StealthModeUtils.ts",
+   "line": 33,
+   "verdict": "false",
+   "reason": "Logs native stealth-mode enable failure; nothing sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "utils/VssAuthUtils.ts",
+   "line": 1,
+   "verdict": "false",
+   "reason": "No session: per-request signed header with timestamp verified by VSS server; timeout concept not applicable."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SCREENSHOT_PROTECTION_MISSING",
+   "path": "views/Cashu/Mint.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "nsec field uses secureTextEntry (masked; iOS blanks in captures); screenshot reveals nothing secret."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "SENSITIVE_NAVIGATION_PARAMS",
+   "path": "views/Cashu/SendEcash.tsx",
+   "line": 321,
+   "verdict": "false",
+   "reason": "No navigation state persistence configured in Zeus; ecash token stays in memory and is displayed as QR anyway."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "zeus",
+   "rule": "JAVASCRIPT_ENABLED_BRIDGE",
+   "path": "views/PendingHTLCs.tsx",
+   "line": 349,
+   "verdict": "false",
+   "reason": "setPersistentMode receives a boolean from a toggle; no untrusted input."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "proton-pass-android",
+   "rule": "kotlin.lang.security.use-of-sha1.use-of-sha1",
+   "path": "pass/data/impl/src/main/kotlin/proton/android/pass/data/impl/util/Sha1.kt",
+   "line": 24,
+   "verdict": "false",
+   "reason": "SHA-1 used only for HIBP k-anonymity password lookup (CompromisedPasswordRepositoryImpl), as protocol requires; not a signature."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "kotlin.lang.security.use-of-sha1.use-of-sha1",
+   "path": "app/src/googleplay/java/org/tasks/billing/Security.kt",
+   "line": 120,
+   "verdict": "false",
+   "reason": "SHA1withRSA used to verify Google Play billing signatures, the algorithm Google mandates; attacker cannot obtain Google's signature for colliding data."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "tasks",
+   "rule": "kotlin.lang.security.use-of-md5.use-of-md5",
+   "path": "app/src/main/java/com/todoroo/astrid/provider/Astrid2TaskProvider.kt",
+   "line": 132,
+   "verdict": "false",
+   "reason": "MD5 used to derive a numeric ID from tag name (tagNameToLong), not for security."
+  }
+ ]
+}
