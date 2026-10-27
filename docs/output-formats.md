@@ -58,7 +58,8 @@ Each finding has:
 - **Rating:** `severity` (the rule's), `effective_severity` (after your app type and the file's scope),
   `bucket`, `bucket_reason`, `confidence` (`high`, `medium`, or `manual` for *Check by hand*), `kind`
   (`weakness`, or `hardening` for a protection the app has nowhere), and
-  `scope` (`main`, `build-script`, `ci`, `debug`, `test`, or `unknown`).
+  `scope` (`main`, `build-script`, `ci`, `debug`, `test`, `unshipped`, or `unknown`; `unshipped` is a Gradle
+  module no shipped mobile app uses, such as a demo app or a desktop app).
 - **Status:** `status` (`open`, `suppressed`, or `baselined`), `suppression_reason`, and
   `acknowledged` (a decision recorded for another tool, such as Lint's `tools:ignore`).
 - **Advice:** `why`, `fix`, `verify`, `effort`, `safe_fix`, and the references `maswe`, `masvs`,

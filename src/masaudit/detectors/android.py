@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import bisect
+import collections
 import datetime
 import fnmatch
 import itertools
@@ -90,7 +91,29 @@ def _sites(matches):
 
 
 def _build_types_of(ctx: Context, path: str, code: str, blank: str) -> Dict[str, gradle.BuildType]:
-    return _memo(ctx, "build_types:" + path, lambda: gradle.build_types(code, blank))
+    return _memo(ctx, "build_types:" + path, lambda: gradle.build_types(_named_by_constant(ctx, code), blank))
+
+
+# `create(BuildTypes.LEAK_CANARY) {`, `getByName(Flavors.QA) {`: a build type or flavor named by a constant.
+_CONST_NAMED = re.compile(r"\b(?P<fn>getByName|named|create|maybeCreate|register)\s*\(\s*"
+                          r"(?P<ref>(?:[A-Z]\w*\.)?[A-Z][A-Z0-9_]*)\s*\)")
+
+
+def _named_by_constant(ctx: Context, code: str) -> str:
+    """`code` with each constant that names a block replaced by its string literal, padded with spaces to the
+    same length (so offsets still line up). A constant masaudit can't resolve, or whose literal is longer, stays."""
+    if not _CONST_NAMED.search(code):
+        return code
+    consts = _string_constants(ctx)
+    out, last = [], 0
+    for m in _CONST_NAMED.finditer(code):
+        value = consts.get(m.group("ref").rsplit(".", 1)[-1])
+        ref = m.group("ref")
+        if value is None or not re.fullmatch(r"[\w.-]+", value) or len(value) + 2 > len(ref):
+            continue
+        out += [code[last:m.start("ref")], ('"' + value + '"').ljust(len(ref))]
+        last = m.end("ref")
+    return "".join(out) + code[last:] if out else code
 
 
 def _manifests(ctx: Context) -> Iterator[Tuple[str, Element]]:
@@ -366,7 +389,8 @@ def _modules(ctx: Context) -> Dict[str, _Module]:
                     if value:
                         ids.append(value)
             out[d] = _Module(d, kinds.get(d, "unknown"), _build_types_of(ctx, path, code, blank),
-                             gradle.product_flavors(code, blank), gradle.dependencies(code), ids)
+                             gradle.product_flavors(_named_by_constant(ctx, code), blank), gradle.dependencies(code),
+                             ids)
         return out
     return _memo(ctx, "modules", compute)
 
@@ -447,34 +471,368 @@ _TEST_VARIANT = re.compile(r"(?i)test|benchmark|screenshot|lint|ksp|kapt|detekt"
 
 
 def _module_scopes(ctx: Context) -> Dict[str, str]:
-    """Modules wired in only through debug or non-release configurations (`internalImplementation`)."""
+    """Module dir -> "debug", "test", or "unshipped" for modules the shipped app doesn't use as release code.
+    From the module graph when it can be read (see _ship_graph); otherwise modules wired in only through debug
+    or non-release configurations (`internalImplementation`) are "debug"."""
     def compute() -> Dict[str, str]:
-        mods = _modules(ctx)
-        by_base: Dict[str, List[str]] = {}
-        for d in mods:
-            by_base.setdefault(d.rsplit("/", 1)[-1], []).append(d)
-        refs: Dict[str, Set[str]] = {}
-        for m in mods.values():
-            for dep in m.deps:
-                for proj in dep.projects:
-                    target = proj.strip(":").replace(":", "/")
-                    if target not in mods:
-                        cands = by_base.get(target.rsplit("/", 1)[-1], [])
-                        if len(cands) != 1:
-                            continue
-                        target = cands[0]
-                    if _TEST_VARIANT.search(dep.variant):
-                        refs.setdefault(target, set()).add("test")
-                    else:
-                        refs.setdefault(target, set()).add(_variant_kind(ctx, m.dir, dep.variant))
-        out: Dict[str, str] = {}
-        for target, kinds in refs.items():
-            if mods.get(target) and mods[target].kind == "app":
-                continue
-            if "release" not in kinds and kinds & {"debug", "nonrelease"}:
-                out[target] = "debug"
-        return out
+        graph = _ship_graph(ctx)
+        return graph if graph is not None else _debug_only_modules(ctx)
     return _memo(ctx, "module_scopes", compute)
+
+
+def _debug_only_modules(ctx: Context) -> Dict[str, str]:
+    """Modules every direct reference to wires in through a debug or non-release configuration."""
+    mods = _modules(ctx)
+    refs: Dict[str, Set[str]] = {}
+    for m in mods.values():
+        for dep in m.deps:
+            for target in _dep_targets(ctx, m.dir, dep):
+                refs.setdefault(target, set()).add(_edge_kind(ctx, m, dep))
+    out: Dict[str, str] = {}
+    for target, kinds in refs.items():
+        if mods.get(target) and mods[target].kind == "app":
+            continue
+        if "release" not in kinds and kinds & {"debug", "nonrelease"}:
+            out[target] = "debug"
+    return out
+
+
+# An app module that isn't the product: a feature demo, a sample, an end-to-end or benchmark harness.
+_DEMO_APP = re.compile(r"(?i)(?:^|[-_.])(?:demo|demos|sample|samples|example|examples|e2e|integration|playground|showcase|sandbox"
+                       r"|catalog|benchmark|benchmarks|test|tests|testapp|harness)(?:$|[-_.])"
+                       r"|^(?:demo|sample|example|test)\w*apps?$|(?:demo|sample|example|test)apps?$")
+# Gradle plugins and build logic: never part of the app, and never "unshipped" either (they shape the build).
+_PLUGIN_MODULE = re.compile(r"`kotlin-dsl`|\bkotlin-dsl\b|java-gradle-plugin|\bgradlePlugin\s*\{")
+_BUILD_LOGIC_DIR = re.compile(r"(?i)(?:^|/)(?:build-?logic|buildSrc|build-?plugins?|convention|gradle)(?:/|$)")
+# A Kotlin Multiplatform module that an Xcode project links: it ships in the iOS app.
+# Any module with an iOS target counts: one an Xcode project links is easy to miss (`binaries { framework {`).
+_IOS_FRAMEWORK = re.compile(r"\bbinaries\b|\bXCFramework\b|\bcocoapods\s*\{|\.framework\s*\{|\bembedAndSignAppleFrameworkForXcode\b"
+                            r"|\bios(?:X64|Arm64|SimulatorArm64)?\s*\(")
+# The Android app plugin, also as a catalog alias (`libs.plugins.androidApplication`) or convention plugin id.
+_APP_PLUGIN_ANY = re.compile(r"com\.android\.application|android[.-]?[Aa]pplication")
+_APPLICATION_ID = re.compile(r"(?<![\w.])applicationId\s*(?:=|\(|[ \t]+[\"'A-Z])")
+_PLUGIN_ID = re.compile(r"\bid\s*\(?\s*[\"']([\w.-]+)[\"']|alias\s*\(\s*libs\.plugins\.([\w.]+)\s*\)")
+# Folders whose package manifest links native modules without Gradle (React Native autolinking, Flutter plugins).
+_PACKAGE_MANIFESTS = ("package.json", "pubspec.yaml")
+_APPLE_FILE = re.compile(r"\.(?:swift|m|mm|h|plist|entitlements|xcconfig|pbxproj|storyboard|xib|xcscheme)$|\.xc(?:odeproj|workspace)/")
+_SETTINGS_FILES = ("settings.gradle", "settings.gradle.kts")
+_PROJECT_DIR = re.compile(r"project\s*\(\s*[\"'](?P<path>:[^\"']+)[\"']\s*\)\s*\.\s*projectDir\s*=\s*(?:file|File)\s*\("
+                          r"\s*(?:rootDir\s*,\s*|rootProject\.projectDir\s*,\s*)?[\"'](?:\$rootDir/|\$\{rootDir\}/)?"
+                          r"(?P<dir>[^\"']+)[\"']")
+# Any Gradle project path in quotes (`":core"`, also inside `project(":core")` or a `listOf(":a", ":b")` loop) or
+# type-safe accessor (`projects.core.ui`).
+_ANY_PROJECT_REF = re.compile(r"[\"'](:[\w.-]+(?::[\w.-]+)*)[\"']|(?<![\w.])projects\.((?:\w+\.)*\w+)")
+# Project dependencies computed by code: `project(name)`, `project("$prefix:$name")`, `findProject(...)`,
+# `rootProject.subprojects.filter { }`. Then any module may be wired in, and only demo apps are decided.
+_DYNAMIC_PROJECT = re.compile(r"\b(?:project|findProject)\s*\(\s*(?!(?:path\s*[:=]\s*)?[\"'](?::[\w.-]+)+[\"']\s*[,)])"
+                              r"|\b(?:subprojects|childProjects|allprojects)\s*(?:\.\s*(?:values\s*\.\s*)?)?"
+                              r"(?:forEach|filter|map|each|findAll|onEach|asSequence)\b"
+                              r"|[\"']:[\w.:-]*\$")
+_TEST_MODULE_WORDS = {"test", "tests", "testing", "testutils", "fake", "fakes", "mock", "mocks", "fixtures", "stub", "stubs"}
+_TEST_BLOCK = re.compile(r"(?:\b[Tt]est|[a-z0-9]Test)\w*")
+
+
+def _settings_roots(ctx: Context) -> List[str]:
+    """Folders holding a settings.gradle(.kts), deepest first: each roots one Gradle build."""
+    def compute() -> List[str]:
+        roots = {posixpath.dirname(p) for p in ctx.files(*_SETTINGS_FILES) if p.rsplit("/", 1)[-1] in _SETTINGS_FILES}
+        return sorted(roots, key=lambda d: -d.count("/") - (1 if d else 0))
+    return _memo(ctx, "settings_roots", compute)
+
+
+def _build_root(ctx: Context, module_dir: str) -> str:
+    cache: Dict[str, str] = _memo(ctx, "build_root", dict)
+    if module_dir not in cache:
+        cache[module_dir] = next((root for root in _settings_roots(ctx)
+                                  if not root or module_dir == root or module_dir.startswith(root + "/")), "")
+    return cache[module_dir]
+
+
+def _module_names(ctx: Context) -> Tuple[Dict[str, List[str]], Dict[Tuple[str, str], List[str]]]:
+    """Module dirs by normalized path, and by (build root, normalized folder name)."""
+    def compute():
+        by_path: Dict[str, List[str]] = {}
+        by_base: Dict[Tuple[str, str], List[str]] = {}
+        for d in _modules(ctx):
+            by_path.setdefault(_norm(d), []).append(d)
+            by_base.setdefault((_build_root(ctx, d), _norm(d.rsplit("/", 1)[-1])), []).append(d)
+        return by_path, by_base
+    return _memo(ctx, "module_names", compute)
+
+
+def _norm(path: str) -> str:
+    return re.sub(r"[-_.]", "", path).lower()
+
+
+def _project_dirs(ctx: Context) -> Dict[Tuple[str, str], str]:
+    """(build root, ":gradle:path") -> module dir, from `project(":x").projectDir = file("...")` in settings."""
+    def compute() -> Dict[Tuple[str, str], str]:
+        out: Dict[Tuple[str, str], str] = {}
+        for path in ctx.files(*_SETTINGS_FILES):
+            if path.rsplit("/", 1)[-1] not in _SETTINGS_FILES:
+                continue
+            root = posixpath.dirname(path)
+            for m in _PROJECT_DIR.finditer(ctx.code(path, True) or ""):
+                d = posixpath.normpath(posixpath.join(root, m.group("dir").strip("/")))
+                out[(root, m.group("path"))] = "" if d == "." else d
+        return out
+    return _memo(ctx, "project_dirs", compute)
+
+
+def _resolve_project(ctx: Context, from_dir: str, gradle_path: str) -> Optional[str]:
+    """The module dir a `project(":a:b")` or `projects.a.b` reference in `from_dir`'s build file names."""
+    mods = _modules(ctx)
+    root = _build_root(ctx, from_dir)
+    mapped = _project_dirs(ctx).get((root, gradle_path))
+    if mapped is not None and mapped in mods:
+        return mapped
+    rel = gradle_path.strip(":").replace(":", "/")
+    direct = posixpath.join(root, rel) if root else rel
+    if direct in mods:
+        return direct
+    # Type-safe accessors drop dashes and use camel case (projects.feature.homeDemo for :feature:home-demo).
+    by_path, by_base = _module_names(ctx)
+    same = by_path.get(_norm(direct), [])
+    if len(same) == 1:
+        return same[0]
+    named = by_base.get((root, _norm(rel.rsplit("/", 1)[-1])), [])
+    return named[0] if len(named) == 1 else None
+
+
+def _dep_targets(ctx: Context, from_dir: str, dep: gradle.Dependency) -> List[str]:
+    if not dep.projects:
+        return []
+    out = []
+    for proj in dep.projects:
+        target = _resolve_project(ctx, from_dir, proj)
+        if target is not None and target != from_dir:
+            out.append(target)
+    return out
+
+
+def _test_source_set_deps(ctx: Context, path: str, code: str, blank: str, indexes: List[int]) -> Set[int]:
+    """The dependency offsets in `indexes` that sit inside a Kotlin Multiplatform test source set:
+    `commonTest.dependencies { }`, `val androidUnitTest by getting { }`, `getByName("jvmTest") { }`.
+    One pass over the braces, keeping whether any enclosing block is a test one."""
+    def compute() -> Set[int]:
+        events: List[Tuple[int, int]] = []            # (offset, +1 open / -1 close)
+        for open_at, close_at in gradle._brace_pairs(blank).items():
+            events.append((open_at, 1))
+            events.append((close_at, -1))
+        events.sort()
+        out: Set[int] = set()
+        stack: List[bool] = []
+        targets = sorted(indexes)
+        t = 0
+        for at, kind in events + [(len(blank) + 1, 0)]:
+            while t < len(targets) and targets[t] < at:
+                if stack and stack[-1]:
+                    out.add(targets[t])
+                t += 1
+            if kind == 1:
+                line_start = blank.rfind("\n", 0, at) + 1
+                test = bool(_TEST_BLOCK.search(code[max(line_start, at - 120):at]))
+                stack.append(test or (bool(stack) and stack[-1]))
+            elif kind == -1 and stack:
+                stack.pop()
+        return out
+    return _memo(ctx, "test_source_set_deps:" + path, compute)
+
+
+def _edge_kind(ctx: Context, module: "_Module", dep: gradle.Dependency) -> str:
+    """"release", "debug", "nonrelease", or "test": which builds a dependency declaration is part of."""
+    if _TEST_VARIANT.search(dep.variant):
+        return "test"
+    kind = _variant_kind(ctx, module.dir, dep.variant)
+    if kind == "release" and not dep.variant:
+        path = next((module.dir + "/" + f if module.dir else f for f in BUILD_FILES
+                     if ctx.text(module.dir + "/" + f if module.dir else f) is not None), None)
+        if path is not None:
+            code, blank = ctx.code(path, True) or "", ctx.code(path, False) or ""
+            if "Test" in code and dep.index in _test_source_set_deps(ctx, path, code, blank,
+                                                                     [d.index for d in module.deps]):
+                return "test"
+    return kind
+
+
+def _convention_apps(ctx: Context) -> Set[str]:
+    """Ids of the convention plugins in build logic that apply the Android app plugin: a precompiled script
+    `<id>.gradle.kts`, or a plugin class registered under that id."""
+    def compute() -> Set[str]:
+        out: Set[str] = set()
+        sources = [p for p in ctx.files(".kts", ".kt", ".gradle") if _BUILD_LOGIC_DIR.search(p)]
+        apps = {p for p in sources if _APP_PLUGIN_ANY.search(ctx.code(p, True) or "")}
+        for p in apps:
+            name = p.rsplit("/", 1)[-1]
+            if name.endswith((".gradle.kts", ".gradle")):
+                out.add(re.sub(r"\.gradle(?:\.kts)?$", "", name))
+            out.add(re.sub(r"\.kt$", "", name))          # a plugin class, matched by implementationClass below
+        for p in sources:
+            code = ctx.code(p, True) or ""
+            for m in re.finditer(r"\bid\s*=\s*[\"']([\w.-]+)[\"'][^}]{0,300}?implementationClass\s*=\s*[\"']([\w.]+)[\"']",
+                                 code):
+                if m.group(2).rsplit(".", 1)[-1] in out:
+                    out.add(m.group(1))
+        return out
+    return _memo(ctx, "convention_apps", compute)
+
+
+def _is_app_module(ctx: Context, code: str) -> bool:
+    """The build file makes an Android app: applies the app plugin (not only `apply false`, as a root build
+    file does), a convention plugin that applies it, or sets an applicationId (only apps have one)."""
+    if _applies_app_plugin(code) or _APPLICATION_ID.search(code):
+        return True
+    conventions = _convention_apps(ctx)
+    for m in _PLUGIN_ID.finditer(code):
+        pid = m.group(1) or m.group(2)
+        if pid in conventions or pid.replace(".", "-") in conventions:
+            return True
+    return False
+
+
+def _applies_app_plugin(code: str) -> bool:
+    """The build file applies the Android app plugin: not only lists it with `apply false` (a root build file)."""
+    for m in _APP_PLUGIN_ANY.finditer(code):
+        nl = code.find("\n", m.end())
+        if not re.search(r"\bapply\s*\(?\s*false\b", code[m.end():len(code) if nl == -1 else nl]):
+            return True
+    return False
+
+
+def _ship_graph(ctx: Context) -> Optional[Dict[str, str]]:
+    """Which Gradle modules end up in the shipped app, from the module graph.
+
+    Roots are the app modules that are the product (not a demo, sample, or test harness) and Kotlin
+    Multiplatform modules an iOS app links. A module reached from a root through release dependencies ships;
+    through debug or non-release ones it is "debug"; only through test ones, "test". A module no root reaches
+    is "unshipped", but only when every reference to it in a build file is a dependency masaudit read: a
+    module named anywhere else (a loop, a convention plugin, a custom configuration) is left alone.
+    None when there is no root to start from (a library, or only demo apps): nothing is decided then."""
+    mods = _modules(ctx)
+    if not mods:
+        return None
+    ios = "ios" in ctx.project.platforms
+
+    def build_file(d: str) -> Optional[str]:
+        return next((d + "/" + f if d else f for f in BUILD_FILES if ctx.text(d + "/" + f if d else f) is not None), None)
+
+    plugin_like: Set[str] = set()
+    roots: List[str] = []
+    demo_apps: List[str] = []
+    for d in mods:
+        code = ctx.code(build_file(d) or "", True) or ""
+        if _BUILD_LOGIC_DIR.search(d) or _PLUGIN_MODULE.search(code):
+            plugin_like.add(d)
+            continue
+        name = d.rsplit("/", 1)[-1]
+        not_product = bool(any(_DEMO_APP.search(seg) for seg in d.split("/")) or _NONRELEASE_FLAVOR.search(name)
+                           or _scope_of(d + "/x.kt") in ("test", "debug"))
+        if _is_app_module(ctx, code):
+            (demo_apps if not_product else roots).append(d)
+        elif ios and _IOS_FRAMEWORK.search(code) and not not_product:
+            roots.append(d)
+    if not roots:
+        return None
+
+    edges: Dict[str, List[Tuple[str, str]]] = {}
+    parsed_refs: Dict[str, "collections.Counter[str]"] = {}      # module -> project paths read as dependencies
+    for d, m in mods.items():
+        for dep in m.deps:
+            for target in _dep_targets(ctx, d, dep):
+                edges.setdefault(d, []).append((target, _edge_kind(ctx, m, dep)))
+            parsed_refs.setdefault(d, collections.Counter()).update(dep.projects)
+    # Modules named somewhere masaudit didn't read as a dependency: never call those unshipped.
+    unclear: Set[str] = set()
+    by_name: Dict[str, List[str]] = {}
+    for d in mods:
+        by_name.setdefault(_norm(d.rsplit("/", 1)[-1]), []).append(d)
+    dynamic = False
+    logic_dirs = tuple(d + "/" for d in plugin_like if d)
+    for path in ctx.files(".gradle", ".kts", ".kt"):
+        name = path.rsplit("/", 1)[-1]
+        if name in _SETTINGS_FILES:
+            continue
+        if path.endswith(".kt") and not (_BUILD_LOGIC_DIR.search(path) or path.startswith(logic_dirs)):
+            continue
+        code = ctx.code(path, True) or ""
+        if not dynamic and _DYNAMIC_PROJECT.search(code):
+            dynamic = True
+        refs = collections.Counter(r.group(1) or ":" + r.group(2).replace(".", ":")
+                                   for r in _ANY_PROJECT_REF.finditer(code))
+        if not refs:
+            continue
+        d = posixpath.dirname(path)
+        if name in BUILD_FILES and d in mods:
+            refs -= parsed_refs.get(d, collections.Counter())
+        for proj in refs:
+            target = _resolve_project(ctx, d if d in mods else _build_root(ctx, d), proj)
+            if target is not None:
+                unclear.add(target)
+            # Build logic is often its own included build, so its paths name modules of another build: take
+            # every module with that folder name.
+            unclear.update(by_name.get(_norm(proj.rsplit(":", 1)[-1]), ()))
+
+    # A Gradle build's root project (settings, wrapper, top-level build file) and any folder holding a shipped
+    # app module belong to the build itself.
+    builds = set(_settings_roots(ctx))
+    holders = {d for d in mods if any(r.startswith(d + "/") for r in roots)}
+    names = set(ctx.project.files)
+
+    def linked_by_package(d: str) -> bool:
+        """Inside a React Native or Flutter package, which links its native code without Gradle."""
+        while True:
+            if any((d + "/" + f if d else f) in names for f in _PACKAGE_MANIFESTS):
+                return True
+            if not d:
+                return False
+            d = posixpath.dirname(d)
+
+    _CACHES.setdefault(ctx, {})["ship_edges"] = edges
+
+    def reach(allowed: Set[str]) -> Set[str]:
+        seen = set(roots)
+        stack = list(roots)
+        while stack:
+            for target, kind in edges.get(stack.pop(), []):
+                if kind in allowed and target not in seen:
+                    seen.add(target)
+                    stack.append(target)
+        return seen
+
+    if dynamic:
+        out = _debug_only_modules(ctx)
+        # A module named as test code (common-test, fakes, testing) and wired in only through test
+        # configurations: dynamic wiring adds features, not test fixtures.
+        def test_named(d: str) -> bool:
+            return bool(set(re.split(r"[-_.]", d.rsplit("/", 1)[-1].lower())) & _TEST_MODULE_WORDS)
+
+        test_refs: Dict[str, Set[str]] = {}
+        for src, targets in edges.items():
+            if src in demo_apps or test_named(src):
+                continue                      # a demo app or a fake wiring a fixture in says nothing
+            for target, kind in targets:
+                test_refs.setdefault(target, set()).add(kind)
+        for target, kinds in test_refs.items():
+            if kinds == {"test"} and test_named(target) and target not in holders:
+                out[target] = "test"
+        for d in demo_apps:
+            if d not in holders and not linked_by_package(d):
+                out[d] = "unshipped"
+        return out
+    release = reach({"release"})
+    debug = reach({"release", "debug", "nonrelease"})
+    anything = reach({"release", "debug", "nonrelease", "test"})
+    out: Dict[str, str] = {}
+    for d in mods:
+        if d in release or d in plugin_like or not d or d in builds or d in holders or linked_by_package(d):
+            continue
+        if d in debug:
+            out[d] = "debug"
+        elif d in anything:
+            out[d] = "test"
+        elif d not in unclear:
+            out[d] = "unshipped"
+    return out
 
 
 _PLAYGROUND = {"playground", "showcase", "testharness", "test-harness"}
@@ -493,9 +851,46 @@ def _scope(ctx: Context, path: str) -> str:
     ss = _source_set(path)
     if ss and ss != "main" and _variant_kind(ctx, module, ss) != "release":
         return "debug"
-    if _module_scopes(ctx).get(module) == "debug":
-        return "debug"
+    module_scope = _module_scope(ctx, path)
+    if module_scope:
+        return module_scope
     return "main"
+
+
+def _module_scope(ctx: Context, path: str) -> str:
+    """"debug", "test", or "unshipped" when the Gradle module holding `path` isn't part of the shipped app
+    as release code; "" otherwise."""
+    scopes = _module_scopes(ctx)
+    if not scopes or _APPLE_FILE.search(path):
+        return ""            # an Xcode project kept inside a Gradle module folder is the iOS app's
+    d = posixpath.dirname(path)
+    while True:
+        if d in scopes:
+            return scopes[d]
+        if d in _modules(ctx) or not d:
+            return ""
+        d = posixpath.dirname(d)
+
+
+def _release_deps(ctx: Context, module_dir: str) -> Set[str]:
+    """The modules `module_dir` pulls into its release build through project dependencies, transitively."""
+    _module_scopes(ctx)                          # builds the dependency edges
+    edges: Dict[str, List[Tuple[str, str]]] = _CACHES.get(ctx, {}).get("ship_edges") or {}
+    seen: Set[str] = set()
+    stack = [module_dir]
+    while stack:
+        for target, kind in edges.get(stack.pop(), []):
+            if kind == "release" and target not in seen:
+                seen.add(target)
+                stack.append(target)
+    return seen
+
+
+def module_scope(ctx: Context, path: str) -> str:
+    """For the engine: the module scope of any file in an Android project (see _module_scope)."""
+    if "android" not in ctx.project.platforms:
+        return ""
+    return _module_scope(ctx, path)
 
 
 def _release_path(ctx: Context, path: str) -> bool:
@@ -3542,12 +3937,22 @@ def backup(ctx: Context, rule: Rule) -> Iterable[Hit]:
                        ack=_ack(ctx, path, app, "AllowBackup", "DataExtractionRules"))
         elif entry.main is not None and entry.kind == "app":
             path, app = entry.main
+            # The manifest merger takes a library's value when the app sets none: a library module the app
+            # ships with that turns backup off, or adds backup rules, does it for the app.
+            deps = _release_deps(ctx, entry.module)
+            manifests = libs + [m for e in apps.values() for m in e.release]
+            inherited = [a for p, a in manifests if _module_of(p) in deps and _scope(ctx, p) == "main"]
+            values = {xmlsafe.is_true(a.get("android:allowBackup")) for a in inherited
+                      if a.get("android:allowBackup") is not None}
+            off = values == {False} or (not values and any(a.get("android:dataExtractionRules")
+                                                           or a.get("android:fullBackupContent") for a in inherited))
             from_lib = [p for p, a in libs if xmlsafe.is_true(a.get("android:allowBackup"))]
             msg = ("allowBackup isn't set, so Android backs up the app's files by default, and there are no rules "
                    "excluding sensitive files.")
             if from_lib:
                 msg += f" The library manifest {from_lib[0]} also sets allowBackup=\"true\"."
-            yield _hit(ctx, path, app.line, msg, ack=_ack(ctx, path, app, "AllowBackup", "DataExtractionRules"))
+            if not off:
+                yield _hit(ctx, path, app.line, msg, ack=_ack(ctx, path, app, "AllowBackup", "DataExtractionRules"))
         # debug or non-release overlays that turn backup on are reported in their own (lowered) scope
         for path, app in entry.other:
             if xmlsafe.is_true(app.get("android:allowBackup")):

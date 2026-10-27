@@ -37,7 +37,11 @@ only to listed app types.
    never dropped, so you can disagree.
 2. **How severe is it here?** The rule's severity is the starting point (a detector can rate one hit
    higher or lower, and the finding says why). A finding in code that
-   usually doesn't ship is lowered: two levels in debug code, four in tests. A finding your team
+   usually doesn't ship is lowered: two levels in debug code, four in tests and in Gradle modules no
+   shipped mobile app uses. masaudit reads the Gradle module graph from the app modules that are the
+   product: a module reached only through debug or test dependencies counts as debug or test code, and a
+   demo app, test harness, desktop app, or module nothing depends on counts as *unshipped*. When the
+   build wires modules together in code it can't read, it decides only the demo and test apps. A finding your team
    already marked as intentional for another tool, such as Android Lint's `tools:ignore`, is lowered
    one level and shows that decision.
 3. **Which bucket?** Critical and high go to **Fix before release**; medium and low to **Fix soon**;

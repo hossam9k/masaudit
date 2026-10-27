@@ -68,6 +68,14 @@ CASES = [  # (what, {path: text}); each was 25 s to hours at this size
                                                  'val c = Cipher.getInstance("AES/ECB/PKCS5Padding")\n' + rep("@Preview\n")}),
     ("KMP-006 settings writes", {**KMP, COMMON: "import com.russhwolf.settings.Settings\nval s = Settings()\n"
                                                 + rep("prefs.putString(kToken, v)\n")}),
+    # 0.7.0: the Gradle module graph
+    ("dependencies in nested test blocks", {**ANDROID, **KMP, "shared/build.gradle.kts": 'plugins { kotlin("multiplatform") }\n'
+                                            + rep('commonTest.dependencies { implementation(project(":shared")) ')
+                                            + "}" * (N // 66)}),
+    ("project references across many builds", {**ANDROID, **{f"b{i}/settings.gradle.kts": "" for i in range(300)},
+                                               "app/build.gradle": "plugins { id 'com.android.application' }\n"
+                                               + "".join(f'dependencies {{ implementation(project(":m{i}")) }}\n'
+                                                         for i in range(N // 45))}),
 ]
 
 

@@ -283,7 +283,7 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
                                       snippet=safety.clean_text(safety.mask_names(h.snippet)),
                                       fingerprint_text=h.snippet),
                     message=safety.clean_text(h.message),
-                    scope=h.scope or (_scope_at(ctx, h.path, h.line) if h.path else "main"),
+                    scope=_shipped(ctx, h.path, h.scope or (_scope_at(ctx, h.path, h.line) if h.path else "main")),
                     acknowledged=h.acknowledged,
                     severity=h.severity,
                 )
@@ -334,6 +334,15 @@ def _preview_lines(ctx: Context, path: str) -> List[Tuple[int, int]]:
         spans = _preview_spans(blank, path.endswith(".kt")) if "Preview" in blank else []
         ctx._previews[path] = [(ctx.line_of(blank, a), ctx.line_of(blank, max(a, b - 1))) for a, b in spans]
     return ctx._previews[path]
+
+
+def _shipped(ctx: Context, path: str, scope: str) -> str:
+    """`scope`, or the scope of the Gradle module holding `path` when that module isn't release code in the
+    shipped app ("debug", "test", or "unshipped": a demo app, a test harness, a module nothing uses)."""
+    if not path or scope not in ("main", "build-script"):
+        return scope
+    from masaudit.detectors import android
+    return android.module_scope(ctx, path) or scope
 
 
 def _scope_at(ctx: Context, path: str, line: int) -> str:
@@ -403,7 +412,15 @@ def _import_detectors() -> None:
 
 # ---------------------------------------------------------------------------- calibration
 
-SCOPE_DOWNGRADE = {"main": 0, "build-script": 0, "ci": 0, "unknown": 0, "debug": 2, "test": 4}
+SCOPE_DOWNGRADE = {"main": 0, "build-script": 0, "ci": 0, "unknown": 0, "debug": 2, "test": 4, "unshipped": 4}
+
+
+_LOWERED = {
+    "debug": "Lowered because it's in debug code. ",
+    "test": "Lowered because it's in test code. ",
+    "unshipped": "Lowered because no mobile app module that ships uses this code (a demo, test, or desktop "
+                 "app, or an unused module). ",
+}
 
 
 def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
@@ -432,7 +449,7 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
             f.bucket = "fix-soon"
         else:
             f.bucket = "notes"
-        if rule.kind == "hardening" and f.scope not in ("debug", "test"):
+        if rule.kind == "hardening" and f.scope not in ("debug", "test", "unshipped"):
             # A protection the app has nowhere (root detection, App Attest, a forced update): a checklist item
             # for this app type, not a flaw in a line of code. Benchmarks on unseen apps found these almost never
             # a vulnerability as described.
@@ -442,11 +459,11 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
         if rule.confidence == "manual" and f.bucket in ("fix-before-release", "fix-soon"):
             # A rule that often misreads code: listed to check, never a release blocker or a --fail-on failure.
             f.bucket = "check-by-hand"
-            lowered = f"Lowered because it's in {f.scope} code. " if f.scope in ("debug", "test") else ""
+            lowered = _LOWERED.get(f.scope, "")
             f.bucket_reason = lowered + "This rule often needs context a scanner can't see: confirm it before fixing."
             continue
-        if f.scope in ("debug", "test"):
-            f.bucket_reason = f"Lowered because it's in {f.scope} code."
+        if f.scope in _LOWERED:
+            f.bucket_reason = _LOWERED[f.scope].strip()
         elif f.acknowledged:
             f.bucket_reason = (f"Lowered one level: the source marks this as intentional ({f.acknowledged}). "
                                "Confirm the reason is written down.")

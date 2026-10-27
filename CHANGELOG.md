@@ -5,6 +5,24 @@ their own version (`rules_version`), shown in every report.
 
 ## Unreleased
 
+### Changed
+
+- **masaudit reads which Gradle modules ship.** It follows the module graph from the app modules that are the
+  product (not a demo, sample, or test app; also Kotlin Multiplatform modules an iOS app links), through
+  release, debug, and test dependencies, transitively and inside Kotlin Multiplatform test source sets.
+  Findings in a module reached only through debug or test dependencies are lowered as debug or test code;
+  findings in a demo app, a test harness, a desktop app, or a module nothing depends on get the new scope
+  `unshipped` and are lowered four levels, to Notes. A module named anywhere masaudit can't read as a
+  dependency is never called unshipped, and when the build wires modules in code (`project(name)`,
+  `subprojects.filter { }`), only demo and test apps are. React Native and Flutter package modules, Gradle
+  build roots, and Xcode projects in a module folder are never lowered. On the findings judged in benchmark
+  rounds 3 and 4, this and the two changes below take 10 false alarms out of the fix lists and no real finding.
+- A build type or flavor named by a constant (`create(BuildTypes.LEAK_CANARY)`) is read: a debug tool added
+  through `leakCanaryImplementation` is no longer reported as shipping in release (AND-037).
+- AND-021 reads the merged manifest: when the app's manifest doesn't set `allowBackup`, a library module the
+  app ships with (through release dependencies) that sets it to `false`, or adds backup rules, turns backup
+  off for the app, as the manifest merger does.
+
 ### Docs
 
 - [Benchmark on unseen apps](docs/benchmark.md), round 4: 0.6.5 on 16 more apps. 33% (23–44%) of the
