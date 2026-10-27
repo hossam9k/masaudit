@@ -292,6 +292,8 @@ def run(project: Project, rules: List[Rule], profile: Optional[Profile] = None) 
             if n > MAX_HITS_PER_FILE:
                 ctx.note_unknown(f"{rule.id} matched {n:,} times in {path}; the report lists the first "
                                  f"{MAX_HITS_PER_FILE}.")
+    from masaudit import unused
+    unused.lower(ctx, findings)
     return _dedupe(findings)
 
 
@@ -413,7 +415,8 @@ def _import_detectors() -> None:
 
 # ---------------------------------------------------------------------------- calibration
 
-SCOPE_DOWNGRADE = {"main": 0, "build-script": 0, "ci": 0, "unknown": 0, "debug": 2, "test": 4, "unshipped": 4}
+SCOPE_DOWNGRADE = {"main": 0, "build-script": 0, "ci": 0, "unknown": 0, "debug": 2, "test": 4, "unshipped": 4,
+                   "unused": 4}
 
 
 _LOWERED = {
@@ -421,6 +424,7 @@ _LOWERED = {
     "test": "Lowered because it's in test code. ",
     "unshipped": "Lowered because no mobile app module that ships uses this code (a demo, test, or desktop "
                  "app, or an unused module). ",
+    "unused": "Lowered because nothing in the project calls the function it's in; fix it before anything does. ",
 }
 
 
@@ -450,7 +454,7 @@ def calibrate(findings: List[Finding], profile: Profile) -> List[Finding]:
             f.bucket = "fix-soon"
         else:
             f.bucket = "notes"
-        if rule.kind == "hardening" and f.scope not in ("debug", "test", "unshipped"):
+        if rule.kind == "hardening" and f.scope not in ("debug", "test", "unshipped", "unused"):
             # A protection the app has nowhere (root detection, App Attest, a forced update): a checklist item
             # for this app type, not a flaw in a line of code. Benchmarks on unseen apps found these almost never
             # a vulnerability as described.

@@ -82,6 +82,19 @@ CASES = [  # (what, {path: text}); each was 25 s to hours at this size
                                     + ", ".join(f"B{i}" for i in range(N // 110)) + "); };\n"
                                     "T = {isa = PBXNativeTarget; buildPhases = (P); name = App; "
                                     "productType = \"com.apple.product-type.application\"; };\n}; }\n"}),
+    ("uncalled functions with findings", {**ANDROID, "app/src/main/java/a/A.kt": "class A {\n" + "".join(
+        f"fun f{i}(p: String, s: ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256)\n" for i in range(N // 80))}),
+    ("uncalled functions in many files", {**ANDROID, **{f"app/src/main/java/a/F{i}.kt": f"class F{i} {{ fun f{i}(p: String, "
+                                          "s: ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256) }\n" for i in range(300)}}),
+    ("unclosed expression bodies", {**ANDROID, "app/src/main/java/a/A.kt": rep("fun a() = (") + "\nfun k(p: String, s: "
+                                    "ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256)\n"}),
+    ("expression bodies that go on", {**ANDROID, "app/src/main/java/a/A.kt": rep("fun a() = 1 +\n") + "fun k(p: String, "
+                                      "s: ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256)\n"}),
+    ("deeply nested functions", {**ANDROID, "app/src/main/java/a/A.kt": rep("fun a() { a()\n") + "PBEKeySpec(p.toCharArray(), "
+                                 "s, 1000, 256)\n" + "}" * (N // 14)}),
+    ("Java declarations without a closing parenthesis", {**ANDROID, "app/src/main/java/a/A.java": "class A {\n"
+                                                         + rep("int f( ") + "\nprivate static void k(String p, byte[] s) "
+                                                         "{ new PBEKeySpec(p.toCharArray(), s, 1000, 256); } }\n"}),
     ("project references across many builds", {**ANDROID, **{f"b{i}/settings.gradle.kts": "" for i in range(300)},
                                                "app/build.gradle": "plugins { id 'com.android.application' }\n"
                                                + "".join(f'dependencies {{ implementation(project(":m{i}")) }}\n'

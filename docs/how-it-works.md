@@ -44,7 +44,9 @@ only to listed app types.
    build wires modules together in code it can't read, it decides only the demo and test apps. For iOS,
    masaudit reads which files each Xcode target builds: a source or `Info.plist` no app or extension
    target uses, or a sample or demo Xcode project, counts as *unshipped*, and a file only test targets
-   use counts as test code; Swift package, CocoaPods, and Carthage folders are never lowered. A finding your team
+   use counts as test code; Swift package, CocoaPods, and Carthage folders are never lowered. A finding in
+   a Kotlin function, or a private or static Java method, that nothing in the project names counts as
+   *unused* and is lowered the same way. A finding your team
    already marked as intentional for another tool, such as Android Lint's `tools:ignore`, is lowered
    one level and shows that decision.
 3. **Which bucket?** Critical and high go to **Fix before release**; medium and low to **Fix soon**;
