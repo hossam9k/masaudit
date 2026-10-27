@@ -68,9 +68,46 @@ class ReadmeNumbers(unittest.TestCase):
                 self.assertEqual(re.search(pattern, read(rel), re.M).group(1), __version__)
         for rel in ("README.md", "docs/ci.md", "docs/team.md"):
             text = read(rel)
-            for found in re.findall(r"(?:# v|rev: v|masaudit )(\d+\.\d+\.\d+)", text):
+            for found in re.findall(r"(?:# v|rev: v|masaudit |masaudit==)(\d+\.\d+\.\d+)", text):
                 with self.subTest(file=rel):
                     self.assertEqual(found, __version__)
+
+
+    def test_documented_commands_parse(self):
+        # Every masaudit command in a code block of the docs is one the real parser accepts: a wrong option or
+        # format name (`--format markdown`) would fail the reader's CI with exit code 2.
+        import contextlib
+        import glob
+        import io
+        import itertools
+        import shlex
+        prefixes = {"-m", "run", "uvx", "run:", "script:", "-", "content:", "|"}
+        names = {"masaudit", "masaudit.pyz", "dist/masaudit.pyz"}
+        files = ["README.md"] + sorted(os.path.relpath(f, ROOT) for f in glob.glob(os.path.join(ROOT, "docs", "*.md")))
+        checked = 0
+        for rel in files:
+            for block in re.findall(r"```(?:bash|sh|shell|console|yaml)\n(.*?)```", read(rel), re.S):
+                text = re.sub(r"\\\n\s*", " ", block).replace('"', " ").replace("'", " ")
+                for line in text.splitlines():
+                    for part in re.split(r"&&|;|\|\||\|(?!\|)", line):
+                        try:
+                            tokens = shlex.split(part)
+                        except ValueError:
+                            continue
+                        for i, tok in enumerate(tokens):
+                            if tok not in names or (i and tokens[i - 1] not in prefixes and not tokens[i - 1].startswith("python")):
+                                continue
+                            args = list(itertools.takewhile(lambda a: not a.startswith("#"), tokens[i + 1:]))
+                            if any("[" in a or "<" in a for a in args):
+                                continue                      # a usage line: `masaudit [PATH] [options]`
+                            with self.subTest(file=rel, command=part.strip()), \
+                                    contextlib.redirect_stderr(io.StringIO()):
+                                try:
+                                    cli.build_parser().parse_args(args)
+                                except SystemExit as e:
+                                    self.fail(f"masaudit {' '.join(args)}: exit {e.code}")
+                            checked += 1
+        self.assertGreater(checked, 10)
 
 
 class TerminalSamples(unittest.TestCase):

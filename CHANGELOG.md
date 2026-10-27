@@ -11,6 +11,8 @@ their own version (`rules_version`), shown in every report.
   sampled app-code findings in the fix lists were false alarms, against 33% in round 4 (the intervals
   overlap). 0.7.0's reading of what ships lowered no finding on these apps; most false alarms left are a
   check the rule missed or context a pattern can't see. `scripts/benchmark_compare.py --round 5` repeats it.
+- [Use masaudit in CI](docs/ci.md) has examples for Bitrise, CircleCI, GitLab CI/CD, Travis CI, and Docker.
+  A test now parses every masaudit command in the documentation, so a wrong option or format name fails CI.
 
 ## 0.7.0 — 2026-10-27
 

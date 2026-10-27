@@ -3,7 +3,8 @@
 # Use masaudit in CI
 
 This page shows how to scan every push and pull request with the GitHub Action, scan before each
-commit with pre-commit, or run masaudit in another CI system.
+commit with pre-commit, or run masaudit in another CI system: Bitrise, CircleCI, GitLab CI/CD,
+Travis CI, or Docker.
 
 ## GitHub Action
 
@@ -95,10 +96,13 @@ the hook to a commit, run `pre-commit autoupdate --freeze`.
 
 ## Other CI systems
 
-Run the command line directly. For example:
+Any CI that has Python 3.9 or later can run masaudit: install it from PyPI and run the command line.
+masaudit needs no other package and no network access while it scans. Pin the version, so a new
+release changes your results only when you update it:
 
 ```bash
-pipx run masaudit . --app-type banking --format sarif --output masaudit.sarif --fail-on high
+python3 -m pip install masaudit==0.7.0
+python3 -m masaudit . --app-type banking --format sarif --output masaudit.sarif --fail-on high
 ```
 
 The exit code is 1 when open findings reach `--fail-on`, and 2 on a tool error. Without `--fail-on`
@@ -106,6 +110,89 @@ or `fail_on`, findings never fail the job. See [Exit codes](cli.md#exit-codes).
 
 Paths in the SARIF file are relative to the scanned folder. To upload it to GitHub code scanning
 after scanning a subfolder, use the GitHub Action, which makes them relative to the repository root.
+
+The examples below save a Markdown report you can open from the build page. Use `--format sarif` when
+another tool reads the report.
+
+### Bitrise
+
+Add a Script step to your workflow in `bitrise.yml`. The Bitrise macOS and Linux stacks come with
+Python 3. *Deploy to Bitrise.io* attaches the report to the build's artifacts:
+
+```yaml
+- script@1:
+    title: masaudit
+    inputs:
+    - content: |
+        set -e
+        python3 -m pip install --quiet masaudit==0.7.0
+        python3 -m masaudit . --app-type banking --format md \
+          --output "$BITRISE_DEPLOY_DIR/masaudit.md" --fail-on high
+- deploy-to-bitrise-io@2: {}
+```
+
+### CircleCI
+
+In `.circleci/config.yml`; `when: always` keeps the report when the scan fails the job:
+
+```yaml
+version: 2.1
+jobs:
+  masaudit:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run: python3 -m pip install --quiet masaudit==0.7.0
+      - run: python3 -m masaudit . --app-type banking --format md --output masaudit.md --fail-on high
+      - store_artifacts:
+          path: masaudit.md
+          when: always
+workflows:
+  scan:
+    jobs:
+      - masaudit
+```
+
+### GitLab CI/CD
+
+In `.gitlab-ci.yml`; `when: always` keeps the report when the scan fails the job, and it shows under the
+job's artifacts:
+
+```yaml
+masaudit:
+  image: python:3.12-slim
+  script:
+    - python3 -m pip install --quiet masaudit==0.7.0
+    - python3 -m masaudit . --app-type banking --format md --output masaudit.md --fail-on high
+  artifacts:
+    when: always
+    paths:
+      - masaudit.md
+```
+
+### Travis CI
+
+In `.travis.yml`. Travis has no artifact store of its own, so the report goes to the job log:
+
+```yaml
+language: python
+python: "3.12"
+install: python3 -m pip install --quiet masaudit==0.7.0
+script: python3 -m masaudit . --app-type banking --fail-on high
+```
+
+### Docker
+
+There is no masaudit image: run it in the official Python image, with your project mounted. The report
+is written to the project folder:
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src python:3.12-slim sh -c \
+  "pip install --quiet masaudit==0.7.0 && masaudit . --app-type banking --format md --output masaudit.md --fail-on high"
+```
+
+The same command runs in any CI that runs Docker steps, such as Jenkins.
 
 ## Share settings between CI and local runs
 
