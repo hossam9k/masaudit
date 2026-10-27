@@ -5,8 +5,25 @@ their own version (`rules_version`), shown in every report.
 
 ## Unreleased
 
+### False alarms found by benchmark round 5
+
+- **XPL-027** read a `SecRandomCopyBytes` call at the start of a line as one whose status is ignored. It
+  now sees a status compared on the same line after a `guard` or `if` on the line before, and Swift's
+  one-expression closure, whose status the code keeps (`let status = data.withUnsafeMutableBytes {`).
+- **XPL-042** reported `Runtime.exec("logcat -f " + path)`. That form runs the program with no shell, the
+  same as the argument array the rule already accepts, so a value in it can't start another command; it is
+  now reported only when the program is a shell (`su -c`, `sh -c`). Code under a top-level `tool/` folder
+  (Dart's place for developer scripts) counts as a build script, and XPL-042 no longer judges build scripts,
+  which run on a developer's machine.
+- On the 16 round 5 apps this removes 6 findings judged false and none judged real; on the 114 apps of the
+  earlier rounds and corpora it removes 9 more, each checked by hand, and no finding in the vulnerable
+  recall apps.
+
 ### Docs
 
+- `scripts/review_kit.py` gives a reviewer who isn't an AI a blind copy of a benchmark round (a link to each
+  judged line, no tool names or verdicts) and compares their verdicts with the published ones. Round 5's
+  judgments now keep the message each judge saw.
 - [Benchmark on unseen apps](docs/benchmark.md), round 5: 0.7.0 on 16 more apps. 29% (19–40%) of the
   sampled app-code findings in the fix lists were false alarms, against 33% in round 4 (the intervals
   overlap). 0.7.0's reading of what ships lowered no finding on these apps; most false alarms left are a

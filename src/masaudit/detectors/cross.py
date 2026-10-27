@@ -2786,11 +2786,41 @@ SECRANDOM_IGNORED = re.compile(r"\b_\s*=\s*SecRandomCopyBytes\s*\(|^[ \t]*(?:\(v
                                re.MULTILINE)
 
 
+# A call at the start of a line is still checked when the line before ends an expression that goes on
+# (`guard`, `if`, `return`, `=`, `&&`), or when the status is compared right after the call.
+_STATUS_USED_BEFORE = re.compile(r"(?:\b(?:guard|if|while|return|let|var)|[=(,?:]|&&|\|\|)\s*$")
+_STATUS_USED_AFTER = re.compile(r"\s*(?:[=!]=|[<>?]|\.|&&|\|\|)")
+# The call alone in a closure: `{ SecRandomCopyBytes(…) }` or `{ ptr in SecRandomCopyBytes(…) }`.
+_CLOSURE_START = re.compile(r"\{\s*(?:\(?\s*[\w\s,:]{0,120}\)?\s*in)?\s*$")
+# What the closure's value goes to, on the line that opens it: a binding, a return, a condition, a comparison.
+_CLOSURE_VALUE_USED = re.compile(r"(?:\b(?:let|var)\s+\w+[^=\n]*=(?!=)|\breturn\b|\bguard\b|\bif\b|[=!]=|(?<![=!<>])=(?!=))")
+
+
+def _secrandom_status_used(blank: str, at: int) -> bool:
+    """Is the status of the `SecRandomCopyBytes(` call at `at` (first on its line) used after all?"""
+    before = blank[max(0, at - 300):at].rstrip()
+    close = bracket_match(blank, blank.index("(", at), "(", ")")
+    if _STATUS_USED_AFTER.match(blank, close + 1):
+        return True
+    if _STATUS_USED_BEFORE.search(before) and not re.search(r"(?<![\w$])_\s*=$", before):
+        return True                               # (`_ =` on the line before discards it)
+    opened = _CLOSURE_START.search(before)
+    if opened and re.match(r"\s*\}", blank[close + 1:close + 200]):
+        # Swift returns a one-expression closure's value: the status is the closure's, so ask what the
+        # code does with the closure's result (`let status = data.withUnsafeMutableBytes {`).
+        line = before[:opened.start()].rsplit("\n", 1)[-1]
+        return bool(_CLOSURE_VALUE_USED.search(line)) and not re.match(r"\s*_\s*=", line)
+    return False
+
+
 @detector("xpl_secrandom_unchecked")
 def secrandom_unchecked(ctx: Context, rule: Rule) -> Iterable[Hit]:
     for path, code, blank in _files_with(ctx, APPLE, ("SecRandomCopyBytes",)):
         for m in SECRANDOM_IGNORED.finditer(blank):
-            yield _hit_at(ctx, path, code, m.start() + len(m.group(0)) - len(m.group(0).lstrip()),
+            at = m.start() + len(m.group(0)) - len(m.group(0).lstrip())
+            if m.group(0).lstrip().startswith("SecRandomCopyBytes") and _secrandom_status_used(blank, at):
+                continue
+            yield _hit_at(ctx, path, code, at,
                           "`SecRandomCopyBytes` can fail, and its status is ignored, so the buffer may stay zero.",
                           blank)
 
@@ -3480,11 +3510,15 @@ def _shell_risk(ctx_code: str, blank: str, path: str, call: str, idx: int, args:
         words = [e.strip().strip("\"'") for e in elements]
         shell = in_shell or (len(words) >= 2 and words[0] in _SHELLS and "-c" in words)
         return shell and not all(_constant_piece(code, e) for e in elements)
-    # Runtime.exec(String) splits on spaces without a shell, but an interpolated value can still add
-    # options or, with `sh -c`, commands. A bare variable passed through from a parameter is judged at the caller.
+    # Runtime.exec(String) splits the string on spaces and runs the first word, with no shell: like the
+    # argument array above, a value in it can add arguments but not commands, unless that program is a shell
+    # (`su -c `, `sh -c `). A bare variable passed through from a parameter is judged at the caller.
     expr = texts[0]
     name = re.fullmatch(r"\s*([A-Za-z_]\w*)\s*", expr)
     if name:
+        return False
+    program = re.match(r'\s*@?"\s*([^\s"$\\]+)', expr)
+    if program and program.group(1) not in _SHELLS:
         return False
     return not _constant_piece(code, expr) and bool(re.search(r"\+|\$\{?[A-Za-z_]", expr))
 
@@ -3494,6 +3528,8 @@ def shell_command(ctx: Context, rule: Rule) -> Iterable[Hit]:
     msg = "A shell command is built from a variable; if any part comes from input, it can run other commands."
     for path, code, blank in _files_with(ctx, JVM + NATIVE + DART, ("exec", "ProcessBuilder", "system", "popen",
                                                                    "Process.")):
+        if scope_of(path) == "build-script":
+            continue                      # a developer's build tool: its input isn't the app's attacker's
         is_c, is_dart = path.endswith(NATIVE), path.endswith(".dart")
         for m in finditer_lit(SHELL_EXEC, blank, ("Runtime", "Process", "system", "popen")):
             call = m.group(0)

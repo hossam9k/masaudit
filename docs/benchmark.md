@@ -50,7 +50,9 @@ scanners on the same commits, in five rounds. Losses are included.
    less serious than stated), *false*, or *unclear*.
 6. **Who judged:** AI reviewers (Claude agents) that wrote no rule, not independent human experts. Rule
    IDs still hint at the tool. Treat the numbers as a careful first measurement, and check the judged
-   findings yourself. Everything needed to repeat it is published.
+   findings yourself. Everything needed to repeat it is published. To review a round blind,
+   `python3 scripts/review_kit.py make 5 review.csv` writes its findings with a link to each line and no
+   tool names or verdicts; `review_kit.py compare 5 review.csv` reports how your verdicts differ.
 
 Every judged finding, with its verdict and the reason, is in
 [benchmark-judgments.json](benchmark-judgments.json). `python3 scripts/benchmark_compare.py fetch DIR`,
