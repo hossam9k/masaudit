@@ -72,6 +72,16 @@ CASES = [  # (what, {path: text}); each was 25 s to hours at this size
     ("dependencies in nested test blocks", {**ANDROID, **KMP, "shared/build.gradle.kts": 'plugins { kotlin("multiplatform") }\n'
                                             + rep('commonTest.dependencies { implementation(project(":shared")) ')
                                             + "}" * (N // 66)}),
+    ("deeply nested Xcode groups", {**IOS, "App/A.swift": "import UIKit\nlet u = URL(string: \"http://a.example\")\n",
+                                    "App.xcodeproj/project.pbxproj": "{ objects = {\n"
+                                    + "".join(f"G{i} = {{isa = PBXGroup; children = (G{i + 1}, F{i}); path = g; }};\n"
+                                              f"F{i} = {{isa = PBXFileReference; path = f{i}.swift; }};\n"
+                                              f"B{i} = {{isa = PBXBuildFile; fileRef = F{i}; }};\n"
+                                              for i in range(N // 110))
+                                    + "P = {isa = PBXSourcesBuildPhase; files = ("
+                                    + ", ".join(f"B{i}" for i in range(N // 110)) + "); };\n"
+                                    "T = {isa = PBXNativeTarget; buildPhases = (P); name = App; "
+                                    "productType = \"com.apple.product-type.application\"; };\n}; }\n"}),
     ("project references across many builds", {**ANDROID, **{f"b{i}/settings.gradle.kts": "" for i in range(300)},
                                                "app/build.gradle": "plugins { id 'com.android.application' }\n"
                                                + "".join(f'dependencies {{ implementation(project(":m{i}")) }}\n'

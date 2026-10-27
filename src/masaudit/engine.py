@@ -337,12 +337,13 @@ def _preview_lines(ctx: Context, path: str) -> List[Tuple[int, int]]:
 
 
 def _shipped(ctx: Context, path: str, scope: str) -> str:
-    """`scope`, or the scope of the Gradle module holding `path` when that module isn't release code in the
-    shipped app ("debug", "test", or "unshipped": a demo app, a test harness, a module nothing uses)."""
+    """`scope`, or "debug", "test", or "unshipped" when the project structure says `path` isn't release code
+    in the shipped app: a Gradle module (a demo app, a test harness, a module nothing uses) or a file no
+    shipped Xcode target uses."""
     if not path or scope not in ("main", "build-script"):
         return scope
-    from masaudit.detectors import android
-    return android.module_scope(ctx, path) or scope
+    from masaudit.detectors import android, ios
+    return android.module_scope(ctx, path) or ios.target_scope(ctx, path) or scope
 
 
 def _scope_at(ctx: Context, path: str, line: int) -> str:

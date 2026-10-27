@@ -251,6 +251,7 @@ class Project:
         self.source_root = posixpath.dirname(xcodeproj)             # SRCROOT, repo-relative ("" = root)
         self.objects: Dict[str, Any] = data.get("objects", {})
         self._parents: Optional[Dict[str, str]] = None
+        self._rel: Dict[str, Optional[str]] = {}      # object id -> path relative to SRCROOT (None: outside)
 
     def obj(self, oid: Any) -> Dict[str, Any]:
         o = self.objects.get(oid) if isinstance(oid, str) else None
@@ -277,25 +278,53 @@ class Project:
 
     def file_path(self, oid: str) -> Optional[str]:
         """Repo-relative path of a file reference or group, or None if it can't be resolved."""
-        parts: List[str] = []
+        rel = self._relative(oid)
+        return None if rel is None else _join(self.source_root, rel)
+
+    def _relative(self, oid: str) -> Optional[str]:
+        """The path of `oid` from SRCROOT, joining each enclosing group's path; groups are resolved once, so a
+        project of deeply nested groups costs one walk, not one per file. A loop of groups ends the walk."""
+        chain: List[str] = []
         cur: Optional[str] = oid
         seen = set()
-        while cur and cur not in seen:
+        base: Optional[str] = ""
+        while cur:
+            if cur in seen:                    # a loop of groups: resolve this one walk, cache nothing
+                return self._joined(chain)
+            if cur in self._rel:
+                base = self._rel[cur]
+                break
             seen.add(cur)
             o = self.obj(cur)
             if not o:
-                return None
+                base = None
+                break
+            chain.append(cur)
             tree = o.get("sourceTree", "<group>")
-            p = o.get("path")
-            if isinstance(p, str) and p:
-                parts.append(p)
             if tree == "SOURCE_ROOT":
                 break
             if tree != "<group>":
-                return None            # SDKROOT, BUILT_PRODUCTS_DIR, <absolute>: outside the repo
+                base = None            # SDKROOT, BUILT_PRODUCTS_DIR, <absolute>: outside the repo
+                break
             cur = self._parent_map().get(cur)
-        rel = posixpath.join(*reversed(parts)) if parts else ""
-        return _join(self.source_root, rel)
+        if base is None:
+            for c in chain:
+                self._rel[c] = None
+            return None
+        for c in reversed(chain):
+            p = self.obj(c).get("path")
+            if isinstance(p, str) and p:
+                base = posixpath.join(base, p) if base else p
+            self._rel[c] = base
+        return self._rel[oid] if oid in self._rel else base
+
+    def _joined(self, chain: List[str]) -> str:
+        base = ""
+        for c in reversed(chain):
+            p = self.obj(c).get("path")
+            if isinstance(p, str) and p:
+                base = posixpath.join(base, p) if base else p
+        return base
 
     def settings_path(self, value: str) -> Optional[str]:
         """Resolve a path-valued build setting such as INFOPLIST_FILE, repo-relative."""
