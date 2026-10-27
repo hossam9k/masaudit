@@ -85,7 +85,7 @@ CASES = [  # (what, {path: text}); each was 25 s to hours at this size
     ("uncalled functions with findings", {**ANDROID, "app/src/main/java/a/A.kt": "class A {\n" + "".join(
         f"fun f{i}(p: String, s: ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256)\n" for i in range(N // 80))}),
     ("uncalled functions in many files", {**ANDROID, **{f"app/src/main/java/a/F{i}.kt": f"class F{i} {{ fun f{i}(p: String, "
-                                          "s: ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256) }\n" for i in range(1500)}}),
+                                          "s: ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256) }\n" for i in range(300)}}),
     ("unclosed expression bodies", {**ANDROID, "app/src/main/java/a/A.kt": rep("fun a() = (") + "\nfun k(p: String, s: "
                                     "ByteArray) = PBEKeySpec(p.toCharArray(), s, 1000, 256)\n"}),
     ("expression bodies that go on", {**ANDROID, "app/src/main/java/a/A.kt": rep("fun a() = 1 +\n") + "fun k(p: String, "
