@@ -3,7 +3,15 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.7.0 — 2026-10-27
+
+**masaudit reads what ships.** Rules 2.3.1. About a third of the false alarms judged in benchmark round 3
+were in code the app never ships or never runs: demo and test modules, files no Xcode target builds, a
+function nothing calls. 0.7.0 reads the Gradle module graph, Xcode target membership, and the project's
+call sites, and lowers those findings to Notes; none is dropped. On the findings judged in benchmark rounds
+1-4, 13 false alarms leave the fix lists and no real finding does. Reports can show two new scopes,
+`unshipped` and `unused`. A baseline written by 0.6.5 leaves nothing open in the fix lists on 100 apps (one
+XPL-015 finding moves to its correct line, in Notes).
 
 ### Changed
 

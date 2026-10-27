@@ -4,8 +4,8 @@ title: "masaudit: a mobile security scanner that scales its advice to your app's
 authors:
   - family-names: Atef
     given-names: Hossam
-version: 0.6.5
-date-released: 2026-10-26
+version: 0.7.0
+date-released: 2026-10-27
 license:
   - Apache-2.0
   - MIT-0
