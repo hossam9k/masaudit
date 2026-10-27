@@ -3,6 +3,15 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased
+
+### Docs
+
+- [Benchmark on unseen apps](docs/benchmark.md), round 5: 0.7.0 on 16 more apps. 29% (19–40%) of the
+  sampled app-code findings in the fix lists were false alarms, against 33% in round 4 (the intervals
+  overlap). 0.7.0's reading of what ships lowered no finding on these apps; most false alarms left are a
+  check the rule missed or context a pattern can't see. `scripts/benchmark_compare.py --round 5` repeats it.
+
 ## 0.7.0 — 2026-10-27
 
 **masaudit reads what ships.** Rules 2.3.1. About a third of the false alarms judged in benchmark round 3

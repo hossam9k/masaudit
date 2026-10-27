@@ -5,24 +5,27 @@
 [Accuracy and speed](precision.md) measures masaudit on the apps its rules were tuned on, after the false
 alarms found there were fixed. That number is optimistic by design. This page measures what a new user
 gets: open-source apps that no rule was written or fixed for, scanned by masaudit and three other free
-scanners on the same commits, in four rounds. Losses are included.
+scanners on the same commits, in five rounds. Losses are included.
 
 **Short version** (October 2026):
 
 - **On code it hasn't seen, expect about 1 in 3 findings in masaudit's fix lists to be a false alarm.**
-  Round 4 (0.6.5, 16 new apps): 33% (23–44%) of the app-code findings in *Fix before release* and *Fix
-  soon*. 0.6.5 moved the noisiest findings, 162 of 350 in app code, to *Check by hand* and the *Hardening
-  checklist*, which don't fail CI; none of the 30 sampled there was a real vulnerability. Counting every
-  bucket, the rate is about where it was: 26% for 0.6.2, 45% for 0.6.3, 40% for 0.6.4, about 44% for 0.6.5.
-  The rules didn't get more accurate; the fix lists got cleaner.
-- **Only about 1 in 7 to 1 in 11 app-code findings is a vulnerability as described.** Most of the rest are
-  real gaps that matter less than they sound: a missing hardening control, a debug-only setting.
-- **CI findings hold up:** none of 30 false in round 4, 1 of 62 in round 3, none of 45 in round 2, 2 of 49
-  in round 1.
-- **The other free scanners did worse in every round.** Round 4: mobsfscan's sampled findings were false
-  91% of the time, rnsec's 72% (none as serious as stated), Semgrep's free rules 3 of 3.
-- **The next step is reading what ships:** about a third of the false alarms left are in demo apps, test
-  modules, and debug-only build types. See [Round 4](#round-4-065-on-16-more-apps).
+  Round 5 (0.7.0, 16 new apps): 29% (19–40%) of the app-code findings in *Fix before release* and *Fix
+  soon*, against 33% (23–44%) in round 4; the intervals overlap, so the rate is about the same. Counting
+  every bucket, about 38% of app-code findings were false (26% for 0.6.2, 45% for 0.6.3, 40% for 0.6.4,
+  about 44% for 0.6.5).
+- **Only about 1 in 6 app-code findings in the fix lists is a vulnerability as described** (16% in round
+  5). Most of the rest are real gaps that matter less than they sound: a missing hardening control, a
+  debug-only setting.
+- ***Check by hand* and the *Hardening checklist* stay quiet but not empty:** 1 of 30 sampled in round 5
+  was real (a wallet with no overlay protection), none of 30 in round 4.
+- **CI findings hold up:** 1 of 30 false in round 5, none of 30 in round 4, 1 of 62 in round 3, none of 45
+  in round 2, 2 of 49 in round 1.
+- **The other free scanners did worse in every round.** Round 5: mobsfscan's sampled findings were false
+  90% of the time, rnsec's 80%, Semgrep's free rules 3 of 4.
+- **What's left is mostly reading code, not structure:** in round 5, 16 of the 20 false alarms in the fix
+  lists were a check the rule missed or context a pattern can't see. See
+  [Round 5](#round-5-070-on-16-more-apps).
 
 ## Method
 
@@ -249,6 +252,51 @@ findings are false, close to round 3: the rules didn't get more accurate.
 
 The next release aims at the first group: reading the Gradle and Xcode project structure to decide which
 modules, flavors, and targets build the shipped app.
+
+## Round 5: 0.7.0 on 16 more apps
+
+Chosen after 0.7.0 was released, the first version that reads which Gradle modules, Xcode files, and
+functions ship: AnkiDroid, LibreTube, StreetComplete, openHAB, Muun (Android); Damus, Muun, ownCloud, Onion
+Browser (iOS); Uniswap and Notesnook (React Native); Open Food Facts, Stack Wallet, KitchenOwl, Fladder
+(Flutter); SimpleX Chat (Kotlin Multiplatform). Same tools, scope, draws, and judging as round 4, with each
+app scanned as its own type. Every verdict is in [benchmark-judgments-5.json](benchmark-judgments-5.json).
+
+| Tool | Findings | Total time |
+|---|---|---|
+| masaudit, each app's own type | 652 (394 CI; 258 app code: 174 in the fix lists, 84 in *Check by hand* or the *Hardening checklist*) | 19 s |
+| mobsfscan | 1,391 | 18 min |
+| Semgrep, free registry rules | 4 | 37 s |
+| rnsec | 135 | 21 s |
+
+| Tool | Sample | Real | Overrated | False | Real or overrated |
+|---|---|---|---|---|---|
+| masaudit fix lists, app code | 70 | 11 (16%, 9–26%) | 39 | 20 (29%, 19–40%) | 71% (60–81%) |
+| masaudit *Check by hand* and *Hardening checklist*, app code | 30 | 1 (3%, 1–17%) | 12 | 17 (57%, 39–73%) | 43% (27–61%) |
+| masaudit CI | 30 | 12 (40%, 25–58%) | 17 | 1 (3%, 1–17%) | 97% (83–99%) |
+| mobsfscan | 70 | 0 (0–5%) | 7 | 63 (90%, 81–95%) | 10% (5–19%) |
+| rnsec | 40 | 2 (5%, 1–17%) | 6 | 32 (80%, 65–90%) | 20% (10–35%) |
+| Semgrep, free registry rules | 4 | 1 | 0 | 3 | 25% |
+
+**What 0.7.0 changed here: nothing measurable.** No finding on these 16 apps was in a module no shipped app
+uses, a file no Xcode target builds, or a function nothing calls, so the new scopes lowered none. The
+fix-list rate (29% against 33% in round 4) is within the noise. Weighting the two app-code samples by the
+size of their pools, about 38% of all app-code findings are false, against about 44% in round 4.
+
+**The 20 false alarms in the fix lists:**
+
+- **A check the rule missed** (7): a random-bytes call whose result is checked (XPL-027, twice), a zip
+  entry name already rejected for `..`, a user property set to null rather than sent, a URL used only as a
+  CSS base, a common module whose only targets run on the JVM, and a line of a minified bundle that holds no such
+  code.
+- **Context a pattern can't see** (9): `Runtime.exec` with constant arguments or the app's own download
+  path (XPL-042, three times), a third-party YouTube client that can't verify youtube.com, a file filter that
+  isn't an App Link, the Electrum seed format's fixed salt, a WebView that blocks network loads, a
+  user-started save to Pictures, and an app group a share extension uses through a library.
+- **Code that doesn't ship in release** (4): a published library module, a developer build script, a
+  debug-only logging branch, and a development host that the release lane replaces.
+
+**The real one in the soft buckets:** a Bitcoin wallet (Muun) with no overlay or tapjacking protection on
+Android, reported in the *Hardening checklist*. It is the first real finding judged in those buckets.
 
 ## After the round 1 fixes
 

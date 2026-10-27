@@ -1,0 +1,2448 @@
+{
+ "round": 5,
+ "seed": 5,
+ "masaudit": "0.7.0 (each app's own type)",
+ "draws": "masaudit: 70 from the fix lists in app code (--buckets fix --where app), 30 from Check by hand and the Hardening checklist (--buckets soft --where app), 30 from the fix lists in CI (--buckets fix --where ci); mobsfscan 70 and rnsec 40 (--where app); all 4 Semgrep findings",
+ "judged": [
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "openhab-android",
+   "rule": "CI-007",
+   "path": "gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but distribution fetched over HTTPS from services.gradle.org; wrapper jar validated in CI. Defense-in-depth only."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "JAVASCRIPT_ENABLED_BRIDGE",
+   "path": "apps/mobile/src/app/App.tsx",
+   "line": 400,
+   "verdict": "false",
+   "reason": "NativeModules.ThemeModule.setColorScheme receives the app's own themeSetting enum from Redux; no untrusted input reaches the native module."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
+   "line": 108,
+   "verdict": "false",
+   "reason": "Line logs constant 'onCreateOptionsMenu()' debug string; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/AppDelegateSwizzler/GULSceneDelegateSwizzler.m",
+   "line": 106,
+   "verdict": "false",
+   "reason": "NSAssert precondition in third-party GoogleUtilities pod; no sensitive data logged."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "libretube",
+   "rule": "android_task_hijacking2",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "StrandHogg 2.0 is an OS bug patched May 2020; only unpatched Android 8-9 (minSdk 26); LibreTube handles little sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "kitchenowl",
+   "rule": "android_manifest_usescleartext",
+   "path": "android/app/src/debug/AndroidManifest.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "usesCleartextTraffic=true is only in src/debug manifest (Flutter dev tooling); release build unaffected."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "apps/mobile/app/common/filesystem/download.ts",
+   "line": 85,
+   "verdict": "overrated",
+   "reason": "Attachment URL-resolve fetch has no timeout; at worst a stalled download/hang, reliability not a security weakness."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/migration/MigrateToDevice.kt",
+   "line": 785,
+   "verdict": "false",
+   "reason": "Logs constant 'MigrationChatReceiver.stop'; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "android_kotlin_webview",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/pages/PageFragment.kt",
+   "line": 71,
+   "verdict": "false",
+   "reason": "JS bridge only on pages from AnkiDroid's local server; fixed command map; external URLs opened outside WebView."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "uniswap-mobile",
+   "rule": "XPL-038",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 15,
+   "verdict": "overrated",
+   "reason": "Confirmed no emulator detection (isEmulatorSync only toggles QR UI); emulator detection is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "XPL-034",
+   "path": "android/apolloui/src/main/java/io/muun/apollo/data/analytics/AnalyticsProvider.kt",
+   "line": 48,
+   "verdict": "false",
+   "reason": "Line 48 is fba.setUserProperty(\"email\", null) in resetUserProperties: clears the property, sends no email."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-ios",
+   "rule": "IOS-020",
+   "path": "falcon/app/falcon/core/Domain/Action/DebugExecutablesGroup/UserAccountManagement/CreateVerifiedRcV1Executable.swift",
+   "line": 71,
+   "verdict": "overrated",
+   "reason": "Debug-menu executable; DebugModeDisplayer returns under #if !DEBUG, so recovery-code clipboard copy is unreachable in release builds."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
+   "line": 2396,
+   "verdict": "false",
+   "reason": "Logs apiListMembers failure response type/details; error diagnostics, no credentials or message content evident."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/presubmit.yml",
+   "line": 30,
+   "verdict": "real",
+   "reason": "Third-party subosito/flutter-action pinned to mutable tag v2, not SHA."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/platform/VideoPlayer.android.kt",
+   "line": 99,
+   "verdict": "false",
+   "reason": "Log.e of ExoPlayer prepare() stack trace for broken video; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "CI-007",
+   "path": "gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum; Gradle fetched over HTTPS from official host. Supply-chain hardening, not a shipped app weakness."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "apps/mobile/app/components/auth/common.ts",
+   "line": 1,
+   "verdict": "false",
+   "reason": "common.ts only defines AuthMode constants and hideAuth navigation helper; no session handling here; app has separate app-lock timer."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-027",
+   "path": "api/build.gradle.kts",
+   "line": 31,
+   "verdict": "false",
+   "reason": "api module is a published library (LibraryExtension); libraries are not minified, consuming app applies R8."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "openhab-android",
+   "rule": "AND-072",
+   "path": "mobile/src/main/AndroidManifest.xml",
+   "line": 63,
+   "verdict": "overrated",
+   "reason": "QUERY_ALL_PACKAGES declared only in foss (F-Droid) flavor manifest; home-automation app, no fraud use; Play build lacks it."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "AND-010",
+   "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/call/CallView.android.kt",
+   "line": 752,
+   "verdict": "overrated",
+   "reason": "allowFileAccess=true is set, but WebView loads only bundled call.html asset; file-URL universal access stays default false."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-039",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/AnkiDroidApp.kt",
+   "line": 204,
+   "verdict": "false",
+   "reason": "LogType.value returns PRODUCTION when !BuildConfig.DEBUG; RobolectricDebugTree only planted in debug Robolectric runs."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "apps/mobile/src/features/walletConnect/api.ts",
+   "line": 35,
+   "verdict": "overrated",
+   "reason": "Fire-and-forget WalletConnect push registration fetch without timeout; hang only affects that background call, no security impact."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "uniswap-mobile",
+   "rule": "AND-022",
+   "path": "android/app/build.gradle",
+   "line": 284,
+   "verdict": "overrated",
+   "reason": "security-crypto 1.0.0 is deprecated but still Keystore-backed AES-GCM for mnemonics; maintenance risk, no exploitable flaw shown."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "XPL-027",
+   "path": "ios/SimpleXChat/KeyChain.swift",
+   "line": 43,
+   "verdict": "false",
+   "reason": "SecRandomCopyBytes status is checked (status == errSecSuccess) and failure handled."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "apps/mobile/worker.js",
+   "line": 4980,
+   "verdict": "false",
+   "reason": "fetch() here is a local XML-feed helper (fetch(\"updated\", childs)), not a network request."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "ANDROID_UNPROTECTED_RECEIVER",
+   "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
+   "line": 277,
+   "verdict": "overrated",
+   "reason": "BootRecieverService exported for BOOT_COMPLETED; spoofing only starts BootTaskService (reschedule work). Harmless trigger."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/MetaDB.kt",
+   "line": 327,
+   "verdict": "false",
+   "reason": "rawQuery uses parameterized 'WHERE did = ?' with deck id; no injection; stores whiteboard state, not sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "ANDROID_INTENT_FILTER_PERMISSIVE",
+   "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
+   "line": 217,
+   "verdict": "false",
+   "reason": "SEND/SEND_MULTIPLE on ShareActivity is the intended 'Make Note' share target; receiving shared content is by design."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/platform/AppCommon.android.kt",
+   "line": 81,
+   "verdict": "false",
+   "reason": "Logs WorkManager init exception stack trace; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/Network/GULNetwork.m",
+   "line": 331,
+   "verdict": "false",
+   "reason": "Third-party GoogleUtilities pod network diagnostic NSLog; no app secrets logged."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "openhab-android",
+   "rule": "CI-005",
+   "path": ".github/workflows/deploy-apk.yml",
+   "line": 16,
+   "verdict": "overrated",
+   "reason": "checkout@v4 persists token, but trigger is release-created (trusted) and later actions already receive GITHUB_TOKEN explicitly."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/homescreenwidget/ItemUpdateWidget.kt",
+   "line": 250,
+   "verdict": "false",
+   "reason": "Logs 'Failed to set icon, attempt #n' with IllegalArgumentException; no sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "ANDROID_INTENT_FILTER_PERMISSIVE",
+   "path": "apps/mobile/android/app/src/beta/AndroidManifest.xml",
+   "line": 14,
+   "verdict": "false",
+   "reason": "Beta flavor https App Link with autoVerify=true for uniswap domains; standard verified deep link."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kitchenowl",
+   "rule": "XPL-012",
+   "path": "lib/pages/settings_user_sessions_page.dart",
+   "line": 145,
+   "verdict": "overrated",
+   "reason": "User-initiated copy of newly created API token; clipboard can't be flagged sensitive, but exposure requires clipboard-reading app."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/AppDelegateSwizzler/GULAppDelegateSwizzler.m",
+   "line": 251,
+   "verdict": "false",
+   "reason": "Line is an NSAssert in GULAppDelegateSwizzler, not logging; asserts disabled in release."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "libretube",
+   "rule": "CI-001",
+   "path": ".github/workflows/ci.yml",
+   "line": 22,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v6 is GitHub-owned; tag pinning is minor hardening, no secrets in checkout step."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "WEBVIEW_DOM_STORAGE_ENABLED",
+   "path": "apps/mobile/app/screens/editor/readonly-editor.tsx",
+   "line": 142,
+   "verdict": "false",
+   "reason": "WebView loads bundled local editor (build.bundle/index.html); DOM storage enabled on first-party local page exposes nothing by itself."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-012",
+   "path": "lib/pages/campfire_migrate_view.dart",
+   "line": 183,
+   "verdict": "real",
+   "reason": "'Copy mnemonic' button copies full seed phrase via Clipboard.setData with no clearing or timeout."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/preference/widgets/SslClientCertificatePreference.kt",
+   "line": 131,
+   "verdict": "false",
+   "reason": "Logs KeyChain InterruptedException only; no key material or secrets."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/ios-release-to-org-openxfacts-scanner.yml",
+   "line": 66,
+   "verdict": "overrated",
+   "reason": "actions/setup-java@v6.1.0 is GitHub-owned; tag pinning is minor hardening even in the release workflow."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/mobile/app/components/sheets/update/index.js",
+   "line": 203,
+   "verdict": "false",
+   "reason": "Linking.openURL uses constants GITHUB_URL or STORE_LINK, not untrusted input."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "AND-050",
+   "path": "common/src/main/java/io/muun/common/utils/RandomGenerator.java",
+   "line": 16,
+   "verdict": "overrated",
+   "reason": "Global provider insert only supplies SecureRandom backed by /dev/urandom (bitcoinj Android PRNG fix); sound implementation, hygiene concern only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/ios-release-to-org-openfoodfacts-scanner.yml",
+   "line": 60,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java pinned to release tag; tag-move risk low versus third-party actions."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "fladder",
+   "rule": "CI-001",
+   "path": ".github/workflows/checks.yaml",
+   "line": 28,
+   "verdict": "real",
+   "reason": "subosito/flutter-action pinned to tag v2.16.0, third-party, not a commit SHA."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-044",
+   "path": "lib/wallets/wallet/impl/mimblewimblecoin_wallet.dart",
+   "line": 577,
+   "verdict": "overrated",
+   "reason": "Writes MWC node API secret to .api_secret in app wallet dir because the mwc library reads it; app-private storage."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "XPL-046",
+   "path": "ios/extension.bundle/clipper.bundle.js",
+   "line": 18,
+   "verdict": "false",
+   "reason": "location.href only used as base URL for CSS inlining via style.setProperty; not written as markup."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/CloudNotificationListFragment.kt",
+   "line": 134,
+   "verdict": "false",
+   "reason": "Logs only notification count ('got N items'); not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "streetcomplete",
+   "rule": "CI-005",
+   "path": ".github/workflows/gradle-wrapper-validation.yml",
+   "line": 20,
+   "verdict": "false",
+   "reason": "Only following step is gradle wrapper-validation; no untrusted code runs after checkout to read the token."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "uniswap-mobile",
+   "rule": "RN-012",
+   "path": "src/features/biometrics/biometrics-utils.ts",
+   "line": 50,
+   "verdict": "real",
+   "reason": "Biometric is a boolean gate; Keychain storage uses no biometric access control, so hooking authenticateAsync bypasses it in wallet."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-040",
+   "path": "macos/Runner/Info.plist",
+   "line": 17,
+   "verdict": "overrated",
+   "reason": "No forced-update mechanism found, but that's process hygiene, not a code weakness; macOS Info.plist, self-custody wallet."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "streetcomplete",
+   "rule": "android_prevent_screenshot",
+   "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench5/src/streetcomplete",
+   "line": 1,
+   "verdict": "false",
+   "reason": "StreetComplete is an OSM mapping app with no sensitive screens; FLAG_SECURE not warranted."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-020",
+   "path": "lib/themes/theme_service.dart",
+   "line": 81,
+   "verdict": "false",
+   "reason": "Entry names containing '..' are rejected before OutputFileStream(\"$assetsPath/${file.name}\"); the claimed missing containment check exists."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "WEBVIEW_FILE_ACCESS",
+   "path": "apps/mobile/app/screens/editor/index.tsx",
+   "line": 148,
+   "verdict": "overrated",
+   "reason": "allowFileAccessFromFileURLs/universal access set, but WebView loads bundled local editor; exploitation needs separate XSS in note rendering."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/platform/VideoPlayer.desktop.kt",
+   "line": 61,
+   "verdict": "false",
+   "reason": "Logs missing local media file path on desktop; not sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "apps/mobile/app/components/image-preview/index.tsx",
+   "line": 165,
+   "verdict": "false",
+   "reason": "console.error of a FileViewer/Share open failure; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "openhab-android",
+   "rule": "CI-001",
+   "path": ".github/workflows/deploy-apk.yml",
+   "line": 73,
+   "verdict": "real",
+   "reason": "Third-party svenstaro/upload-release-action@v2 mutable tag in release job holding GITHUB_TOKEN and signed APK."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "CI-006",
+   "path": "tools/fallback-release-keystore.jks",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "Committed keystore is a fallback (Test@123) used only when KEYSTOREPATH env unset; official releases signed with env-provided key."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-060",
+   "path": "compat/src/main/java/com/ichi2/anki/compat/BaseCompat.kt",
+   "line": 235,
+   "verdict": "false",
+   "reason": "User-initiated save of image to Pictures on API<29; finding itself notes no sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "MISSING_RUNTIME_INTEGRITY_CHECKS",
+   "path": "apps/mobile/src/index.ts",
+   "line": 1,
+   "verdict": "false",
+   "reason": "App uses App Attest entitlement and Play Integrity / Firebase App Check; src/index.ts is just an empty export."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "ROOT_JAILBREAK_DETECTION_ABSENT",
+   "path": "apps/mobile/index.js",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "Confirmed no root/jailbreak detection in Uniswap wallet; such checks are bypassable defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "fladder",
+   "rule": "AND-016",
+   "path": "android/app/src/main/res/xml/wallpaper_file_paths.xml",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "cache-path '.' covers whole cache, but provider exported=false; only explicitly granted URIs reachable."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "stack-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yaml",
+   "line": 444,
+   "verdict": "overrated",
+   "reason": "actions/checkout@v6 is GitHub-owned; tag pinning is minor supply-chain hardening, as the finding itself concedes."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "owncloud-ios",
+   "rule": "IOS-020",
+   "path": "ownCloudAppShared/Client/Password%20Composer/PasswordComposerViewController.swift",
+   "line": 263,
+   "verdict": "overrated",
+   "reason": "Share-link password intentionally copied for sending to recipients; missing localOnly/expiry is minor."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "IOS_ATS_DISABLED",
+   "path": "apps/mobile/ios/Make Note/Info.plist",
+   "line": 29,
+   "verdict": "real",
+   "reason": "Make Note share extension (embedded appex, ships) sets NSAllowsArbitraryLoads true, disabling ATS for the extension."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "muun-android",
+   "rule": "AND-046",
+   "path": "android/apolloui/src/main/AndroidManifest.xml",
+   "line": 55,
+   "verdict": "real",
+   "reason": "No filterTouchesWhenObscured/setHideOverlayWindows anywhere in Muun wallet; minSdk 21 lacks Android 12 overlay protections."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "android_safetynet_api",
+   "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench5/src/ankidroid",
+   "line": 1,
+   "verdict": "false",
+   "reason": "AnkiDroid is an offline flashcard app; no server trust decisions requiring device attestation."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/onboarding/WhatsNewView.kt",
+   "line": 78,
+   "verdict": "false",
+   "reason": "Debug log of exception message from setConditionsNotified; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "uniswap-mobile",
+   "rule": "XPL-022",
+   "path": "ios/Uniswap.xcodeproj/project.pbxproj",
+   "line": 1004,
+   "verdict": "overrated",
+   "reason": "No debugger detection found in repo, but it's defense-in-depth only for a user-owned wallet."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chatlist/TagListView.kt",
+   "line": 246,
+   "verdict": "false",
+   "reason": "Logs exception message for tag update failure; no sensitive data."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "onion-browser",
+   "rule": "swift.lang.storage.sensitive-storage-userdefaults.swift-user-defaults",
+   "path": "OnionBrowser/Settings/Settings.swift",
+   "line": 391,
+   "verdict": "real",
+   "reason": "nextcloudPassword stored via UserDefaults.standard.set(..., \"nextcloud_password\") instead of Keychain."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/AppAuth/Sources/AppAuthCore/OIDIDToken.m",
+   "line": 120,
+   "verdict": "false",
+   "reason": "Third-party AppAuth logs JWT payload section only when JSON parse fails; unsigned payload, not a credential."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "RN-019",
+   "path": "package.json",
+   "line": 99,
+   "verdict": "overrated",
+   "reason": "package.json references fork branch, but package-lock.json resolves it to commit 98077afd; npm ci cannot be silently swapped."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/mobile/app/components/sheets/export-notes/index.tsx",
+   "line": 294,
+   "verdict": "false",
+   "reason": "Opens app-generated export directory path (result.fileDir), not external/untrusted URL."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/model/ServerConfiguration.kt",
+   "line": 101,
+   "verdict": "false",
+   "reason": "Logs toRedactedString() of server config; credentials redacted."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "fladder",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 588,
+   "verdict": "overrated",
+   "reason": "actions/download-artifact@v4 is GitHub-owned; major-tag pin is a low supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "openhab-android",
+   "rule": "AND-046",
+   "path": "mobile/src/main/AndroidManifest.xml",
+   "line": 63,
+   "verdict": "overrated",
+   "reason": "No filterTouchesWhenObscured found in repo, but generic tapjacking; modern Android limits untrusted overlays. Low impact."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/activity/AbstractWebViewFragment.kt",
+   "line": 243,
+   "verdict": "false",
+   "reason": "Logs WebView subpage path being loaded; not sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "apps/mobile/scripts/ios-build-interactive/main.ts",
+   "line": 399,
+   "verdict": "false",
+   "reason": "Dev-only interactive iOS build script (scripts/), console.error of fatal error; not shipped in app."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/AppAuth/Sources/AppAuthCore/OIDEndSessionRequest.m",
+   "line": 184,
+   "verdict": "false",
+   "reason": "NSAssert in AppAuth pod about missing end-session endpoint; not logging sensitive data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "CUSTOM_CRYPTO_IMPLEMENTATION",
+   "path": "apps/mobile/app/common/database/encryption.ts",
+   "line": 82,
+   "verdict": "false",
+   "reason": "encryptDatabaseKeyWithPassword uses libsodium deriveKey/encrypt; no custom crypto primitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/homescreenwidget/ItemUpdateWidget.kt",
+   "line": 128,
+   "verdict": "false",
+   "reason": "Logs onDeleted() and widget IDs only; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "stack-wallet",
+   "rule": "IOS-007",
+   "path": "scripts/app_config/templates/ios/Runner.xcodeproj/project.pbxproj",
+   "line": 135,
+   "verdict": "overrated",
+   "reason": "No pinning found in repo, but wallet talks to user-configurable nodes/APIs over TLS; pinning is defense-in-depth here."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "ANDROID_CLEARTEXT_ENABLED",
+   "path": "apps/mobile/android/app/src/prod/AndroidManifest.xml",
+   "line": 6,
+   "verdict": "real",
+   "reason": "prod flavor manifest sets usesCleartextTraffic=true with no networkSecurityConfig; release wallet allows HTTP."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/usersettings/networkAndServers/ProtocolServerView.kt",
+   "line": 288,
+   "verdict": "false",
+   "reason": "Logs exception stack trace of server test; no secrets."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "HARDCODED_SECRETS",
+   "path": "apps/mobile/worker.js",
+   "line": 5874,
+   "verdict": "false",
+   "reason": "\"password\" is a CSS pseudo-selector map entry ([type=password]) in bundled css-select code."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "simplex-chat",
+   "rule": "AND-031",
+   "path": "multiplatform/desktop/src/jvmMain/kotlin/chat/simplex/desktop/Main.kt",
+   "line": 56,
+   "verdict": "false",
+   "reason": "System.load of bundled native libs from app's own compose resources dir, not external input."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "KMP-002",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/helpers/DatabaseUtils.kt",
+   "line": 8,
+   "verdict": "false",
+   "reason": "commonMain targets only androidMain and desktopMain (both JVM); java.security.SecureRandom is correct there."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "libretube",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/github/libretube/player/parser/SabrClient.kt",
+   "line": 609,
+   "verdict": "false",
+   "reason": "Logs constant StreamProtectionStatus strings; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "AND-028",
+   "path": "android/apolloui/build.gradle",
+   "line": 106,
+   "verdict": "real",
+   "reason": "targetSdk 35 in apolloui; Play requires API 36 for updates since Aug 2026."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/newchat/ConnectPlan.kt",
+   "line": 278,
+   "verdict": "false",
+   "reason": "Constant debug string; SimpleX Log.d only emits when developerTools enabled."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_manifest_base_config_cleartext",
+   "path": "mobile/src/main/res/xml/network_security_config.xml",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "Cleartext base-config is deliberate for user-configured local openHAB servers on LAN; remote cloud uses HTTPS."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/core/connection/CloudConnection.kt",
+   "line": 66,
+   "verdict": "false",
+   "reason": "Logs 'Error parsing proxy URL endpoint response' with JSONException; no credentials logged."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "AND-028",
+   "path": "multiplatform/android/build.gradle.kts",
+   "line": 18,
+   "verdict": "real",
+   "reason": "targetSdk=35 in android/build.gradle.kts; below Play's API 36 requirement in effect as of late 2026."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "libretube",
+   "rule": "AND-055",
+   "path": "app/src/main/java/com/github/libretube/services/DownloadService.kt",
+   "line": 656,
+   "verdict": "overrated",
+   "reason": "Implicit broadcast carries no extras; only reveals download service stopped."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
+   "line": 1868,
+   "verdict": "overrated",
+   "reason": "Log.e of unexpected core response details could include contact data, but only on error path, logcat app-private."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "streetcomplete",
+   "rule": "CI-001",
+   "path": ".github/workflows/build-debug-apk.yml",
+   "line": 12,
+   "verdict": "overrated",
+   "reason": "GitHub-owned checkout@v4 in workflow_dispatch debug build with contents: read and no secrets."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "openhab-android",
+   "rule": "AND-059",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/ViewExtensions.kt",
+   "line": 50,
+   "verdict": "overrated",
+   "reason": "JS enabled with default content access for openHAB server pages; finding itself says web pages can't open content://, hardening only."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "libretube",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/github/libretube/ui/dialogs/PlaylistDescriptionDialog.kt",
+   "line": 76,
+   "verdict": "false",
+   "reason": "Logs exception from playlist description update; no secrets."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "libretube",
+   "rule": "AND-019",
+   "path": "app/src/main/AndroidManifest.xml",
+   "line": 339,
+   "verdict": "false",
+   "reason": "LibreTube is a third-party YouTube client; it cannot autoVerify youtube.com. Expected handler, not a weakness."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-ios",
+   "rule": "XPL-036",
+   "path": "falcon/app/falconPushNotifications/Environment.swift",
+   "line": 54,
+   "verdict": "overrated",
+   "reason": "dev.muun.com is in an Environment switch; Fastfile sets .prod for release so it's unreachable, just a string."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "fladder",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 196,
+   "verdict": "real",
+   "reason": "Third-party subosito/flutter-action@v2.19.0 tag used in release build jobs producing shipped binaries."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/homescreenwidget/ItemUpdateWidget.kt",
+   "line": 133,
+   "verdict": "false",
+   "reason": "Logs widget id being deleted; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/foss/java/org/openhab/habdroid/util/CrashReportingHelper.kt",
+   "line": 31,
+   "verdict": "false",
+   "reason": "Logs ACRA isOutdated boolean; not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-016",
+   "path": "AnkiDroid/src/main/res/xml/filepaths.xml",
+   "line": 4,
+   "verdict": "overrated",
+   "reason": "cache-path '/' broad, but FileProvider grants are per-URI; risk only if app shares attacker-chosen path."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chat/item/CIFileView.kt",
+   "line": 295,
+   "verdict": "false",
+   "reason": "Logs decryption exception stack trace, not file contents or keys."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-010",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/AbstractFlashcardViewer.kt",
+   "line": 1065,
+   "verdict": "overrated",
+   "reason": "allowFileAccess=true, but cards loaded via loadDataWithBaseURL on local http server origin; file:// access blocked cross-scheme. Hardening."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "streetcomplete",
+   "rule": "CI-001",
+   "path": ".github/workflows/build-debug-apk.yml",
+   "line": 15,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-java@v4 tag in a debug-APK build workflow; low supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "AND-019",
+   "path": "android/apolloui/src/main/AndroidManifest.xml",
+   "line": 102,
+   "verdict": "real",
+   "reason": "Muun https verify/authorize login link filters lack autoVerify anywhere; auth-token links could be claimed by other apps."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "stack-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yaml",
+   "line": 819,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/setup-go@v6 tag pin; low supply-chain risk."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "apps/mobile/src/features/scantastic/ScantasticModal.tsx",
+   "line": 185,
+   "verdict": "false",
+   "reason": "OTP-state polling fetch lacking timeout is a reliability issue, not a security weakness."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "ankidroid",
+   "rule": "AND-032",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/multimedia/MultimediaArgsStorage.kt",
+   "line": 28,
+   "verdict": "false",
+   "reason": "Deserializes files app wrote itself into private cacheDir; path passed via non-exported MultimediaActivity."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kitchenowl",
+   "rule": "IOS-039",
+   "path": "ios/ShareExtension/ShareExtension.entitlements",
+   "line": 5,
+   "verdict": "false",
+   "reason": "ShareViewController subclasses share_handler's ShareHandlerIosViewController, which uses the App Group container; entitlement is used."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "muun-android",
+   "rule": "CI-005",
+   "path": ".github/workflows/pr.yml",
+   "line": 26,
+   "verdict": "overrated",
+   "reason": "pull_request workflow with no write perms declared; fork PR tokens read-only, though PR code builds after checkout."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-ios",
+   "rule": "XPL-036",
+   "path": "falcon/app/falconPushNotifications/Environment.swift",
+   "line": 41,
+   "verdict": "false",
+   "reason": "dev host is one branch of an env switch; Fastlane seds Environment.current to prod for releases, which uses pub.api.muun.io."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "simplex-chat",
+   "rule": "XPL-009",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chat/ComposeView.kt",
+   "line": 418,
+   "verdict": "false",
+   "reason": "http://simplex.chat is only a prefix match in isSimplexLink(), not a network request."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "apps/mobile/app/components/sheets/recovery-key/index.jsx",
+   "line": 159,
+   "verdict": "false",
+   "reason": "alert(e.message) for local file-write errors when saving recovery key; no backend details."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "ankidroid",
+   "rule": "CI-005",
+   "path": ".github/workflows/screenshot_compare.yml",
+   "line": 56,
+   "verdict": "overrated",
+   "reason": "Persisted checkout token scoped to contents:read/actions:write; fork PRs get read-only token; hardening (persist-credentials:false)."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "IOS_BACKGROUND_MODES_UNNECESSARY",
+   "path": "apps/mobile/ios/Notesnook/Info.plist",
+   "line": 108,
+   "verdict": "false",
+   "reason": "Background fetch mode is a normal capability; no data exposure mechanism shown."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "openhab-android",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 53,
+   "verdict": "real",
+   "reason": "Third-party reactivecircus/android-emulator-runner pinned to mutable tag v2."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
+   "line": 553,
+   "verdict": "overrated",
+   "reason": "Logs response type/details on unexpected subs-total response; error path only, low-sensitivity data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-android",
+   "rule": "hardcoded_api_key",
+   "path": "android/apolloui/src/main/java/io/muun/apollo/data/preferences/rx/RxSharedPreferences.java",
+   "line": 83,
+   "verdict": "false",
+   "reason": "Line 83 is Preconditions.checkNotNull(key,...): a preference key parameter, not a hardcoded secret."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/call/CallAudioDeviceManager.kt",
+   "line": 43,
+   "verdict": "false",
+   "reason": "Logs audio device type integers; not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "XPL-046",
+   "path": "ios/extension.bundle/clipper.bundle.js",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Flagged line 1 has no location.href; elsewhere it's used as CSS base URL in Readability clipper, not markup injection."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "MISSING_SECURITY_HEADERS",
+   "path": "apps/mobile/app/screens/editor/index.tsx",
+   "line": 148,
+   "verdict": "false",
+   "reason": "WebView loads bundled local editor (build.bundle/index.html), not external content; HTTP security headers not applicable."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/chatlist/UserPicker.android.kt",
+   "line": 173,
+   "verdict": "false",
+   "reason": "Logs CancellationException stack trace from an animation; not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/translation-validation.yml",
+   "line": 33,
+   "verdict": "real",
+   "reason": "Third-party peter-evans/find-comment@v4 mutable tag running with pull-requests: write token."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "stack-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/build-ci-image.yaml",
+   "line": 44,
+   "verdict": "real",
+   "reason": "Third-party docker/build-push-action@v7 tag-pinned in job with packages:write pushing CI image used by release builds."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "openhab-android",
+   "rule": "CI-001",
+   "path": ".github/workflows/commit-release.yml",
+   "line": 75,
+   "verdict": "real",
+   "reason": "Third-party EndBug/add-and-commit pinned to mutable tag v9.1.4 in job with contents: write."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "fladder",
+   "rule": "CI-007",
+   "path": "android/gradle/wrapper/gradle-wrapper.properties",
+   "line": 5,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org; defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "stack-wallet",
+   "rule": "IOS-019",
+   "path": "scripts/app_config/templates/ios/Runner.xcodeproj/project.pbxproj",
+   "line": 135,
+   "verdict": "overrated",
+   "reason": "No PrivacyInfo.xcprivacy found, but that's App Store compliance, not a security weakness; file is a template."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "simplex-chat",
+   "rule": "AND-031",
+   "path": "multiplatform/desktop/src/jvmMain/kotlin/chat/simplex/desktop/Main.kt",
+   "line": 100,
+   "verdict": "false",
+   "reason": "Windows path loads fixed bundled DLL names from app resources/vlc dirs; not externally supplied."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "damus",
+   "rule": "XPL-027",
+   "path": "damus/Core/Nostr/NostrEvent.swift",
+   "line": 483,
+   "verdict": "false",
+   "reason": "SecRandomCopyBytes result is checked: guard == errSecSuccess else fatalError."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
+   "line": 242,
+   "verdict": "false",
+   "reason": "Logs 'Error reading log' exception; log content itself is redacted elsewhere."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "fladder",
+   "rule": "AND-021",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 17,
+   "verdict": "real",
+   "reason": "allowBackup defaults on, no backup rules; login credentials stored in SharedPreferences (_loginCredentialsKey) get backed up."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/WriteTagActivity.kt",
+   "line": 189,
+   "verdict": "false",
+   "reason": "Constant debug string \"Tag is initialized, writing\"; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/core/OpenHabApplication.kt",
+   "line": 196,
+   "verdict": "false",
+   "reason": "Logs data saver / battery saver state; not sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/MetaDB.kt",
+   "line": 91,
+   "verdict": "false",
+   "reason": "Static CREATE TABLE IF NOT EXISTS DDL via execSQL; no user input; non-sensitive widget/toolbar state."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "muun-ios",
+   "rule": "XPL-039",
+   "path": "falcon/app/falcon.xcodeproj/project.pbxproj",
+   "line": 5544,
+   "verdict": "overrated",
+   "reason": "No Frida/hooking detection in muun-ios sources; anti-hooking is defense-in-depth only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/pr-signed-apk.yml",
+   "line": 109,
+   "verdict": "real",
+   "reason": "Third-party subosito/flutter-action@v2 tag pin in signed-APK workflow."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kitchenowl",
+   "rule": "AND-003",
+   "path": "android/app/src/main/res/xml/network_security_config.xml",
+   "line": 6,
+   "verdict": "overrated",
+   "reason": "Base config trusts user CAs (and cleartext) in release; intentional for self-hosted KitchenOwl servers, needs user-installed CA."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "damus",
+   "rule": "IOS-001",
+   "path": "damus/Info.plist",
+   "line": 70,
+   "verdict": "real",
+   "reason": "NSAllowsArbitraryLoads=true in shipping Info.plist disables ATS globally."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/preference/fragments/TileSettingsFragment.kt",
+   "line": 66,
+   "verdict": "false",
+   "reason": "Logs ActivityResult object (result code/intent summary) for tile item picker; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/WriteTagActivity.kt",
+   "line": 208,
+   "verdict": "false",
+   "reason": "Logs NFC tag write IOException; not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "RN-005",
+   "path": "app/screens/editor/index.tsx",
+   "line": 181,
+   "verdict": "overrated",
+   "reason": "allowFileAccess required to load file:// editor bundle; exploitation needs XSS in editor, though universal file access also enabled."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/openxfacts-release.yml",
+   "line": 94,
+   "verdict": "real",
+   "reason": "Third-party maierj/fastlane-action@v3.2.0 tag-pinned in release job that has decrypted signing/store secrets."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "AND-003",
+   "path": "android/app/src/main/res/xml/network_security_config.xml",
+   "line": 10,
+   "verdict": "real",
+   "reason": "Release manifest uses network_security_config whose base-config trusts user CAs."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "fladder",
+   "rule": "IOS-019",
+   "path": "ios/Runner.xcodeproj/project.pbxproj",
+   "line": 146,
+   "verdict": "overrated",
+   "reason": "No PrivacyInfo.xcprivacy in Runner confirmed; App Store compliance gap, not a security weakness."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-008",
+   "path": "lib/pages/add_wallet_views/new_wallet_recovery_phrase_view/new_wallet_recovery_phrase_view.dart",
+   "line": 324,
+   "verdict": "false",
+   "reason": "Random() only picks which mnemonic word index to verify; mnemonic generated elsewhere."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-005",
+   "path": ".github/workflows/android-release-to-org-openfoodfacts-scanner.yml",
+   "line": 61,
+   "verdict": "real",
+   "reason": "checkout persists token (no persist-credentials:false, no permissions block); later unpinned third-party actions can read it."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/MainActivity.kt",
+   "line": 670,
+   "verdict": "false",
+   "reason": "Constant debug string \"runAfterDelay()\"; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "XPL-042",
+   "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/AppUpdater.kt",
+   "line": 460,
+   "verdict": "false",
+   "reason": "Runtime.exec(String) has no shell; arg is app's downloaded update file path, not attacker input."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-001",
+   "path": ".github/workflows/on-demand.yml",
+   "line": 128,
+   "verdict": "real",
+   "reason": "Third-party stefanzweifel/git-auto-commit-action@v7 tag-pinned in comment-triggered job with checked-out token and push."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "kotlin.lang.security.use-of-sha1.use-of-sha1",
+   "path": "libanki/src/main/java/com/ichi2/anki/libanki/Utils.kt",
+   "line": 105,
+   "verdict": "false",
+   "reason": "SHA1 used for Anki field checksum compatible with Python sha1; not a security signature."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/WriteTagActivity.kt",
+   "line": 210,
+   "verdict": "false",
+   "reason": "Logs NFC write IOException; no sensitive data."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "kotlin.lang.security.use-of-md5.use-of-md5",
+   "path": "common/src/testFixtures/java/com/ichi2/anki/TestUtils.kt",
+   "line": 15,
+   "verdict": "false",
+   "reason": "MD5 in testFixtures TestUtils for file checksums; test code, not shipped, not security use."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "RN-005",
+   "path": "app/share/editor.tsx",
+   "line": 237,
+   "verdict": "overrated",
+   "reason": "allowFileAccess (plus universal) set, but WebView loads bundled file:///android_asset/plaineditor.html; needs separate XSS."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-012",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/cardviewer/TypeAnswerWebView.kt",
+   "line": 26,
+   "verdict": "overrated",
+   "reason": "Bridge reachable from all frames, but only exposes setNoSuggest(boolean) toggling keyboard suggestions; negligible impact."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "CUSTOM_CRYPTO_IMPLEMENTATION",
+   "path": "apps/mobile/app/common/database/encryption.ts",
+   "line": 352,
+   "verdict": "false",
+   "reason": "hash() delegates to libsodium Sodium.hashPassword; not custom crypto."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_sha1_collision",
+   "path": "falcon/app/Pods/FirebaseInstallations/FirebaseInstallations/Source/Library/IIDMigration/FIRInstallationsIIDStore.m",
+   "line": 25,
+   "verdict": "false",
+   "reason": "Firebase pod imports CommonCrypto for IID fingerprint derivation; not a security-relevant collision use."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "AND-027",
+   "path": "multiplatform/android/build.gradle.kts",
+   "line": 62,
+   "verdict": "overrated",
+   "reason": "release isMinifyEnabled=false is real, but only reduces reverse-engineering hardening for an open-source app."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/IntroActivity.kt",
+   "line": 58,
+   "verdict": "false",
+   "reason": "Logs constant strings 'Show restore intro'/'Show regular intro'."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "stack-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/test.yaml",
+   "line": 31,
+   "verdict": "overrated",
+   "reason": "pull_request-triggered test job with contents:read/packages:read token; persisted token has little value; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "muun-ios",
+   "rule": "XPL-009",
+   "path": "falcon/app/falcon/Resource/Environment%2BExtension.swift",
+   "line": 25,
+   "verdict": "false",
+   "reason": "http://totally-explorer is placeholder explorer for debug/regtest envs; prod uses https mempool.space."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "onion-browser",
+   "rule": "XPL-009",
+   "path": "OnionBrowser/Bookmarks/NcBookmarks.swift",
+   "line": 107,
+   "verdict": "false",
+   "reason": "http to .onion v3 address; Tor onion services are end-to-end encrypted and authenticated."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "muun-android",
+   "rule": "XPL-005",
+   "path": "android/apolloui/src/main/java/io/muun/apollo/data/os/secure_storage/KeyStoreProvider.java",
+   "line": 188,
+   "verdict": "overrated",
+   "reason": "Keystore AES-CBC/PKCS7 without MAC for local storage; tampering needs root access to app-private data."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "WEBVIEW_JAVASCRIPT_INJECTION",
+   "path": "apps/mobile/app/share/editor.tsx",
+   "line": 216,
+   "verdict": "false",
+   "reason": "WebView source is the bundled local editor asset (EDITOR_URI), not dynamic remote content."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "uniswap-mobile",
+   "rule": "RN-007",
+   "path": "src/screens/WebViewScreen.tsx",
+   "line": 47,
+   "verdict": "false",
+   "reason": "No deep-link linking config; all navigate(MobileScreens.WebView) callers pass static Uniswap URLs (privacy, terms, help)."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/android/src/main/java/chat/simplex/app/CallService.kt",
+   "line": 37,
+   "verdict": "false",
+   "reason": "Logs constant 'null intent' message; nothing sensitive."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/GTMSessionFetcher/Sources/Full/GTMMIMEDocument.m",
+   "line": 472,
+   "verdict": "false",
+   "reason": "NSLog inside #if DEBUG in GTMSessionFetcher pod; no sensitive data, not in release."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "android_kotlin_sql_raw_query",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/MetaDB.kt",
+   "line": 610,
+   "verdict": "false",
+   "reason": "rawQuery/execSQL use bound ? parameters with numeric did; no injection."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/util/HttpClient.kt",
+   "line": 119,
+   "verdict": "overrated",
+   "reason": "Log.d of item command and server URL in release (no log stripping); not credentials, logcat app-private."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "damus",
+   "rule": "XPL-009",
+   "path": "damus/TestData.swift",
+   "line": 149,
+   "verdict": "false",
+   "reason": "http URL is inside test Nostr event JSON fixture string; never fetched as a network request."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "streetcomplete",
+   "rule": "IOS-019",
+   "path": "iosApp/iosApp.xcodeproj/project.pbxproj",
+   "line": 70,
+   "verdict": "false",
+   "reason": "StreetComplete iOS app is an unreleased prototype; privacy manifest is App Store compliance, not a security weakness."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-059",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/shareddeck/SharedDecksActivity.kt",
+   "line": 221,
+   "verdict": "overrated",
+   "reason": "WebView loads AnkiWeb shared decks; default content access is defense-in-depth only, as message itself notes."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "AND-019",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 162,
+   "verdict": "overrated",
+   "reason": "app.notesnook.com filter lacks autoVerify, but links carry only note/tag IDs; Android 12+ won't route unverified links."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "AND-019",
+   "path": "android/apolloui/src/main/AndroidManifest.xml",
+   "line": 132,
+   "verdict": "real",
+   "reason": "https intent-filters for verify/authorize/confirm links lack autoVerify anywhere; other apps can claim auth links."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "libretube",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/github/libretube/player/parser/SabrClient.kt",
+   "line": 537,
+   "verdict": "false",
+   "reason": "Logs skipped format itag number in SABR stream parser; not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "stack-wallet",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yaml",
+   "line": 873,
+   "verdict": "overrated",
+   "reason": "GitHub-owned upload-artifact pinned to major tag v7; lower risk than third-party actions."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-010",
+   "path": "lib/pages/paynym/paynym_claim_view.dart",
+   "line": 234,
+   "verdict": "false",
+   "reason": "token.message is the API error message on failure, not the token value."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-012",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/pages/DeckOptions.kt",
+   "line": 168,
+   "verdict": "overrated",
+   "reason": "Bridge exposes only modal open/close and save-reload events; content is bundled pages, external navigation opened outside."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "onion-browser",
+   "rule": "IOS-015",
+   "path": "OnionBrowser/Browsing/Tab%2BWKScriptMessageHandler.swift",
+   "line": 74,
+   "verdict": "overrated",
+   "reason": "Only registered handler is showDonate (main-frame script); any page can only open donation screen."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "simplex-chat",
+   "rule": "XPL-009",
+   "path": "ios/Shared/Views/Chat/ComposeMessage/ComposeView.swift",
+   "line": 1898,
+   "verdict": "false",
+   "reason": "String prefix check recognizing simplex links; no HTTP request is made to that URL."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "IMPROPER_BIOMETRIC_FALLBACK",
+   "path": "apps/mobile/app/utils/events.js",
+   "line": 173,
+   "verdict": "false",
+   "reason": "Line 173 is an event-name constant (eUnlockWithBiometrics); no biometric fallback logic there."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "apps/mobile/src/features/scantastic/ScantasticModal.tsx",
+   "line": 125,
+   "verdict": "false",
+   "reason": "Missing fetch timeout is reliability, not a security weakness; user-driven modal."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "MISSING_SECURITY_HEADERS",
+   "path": "apps/mobile/app/share/fetch-webview.tsx",
+   "line": 96,
+   "verdict": "false",
+   "reason": "Security headers are a server concept; hidden clipper WebView loading a user-shared URL isn't missing headers."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-012",
+   "path": "AnkiDroid/src/main/java/com/ichi2/anki/pages/PageFragment.kt",
+   "line": 71,
+   "verdict": "overrated",
+   "reason": "Bridge only dispatches fixed command names (unbury, customStudy) on local Anki pages; trivial impact."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/Utils.desktop.kt",
+   "line": 170,
+   "verdict": "false",
+   "reason": "Logs image decode stack trace for user-picked local file; no sensitive data."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/widget/WidgetImageView.kt",
+   "line": 366,
+   "verdict": "false",
+   "reason": "Logs image URL refresh on user's openHAB server; credentials not in URL, logcat is app-private."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/IntroActivity.kt",
+   "line": 51,
+   "verdict": "false",
+   "reason": "Logs static string 'Show restore intro'."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-042",
+   "path": "tool/build_standalone_mwebd_windows.dart",
+   "line": 34,
+   "verdict": "false",
+   "reason": "Developer build tool (tool/), not shipped; curl args passed as list, inputs are developer env/constants."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "openhab-android",
+   "rule": "XPL-040",
+   "path": "mobile/src/main/AndroidManifest.xml",
+   "line": 63,
+   "verdict": "false",
+   "reason": "Lack of forced-update mechanism is not a vulnerability for this open-source home-automation client."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "ankidroid",
+   "rule": "XPL-009",
+   "path": "anki-common/src/main/kotlin/com/ichi2/anki/common/android/AdaptionUtil.kt",
+   "line": 80,
+   "verdict": "false",
+   "reason": "URL only used to queryIntentActivities for browser presence; never opened or fetched."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_command_injection",
+   "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/AppUpdater.kt",
+   "line": 460,
+   "verdict": "false",
+   "reason": "Desktop-only updater; file name filtered to fixed githubAssetName in app temp dir, not user controlled."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "XPL-042",
+   "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/AppUpdater.kt",
+   "line": 433,
+   "verdict": "false",
+   "reason": "Runtime.exec(String) does no shell parsing; path is app-controlled download file; no injection."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "INSECURE_RANDOM",
+   "path": "apps/mobile/app/share/share.tsx",
+   "line": 382,
+   "verdict": "false",
+   "reason": "sessionId is an editor session identifier, not a security token; predictability irrelevant."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "simplex-chat",
+   "rule": "AND-059",
+   "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/call/CallView.android.kt",
+   "line": 754,
+   "verdict": "overrated",
+   "reason": "Content access on, but WebView loads bundled file:android_asset call.html via LocalContentWebViewClient; hardening only."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "muun-android",
+   "rule": "AND-041",
+   "path": "android/apolloui/src/main/java/io/muun/apollo/data/os/secure_storage/KeyStoreProvider.java",
+   "line": 190,
+   "verdict": "overrated",
+   "reason": "Persistent per-key IV reused on rewrites (getPersistentSecureRandomBytes); CBC reuse leaks equal prefixes only, needs app-private storage access."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "streetcomplete",
+   "rule": "AND-036",
+   "path": "androidApp/src/main/AndroidManifest.xml",
+   "line": 43,
+   "verdict": "overrated",
+   "reason": "allowBackup=false yet no dataExtractionRules so D2D transfer possible; requires user-initiated device migration, data is OSM token."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "libretube",
+   "rule": "AND-040",
+   "path": "app/src/main/java/com/github/libretube/api/poToken/PoTokenWebView.kt",
+   "line": 40,
+   "verdict": "false",
+   "reason": "PoToken WebView has blockNetworkLoads=true and runs local JS; Safe Browsing irrelevant."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-001",
+   "path": "AnkiDroid/src/main/AndroidManifest.xml",
+   "line": 95,
+   "verdict": "overrated",
+   "reason": "Cleartext is permitted (NSC base-config too) for custom sync servers, but minSdk is 24, not 16; AnkiWeb uses HTTPS."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "fladder",
+   "rule": "CI-005",
+   "path": ".github/workflows/build.yml",
+   "line": 689,
+   "verdict": "overrated",
+   "reason": "Persisted token in release_web job; later actions already get GITHUB_TOKEN, .dockerignore excludes .git."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "NO_REQUEST_TIMEOUT",
+   "path": "apps/mobile/worker.js",
+   "line": 4966,
+   "verdict": "false",
+   "reason": "fetch(\"summary\", children) is a local feed-parsing helper (htmlparser2), not network fetch."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "damus",
+   "rule": "ios_cert_pinning",
+   "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench5/src/damus",
+   "line": 1,
+   "verdict": "overrated",
+   "reason": "No pinning in damus; Nostr connects to arbitrary user-chosen relays so pinning is impractical, defense-in-depth."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kitchenowl",
+   "rule": "AND-001",
+   "path": "android/app/src/main/res/xml/network_security_config.xml",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "Self-hosted client: cleartext/user CAs allow user-configured HTTP servers; default hosted server uses HTTPS."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "streetcomplete",
+   "rule": "CI-007",
+   "path": "gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org with validateDistributionUrl; build-side hardening."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "ANDROID_MISSING_NETWORK_SECURITY_CONFIG",
+   "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
+   "line": 62,
+   "verdict": "false",
+   "reason": "network_security_config.xml exists and is wired in src/release/AndroidManifest.xml."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
+   "line": 77,
+   "verdict": "false",
+   "reason": "Logs 'Log too large to share' exception; not sensitive."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "INSECURE_WEBVIEW",
+   "path": "apps/mobile/app/share/editor.tsx",
+   "line": 216,
+   "verdict": "overrated",
+   "reason": "Share editor WebView loads bundled local HTML with JS and '*' whitelist; risk requires content injection."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "damus",
+   "rule": "XPL-009",
+   "path": "damus/Shared/Media/Images/FullScreenCarouselView.swift",
+   "line": 156,
+   "verdict": "false",
+   "reason": "http URL in fileprivate SwiftUI preview struct; never used at runtime."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
+   "line": 603,
+   "verdict": "false",
+   "reason": "Constant debug string \"startChat: running\", gated on developerTools."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "notesnook-mobile",
+   "rule": "AND-016",
+   "path": "android/app/src/main/res/xml/file_viewer_provider_paths.xml",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "files-path '/' exposes files dir, but FileProvider exported=false; only granted URIs accessible."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "onion-browser",
+   "rule": "XPL-009",
+   "path": "OnionBrowser/Bookmarks/NcBookmarks.swift",
+   "line": 89,
+   "verdict": "false",
+   "reason": "Plain http to .onion service; Tor onion transport provides end-to-end encryption and authentication."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "stack-wallet",
+   "rule": "CI-005",
+   "path": ".github/workflows/build.yaml",
+   "line": 115,
+   "verdict": "overrated",
+   "reason": "checkout persists token but job has contents/packages read-only and trusted triggers (tags/staging/dispatch)."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "stack-wallet",
+   "rule": "XPL-016",
+   "path": "lib/utilities/electrum_seed_utils.dart",
+   "line": 24,
+   "verdict": "false",
+   "reason": "Fixed 'electrum' salt is the Electrum seed spec for high-entropy mnemonics, not password hashing."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "libretube",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/github/libretube/ui/dialogs/SubmitSegmentDialog.kt",
+   "line": 108,
+   "verdict": "false",
+   "reason": "Logs exception toString for SponsorBlock submit failure; no sensitive data."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "uniswap-mobile",
+   "rule": "AND-072",
+   "path": "android/app/src/main/AndroidManifest.xml",
+   "line": 15,
+   "verdict": "overrated",
+   "reason": "SYSTEM_ALERT_WINDOW only in beta and debug manifests, not main/prod."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "MISSING_SESSION_TIMEOUT",
+   "path": "apps/mobile/app/components/auth/index.tsx",
+   "line": 1,
+   "verdict": "false",
+   "reason": "Auth screen UI component switching login/signup; no session management here."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/core/connection/ConnectionFactory.kt",
+   "line": 553,
+   "verdict": "false",
+   "reason": "Logs KeyChainException when loading cert chain; no secret material logged."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "ankidroid",
+   "rule": "AND-019",
+   "path": "AnkiDroid/src/main/AndroidManifest.xml",
+   "line": 131,
+   "verdict": "false",
+   "reason": "Filter matches .apkg file paths with host *; not an App Link, autoVerify not applicable."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/ChatModel.kt",
+   "line": 4379,
+   "verdict": "false",
+   "reason": "Logs decryption exception stack trace, not file contents or keys."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "uniswap-mobile",
+   "rule": "RN-007",
+   "path": "src/screens/WebViewScreen.tsx",
+   "line": 27,
+   "verdict": "false",
+   "reason": "All callers pass static UniswapStaticUrls/HelpUrls constants; no deep link route to WebView screen found."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "MISSING_SECURITY_HEADERS",
+   "path": "apps/mobile/src/screens/WebViewScreen.tsx",
+   "line": 47,
+   "verdict": "false",
+   "reason": "Security headers are server-side; WebView loads static first-party Uniswap URLs; finding not applicable."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "MISSING_SECURITY_HEADERS",
+   "path": "apps/mobile/app/screens/editor/readonly-editor.tsx",
+   "line": 142,
+   "verdict": "false",
+   "reason": "Readonly editor loads bundled local EDITOR_URI, not external content."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "fladder",
+   "rule": "CI-001",
+   "path": ".github/workflows/build.yml",
+   "line": 537,
+   "verdict": "overrated",
+   "reason": "GitHub-owned actions/download-artifact@v4 tag pin; low supply-chain risk."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "muun-ios",
+   "rule": "IOS-028",
+   "path": "falcon/app/falcon.xcodeproj/project.pbxproj",
+   "line": 5519,
+   "verdict": "overrated",
+   "reason": "DeviceCheck used, App Attest absent; app attestation is server-side defense-in-depth for a self-custody wallet."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "openhab-android",
+   "rule": "XPL-042",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
+   "line": 193,
+   "verdict": "false",
+   "reason": "Runtime.exec(\"logcat -b all $args\") with args from constants only; no input."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "libretube",
+   "rule": "AND-003",
+   "path": "app/src/main/res/xml/network_security_config.xml",
+   "line": 11,
+   "verdict": "real",
+   "reason": "base-config trusts src=\"user\" CAs, applied via manifest networkSecurityConfig in release; user CA proxy can intercept traffic."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "uniswap-mobile",
+   "rule": "AND-001",
+   "path": "android/app/src/dev/AndroidManifest.xml",
+   "line": 5,
+   "verdict": "overrated",
+   "reason": "Cleartext allowed only in dev flavor manifest (com.uniswap.mobile.dev)."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
+   "path": "apps/mobile/app/services/pinned-notes-widget.ts",
+   "line": 61,
+   "verdict": "false",
+   "reason": "console.error of widget DB update failure; no sensitive data in error."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "openhab-android",
+   "rule": "AND-029",
+   "path": "mobile/build.gradle",
+   "line": 40,
+   "verdict": "overrated",
+   "reason": "minSdk 23 supports Android 6; no concrete vulnerability, just older-OS support."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "fladder",
+   "rule": "android_kotlin_logging",
+   "path": "android/app/src/main/kotlin/nl/jknaapen/fladder/api/BatteryOptimizationPigeon.g.kt",
+   "line": 33,
+   "verdict": "false",
+   "reason": "Generated Pigeon code builds error details list for Dart; no logging call."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, CI",
+   "app": "smooth-app",
+   "rule": "CI-005",
+   "path": ".github/workflows/localization-signature-check.yml",
+   "line": 20,
+   "verdict": "overrated",
+   "reason": "pull_request workflow with contents:read only; persisted checkout token has minimal value."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "notesnook-mobile",
+   "rule": "INSECURE_LINKING_OPEN",
+   "path": "apps/mobile/app/components/announcements/cta.tsx",
+   "line": 45,
+   "verdict": "false",
+   "reason": "CTA link comes from first-party Notesnook announcements; opening links is intended behavior."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "libretube",
+   "rule": "CI-007",
+   "path": "gradle/wrapper/gradle-wrapper.properties",
+   "line": 3,
+   "verdict": "overrated",
+   "reason": "No distributionSha256Sum, but HTTPS download with validateDistributionUrl; defense-in-depth only."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "libretube",
+   "rule": "android_kotlin_logging",
+   "path": "app/src/main/java/com/github/libretube/api/poToken/PoTokenWebView.kt",
+   "line": 123,
+   "verdict": "false",
+   "reason": "Log.e is inside if (BuildConfig.DEBUG); not emitted in release."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
+   "line": 1833,
+   "verdict": "false",
+   "reason": "Logs error response type/details on failed profile update; no secrets."
+  },
+  {
+   "tool": "semgrep",
+   "pool": "app code",
+   "app": "ankidroid",
+   "rule": "kotlin.lang.security.use-of-sha1.use-of-sha1",
+   "path": "api/src/main/java/com/ichi2/anki/api/Utils.kt",
+   "line": 43,
+   "verdict": "false",
+   "reason": "SHA1 used for Anki field checksum (duplicate detection, format compatibility), not security."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "ANDROID_INTENT_FILTER_PERMISSIVE",
+   "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
+   "line": 157,
+   "verdict": "false",
+   "reason": "Line 157 filter belongs to ExpoDevClientSchemeActivity declared android:enabled=false."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "simplex-chat",
+   "rule": "android_kotlin_logging",
+   "path": "multiplatform/android/src/main/java/chat/simplex/app/SimplexService.kt",
+   "line": 58,
+   "verdict": "false",
+   "reason": "Logs static message about null intent."
+  },
+  {
+   "tool": "rnsec",
+   "pool": "app code",
+   "app": "uniswap-mobile",
+   "rule": "TEST_CREDENTIALS_IN_CODE",
+   "path": "apps/mobile/src/screens/DevScreen.tsx",
+   "line": 80,
+   "verdict": "false",
+   "reason": "DevScreen dev-only navigation passes placeholder password param; not a credential."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "check by hand or hardening, app code",
+   "app": "muun-android",
+   "rule": "XPL-010",
+   "path": "android/apolloui/src/main/java/io/muun/apollo/data/async/gcm/FirebaseManager.kt",
+   "line": 40,
+   "verdict": "overrated",
+   "reason": "FCM token logged via Timber.i: logcat gated to debug/dogfood; Crashlytics breadcrumb only. FCM token low sensitivity."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "openhab-android",
+   "rule": "android_kotlin_logging",
+   "path": "mobile/src/main/java/org/openhab/habdroid/ui/MainActivity.kt",
+   "line": 711,
+   "verdict": "false",
+   "reason": "Logs 'Cannot auto select server: Location off'; not sensitive."
+  },
+  {
+   "tool": "masaudit",
+   "pool": "fix lists, app code",
+   "app": "kitchenowl",
+   "rule": "IOS-001",
+   "path": "macos/Runner/Info.plist",
+   "line": 35,
+   "verdict": "real",
+   "reason": "Shipped macOS Info.plist sets NSAllowsArbitraryLoads=true, disabling ATS for all hosts."
+  },
+  {
+   "tool": "mobsfscan",
+   "pool": "app code",
+   "app": "muun-ios",
+   "rule": "ios_app_logging",
+   "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/MethodSwizzler/GULSwizzler.m",
+   "line": 52,
+   "verdict": "false",
+   "reason": "NSAssert in GoogleUtilities pod about missing selector; no sensitive data."
+  }
+ ]
+}
