@@ -893,6 +893,22 @@ def module_scope(ctx: Context, path: str) -> str:
     return _module_scope(ctx, path)
 
 
+def in_app_module(ctx: Context, path: str) -> bool:
+    """The Gradle module holding `path` builds an Android app, so no project outside this one calls its code
+    (a library module's public functions may be called by apps that aren't in the repository)."""
+    def compute() -> Dict[str, bool]:
+        return {posixpath.dirname(p): _is_app_module(ctx, ctx.code(p) or "")
+                for p in ctx.files(*BUILD_FILES) if p.rsplit("/", 1)[-1] in BUILD_FILES}
+    apps = _memo(ctx, "app_module_dirs", compute)
+    d = posixpath.dirname(path)
+    while True:
+        if d in apps:
+            return apps[d]
+        if not d:
+            return False
+        d = posixpath.dirname(d)
+
+
 def _release_path(ctx: Context, path: str) -> bool:
     """The file ships in a release build (not test, debug, sample, or a non-release variant)."""
     return _scope(ctx, path) in ("main", "build-script")

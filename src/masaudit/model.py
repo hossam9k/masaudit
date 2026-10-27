@@ -10,7 +10,7 @@ SEVERITIES = ["critical", "high", "medium", "low", "info"]
 SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITIES)}
 
 # Where in the project a hit was found. Hits outside "main" are downgraded, never dropped.
-SCOPES = ["main", "debug", "test", "unshipped", "build-script", "ci", "unknown"]
+SCOPES = ["main", "debug", "test", "unshipped", "unused", "build-script", "ci", "unknown"]
 
 
 def a_type(app_type: str) -> str:

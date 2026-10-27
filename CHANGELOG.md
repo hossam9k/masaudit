@@ -25,6 +25,16 @@ their own version (`rules_version`), shown in every report.
   folders are never lowered. This takes the round 3 iOS false alarms (an unbuilt macOS `Info.plist`, a sample
   app, and an unbuilt macOS source) out of the fix lists. Xcode file paths are resolved once per project, so
   a project file with deeply nested groups no longer slows the scan.
+- **Findings in a function nothing calls are lowered.** When a Kotlin function, or a private or static Java
+  method, is named nowhere else in the project, its findings get the new scope `unused` and go to Notes.
+  Every source, resource, build, and config file is searched with only comments left out, so a name in a
+  string (reflection), a layout's `android:onClick`, a keep rule, native code, or Swift counts as a call.
+  Overrides, operators, annotated entry points (`@JavascriptInterface`, `@Provides`), Java instance methods
+  (a callback needs no `@Override`), and public functions of library modules are never judged. This takes
+  Feeder's unused password-based key derivation out of the fix list (benchmark round 3).
+- XPL-015 read `@Throws(…) fun f(` as a function named `Throws`, so it reported every `@Throws` line in the file
+  as a call that passes on the weak iteration count; it also took an overload's declaration for a call. It now
+  reports the one real call.
 - A build type or flavor named by a constant (`create(BuildTypes.LEAK_CANARY)`) is read: a debug tool added
   through `leakCanaryImplementation` is no longer reported as shipping in release (AND-037).
 - AND-021 reads the merged manifest: when the app's manifest doesn't set `allowBackup`, a library module the

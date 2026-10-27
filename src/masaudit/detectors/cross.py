@@ -246,7 +246,13 @@ def _enclosing_function_scan(blank: str, idx: int, path: str) -> Tuple[int, int,
     return 0, len(blank), ""
 
 
+# An annotation or attribute with arguments (`@Throws(X::class)`, `@objc(name:)`, `@available(iOS 13, *)`).
+_ANNOTATION_ARGS = re.compile(r"[@#][\w.]+\s*\((?:[^()]|\([^()]*\))*\)")
+
+
 def _function_name(head: str) -> str:
+    # An annotation's `(` before the declaration isn't the parameter list: `@Throws(…) fun f(` is f.
+    head = _ANNOTATION_ARGS.sub(lambda a: " " * len(a.group()), head)
     m = re.search(r"([A-Za-z_]\w*)\s*(?:<[^<>]*>)?\s*\([^{]*$", head)
     return m.group(1) if m else ""
 
@@ -1403,15 +1409,39 @@ def _param_index(head: str, name: str) -> int:
 
 
 _CALL_SITE = re.compile(r"(?<![\w$])([A-Za-z_$][\w$]*)\s*\(")
+# A declaration, not a call: `fun f(`, `func f<T>(`, `fun Type.f(`; or Java's `Type f(…) {` / `throws`, with the
+# type on the same line (a word before a call on the same line is a keyword such as `return`).
+_KEYWORD_LAST = re.compile(r"(?<![\w$])(?:fun|func|def|function)$")
+_DECLARED_BY_KEYWORD = re.compile(r"\b(?:fun|func|def|function)\s+(?:<[^<>{}]{0,200}>\s*)?(?:[\w.?<>]{1,200}\.)?$")
+_NOT_A_TYPE = {"return", "new", "else", "throw", "case", "await", "yield", "in", "is", "as", "try", "do", "not", "and",
+               "or", "typeof", "delete", "void", "of"}
+_JAVA_BODY = re.compile(r"\((?:[^()]|\([^()]{0,400}\)){0,400}\)\s*(?:throws\b|\{)")
+
+
+def _declares(blank: str, start: int, paren: int) -> bool:
+    before = blank[max(0, start - 300):start]
+    tail = before.rstrip()
+    if not tail or not (tail[-1].isalnum() or tail[-1] in "_$>]"):
+        return False                          # `(f(`, `= f(`, `, f(`: most calls stop here
+    if _KEYWORD_LAST.search(tail[-9:]) or (tail[-1] == ">" and _DECLARED_BY_KEYWORD.search(tail[-250:] + " ")):
+        return True
+    gap = before[len(tail):]
+    if not gap or "\n" in gap:
+        return False                          # the type, if any, is on the same line, one space or more before
+    word = re.search(r"(\w+)$", tail[-60:])
+    return not (word and word.group(1) in _NOT_A_TYPE) and bool(_JAVA_BODY.match(blank, paren))
 
 
 def _call_sites(blank: str) -> Dict[str, List[Tuple[int, int, bool]]]:
     """name -> [(start, offset of its `(`, called on a receiver)] for every call in the text, built once per text:
-    a regex per helper over the whole file is quadratic when a file declares thousands of helpers."""
+    a regex per helper over the whole file is quadratic when a file declares thousands of helpers. Declarations
+    of a function (`fun f(`, Java's `int f(…) {`) are left out."""
     def build() -> Dict[str, List[Tuple[int, int, bool]]]:
         sites: Dict[str, List[Tuple[int, int, bool]]] = {}
         for m in _CALL_SITE.finditer(blank):
             dotted = m.start() > 0 and blank[m.start() - 1] == "."
+            if not dotted and _declares(blank, m.start(), m.end() - 1):
+                continue
             sites.setdefault(m.group(1), []).append((m.start(), m.end() - 1, dotted))
         return sites
     return text_memo(blank, ("call_sites",), build)
@@ -1844,6 +1874,11 @@ def _params(head: str, path: str) -> List[Tuple[str, str]]:
     return out
 
 
+# Calls of one wrapper judged per file: the report lists only the first few hits in a file anyway, and a
+# crafted file calling it tens of thousands of times made each KDF call a pass over all of them.
+_MAX_FORWARDED = 200
+
+
 def _forwarded(code: str, blank: str, path: str, span: Optional[Tuple[int, int]]) -> Optional[Dict[int, Tuple[int, int]]]:
     """When the KDF argument at `span` is a parameter of its function (through a cast such as
     `UInt32(rounds)` or a `salt.withUnsafeBytes { saltBytes in` alias), {call start: argument span} for
@@ -1856,8 +1891,10 @@ def _forwarded(code: str, blank: str, path: str, span: Optional[Tuple[int, int]]
         return None
     name = cast.group(1) or cast.group(2)
     start, _end, head = _enclosing_function(blank, span[0], path)
+    if not head:
+        return None                           # not inside a function: no parameters to forward
     alias = re.search(r"\b(\w+)\s*\.\s*withUnsafe(?:Mutable)?Bytes\s*\{\s*\(?\s*" + re.escape(name) + r"\b",
-                      code[start:span[0]])
+                      code[max(start, span[0] - 3000):span[0]])
     if alias:
         name = alias.group(1)
     params = _params(head, path)
@@ -1867,7 +1904,7 @@ def _forwarded(code: str, blank: str, path: str, span: Optional[Tuple[int, int]]
         return None
     label = params[pos][0]
     out: Dict[int, Tuple[int, int]] = {}
-    for call_start, paren, dotted in _call_sites(blank).get(fn, []):
+    for call_start, paren, dotted in _call_sites(blank).get(fn, [])[:_MAX_FORWARDED]:
         if dotted or start - len(head) <= call_start < start:
             continue                          # a method of another object, or the declaration itself
         args = _args_of(blank, paren)
