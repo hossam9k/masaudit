@@ -155,12 +155,12 @@ scanned the apps again.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
   about 5 seconds on a laptop, with no crashes on any of the 19.
 
-- **On apps no rule was tuned on, expect much more noise.** On 16 new apps, 33% (23–44%) of the sampled
-  app-code findings in 0.6.5's fix lists were false alarms, against 1 in 10 on the tuned corpus. 0.6.5 moves
-  missing protections to a *Hardening checklist* and the rules most often wrong to *Check by hand*, which
-  don't fail `--fail-on`: that took 46% of app-code findings out of the fix lists, and none of the 30
-  sampled there was a real vulnerability. Counting every bucket, 26% to 45% were false in four rounds on
-  71 apps. CI findings held up (none of 30 false in the latest round). mobsfscan, rnsec, and Semgrep's free
+- **On apps no rule was tuned on, expect much more noise.** On 16 new apps, 29% (19–40%) of the sampled
+  app-code findings in 0.7.0's fix lists were false alarms (33% for 0.6.5), against 1 in 10 on the tuned
+  corpus. Missing protections go to a *Hardening checklist* and the rules most often wrong to *Check by
+  hand*, which don't fail `--fail-on`; 1 of the 30 sampled there was a real vulnerability. Counting every
+  bucket, 26% to 45% were false in five rounds on 87 apps. CI findings held up (1 of 30 false in the latest
+  round). mobsfscan, rnsec, and Semgrep's free
   rules did worse on the same apps. AI reviewers judged every sample:
   [Benchmark on unseen apps](https://github.com/hossam9k/masaudit/blob/main/docs/benchmark.md).
 

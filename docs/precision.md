@@ -7,8 +7,8 @@ real apps before each release.
 
 These numbers come from the apps the rules were tuned on, after their false alarms were fixed, so they
 are the best case. On apps no rule was tuned on, about 1 in 3 app-code findings in the fix lists was a false
-alarm for 0.6.5, and about 4 in 10 counting every bucket (26% for 0.6.2, 45% for 0.6.3, 40% for 0.6.4, about
-44% for 0.6.5, on 71 apps in all): see [Benchmark on unseen apps](benchmark.md).
+alarm for 0.7.0, and about 4 in 10 counting every bucket (26% for 0.6.2, 45% for 0.6.3, 40% for 0.6.4, about
+44% for 0.6.5, about 38% for 0.7.0, on 87 apps in all): see [Benchmark on unseen apps](benchmark.md).
 
 ## Method
 

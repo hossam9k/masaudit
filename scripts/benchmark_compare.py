@@ -7,7 +7,7 @@
     python3 scripts/benchmark_compare.py summary OUT               # findings per tool and app, shipping code only
     python3 scripts/benchmark_compare.py sample OUT N [--seed S]   # N random findings per tool, to judge by hand
 
-`--round 2`, `3`, or `4` (before the subcommand) uses a later set of apps. `--buckets fix` (after `summary` or
+`--round 2` to `5` (before the subcommand) uses a later set of apps. `--buckets fix` (after `summary` or
 `sample`) keeps only masaudit's fix lists (*Fix before release*, *Fix soon*); `--buckets soft` only its *Check by
 hand* and *Hardening checklist* findings (0.6.5 and later). The default counts both, as rounds 1-3 did.
 `sample --where app` or `--where ci` draws only from app code or only from `.github/` workflows.
@@ -124,7 +124,28 @@ mangayomi            kodjodevf/mangayomi                    04fcda0ea92195e18e4a
 tivi                 chrisbanes/tivi                        a0c62c2c763c83e3a0ecf79b283224374bb06c4a .                          kmp           content
 """
 
-ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT, "3": APPS3_TEXT, "4": APPS4_TEXT}
+# Round 5: 16 more apps, chosen after 0.7.0 was released, the first version that reads which Gradle modules,
+# Xcode files, and functions ship.
+APPS5_TEXT = """
+ankidroid            ankidroid/Anki-Android                 4fc7d4340c6895ee43f5b219705a00481f6671e2 .                          android       general
+libretube            libre-tube/LibreTube                   8d6e98fff85f9fdd59c67f5c53b647a32a52c8e4 .                          android       content
+streetcomplete       streetcomplete/StreetComplete          e7e1c7de957c97a81f8a99bab48975ea8725fa69 .                          android       general
+openhab-android      openhab/openhab-android                ea4b853aaffbc33597ea54e81c6af7a3e0c321c9 .                          android       device-control
+muun-android         muun/apollo                            b6191ed5ea17e880f5e42db0f8d293ce3f5b9e69 .                          android       banking
+damus                damus-io/damus                         4a94f666d7e159e380e10b4dbbb2967d1688709e .                          ios           social
+muun-ios             muun/falcon                            d6719c00f96d2ecbde2ab6588f95e54975ceea0e .                          ios           banking
+owncloud-ios         owncloud/ios-app                       c7d460b3156d8efea359b431bf695db92f98d0fe .                          ios           general
+onion-browser        OnionBrowser/OnionBrowser              ed3324efc87b39a332f68e8853347be82c1cd4c2 .                          ios           general
+uniswap-mobile       Uniswap/interface                      bdbace621994b658dcc4c7744f9181a8570d2a86 apps/mobile                react-native  banking
+notesnook-mobile     streetwriters/notesnook                7a183013af832ad7b69ba2d118be6c576b857146 apps/mobile                react-native  general
+smooth-app           openfoodfacts/smooth-app               2b769f446b6fcd30567ef3296dcd4c66965c443f .                          flutter       general
+stack-wallet         cypherstack/stack_wallet               292c895fc23b32e7ed2b9d3f85b04f010173013e .                          flutter       banking
+kitchenowl           TomBursch/kitchenowl                   cac641c619963f13134aecb80fadfb81f0c9249b kitchenowl                 flutter       general
+fladder              DonutWare/Fladder                      3eb06a5385d60bf8cb1f4dd77daf7694e5e3f9fc .                          flutter       content
+simplex-chat         simplex-chat/simplex-chat              79d91e716dbb8aae80327f580aac9a6b42426466 apps                       kmp           social
+"""
+
+ROUNDS = {"1": APPS_TEXT, "2": APPS2_TEXT, "3": APPS3_TEXT, "4": APPS4_TEXT, "5": APPS5_TEXT}
 _ROUND = ["1"]                                   # the round in use, set from --round
 
 TOOLS = ("masaudit", "mobsfscan", "semgrep", "rnsec")
