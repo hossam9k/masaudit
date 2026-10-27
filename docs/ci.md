@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@<commit-sha> # v7
         with:
           persist-credentials: false
-      - uses: hossam9k/masaudit@<commit-sha> # v0.7.0
+      - uses: hossam9k/masaudit@<commit-sha> # v0.7.1
         with:
           app-type: banking
           fail-on: high
@@ -41,12 +41,12 @@ A tag can be moved to other code; a commit ID can't. Replace each `<commit-sha>`
 1. Find the commit ID of the tag. For masaudit, run:
 
    ```bash
-   git ls-remote https://github.com/hossam9k/masaudit 'refs/tags/v0.7.0^{}'
+   git ls-remote https://github.com/hossam9k/masaudit 'refs/tags/v0.7.1^{}'
    ```
 
    For `actions/checkout`, run the same command with its repository and tag.
 2. Paste the ID after the `@`.
-3. Keep the version as a comment after the ID, for example `# v0.7.0`.
+3. Keep the version as a comment after the ID, for example `# v0.7.1`.
 
 If you turn on Dependabot version updates for GitHub Actions, Dependabot updates the commit IDs and
 the version comments.
@@ -83,7 +83,7 @@ To scan before every commit, add this to `.pre-commit-config.yaml`
 ```yaml
 repos:
   - repo: https://github.com/hossam9k/masaudit
-    rev: v0.7.0
+    rev: v0.7.1
     hooks:
       - id: masaudit
         args: [--app-type, banking]
@@ -101,7 +101,7 @@ masaudit needs no other package and no network access while it scans. Pin the ve
 release changes your results only when you update it:
 
 ```bash
-python3 -m pip install masaudit==0.7.0
+python3 -m pip install masaudit==0.7.1
 python3 -m masaudit . --app-type banking --format sarif --output masaudit.sarif --fail-on high
 ```
 
@@ -125,7 +125,7 @@ Python 3. *Deploy to Bitrise.io* attaches the report to the build's artifacts:
     inputs:
     - content: |
         set -e
-        python3 -m pip install --quiet masaudit==0.7.0
+        python3 -m pip install --quiet masaudit==0.7.1
         python3 -m masaudit . --app-type banking --format md \
           --output "$BITRISE_DEPLOY_DIR/masaudit.md" --fail-on high
 - deploy-to-bitrise-io@2: {}
@@ -143,7 +143,7 @@ jobs:
       - image: cimg/python:3.12
     steps:
       - checkout
-      - run: python3 -m pip install --quiet masaudit==0.7.0
+      - run: python3 -m pip install --quiet masaudit==0.7.1
       - run: python3 -m masaudit . --app-type banking --format md --output masaudit.md --fail-on high
       - store_artifacts:
           path: masaudit.md
@@ -163,7 +163,7 @@ job's artifacts:
 masaudit:
   image: python:3.12-slim
   script:
-    - python3 -m pip install --quiet masaudit==0.7.0
+    - python3 -m pip install --quiet masaudit==0.7.1
     - python3 -m masaudit . --app-type banking --format md --output masaudit.md --fail-on high
   artifacts:
     when: always
@@ -178,7 +178,7 @@ In `.travis.yml`. Travis has no artifact store of its own, so the report goes to
 ```yaml
 language: python
 python: "3.12"
-install: python3 -m pip install --quiet masaudit==0.7.0
+install: python3 -m pip install --quiet masaudit==0.7.1
 script: python3 -m masaudit . --app-type banking --fail-on high
 ```
 
@@ -189,7 +189,7 @@ is written to the project folder:
 
 ```bash
 docker run --rm -v "$PWD:/src" -w /src python:3.12-slim sh -c \
-  "pip install --quiet masaudit==0.7.0 && masaudit . --app-type banking --format md --output masaudit.md --fail-on high"
+  "pip install --quiet masaudit==0.7.1 && masaudit . --app-type banking --format md --output masaudit.md --fail-on high"
 ```
 
 The same command runs in any CI that runs Docker steps, such as Jenkins.
