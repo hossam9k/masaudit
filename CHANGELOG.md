@@ -3,6 +3,13 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased
+
+### Docs
+
+- [Use masaudit in CI](docs/ci.md) has examples for Bitrise, CircleCI, GitLab CI/CD, Travis CI, and Docker.
+  A test now parses every masaudit command in the documentation, so a wrong option or format name fails CI.
+
 ## 0.7.0 — 2026-10-27
 
 **masaudit reads what ships.** Rules 2.3.1. About a third of the false alarms judged in benchmark round 3

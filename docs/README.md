@@ -16,7 +16,7 @@ Step-by-step answers for a task:
 
 - **[Choose your app type](app-type.md),** and handle the "Check your app type" warning.
 - **[Read and fix the report](fixing.md):** what to fix first, how to verify, and safe fixes.
-- **[Use masaudit in CI](ci.md):** the GitHub Action, pinning it safely, pre-commit, other CI.
+- **[Use masaudit in CI](ci.md):** the GitHub Action, pinning it safely, pre-commit, Bitrise, CircleCI, GitLab CI/CD, Travis CI, Docker.
 - **[Use masaudit in a team](team.md):** shared settings, suppressions, baselines, other tools' results.
 - **[Use masaudit with an AI assistant](ai-assistants.md):** Claude Code, Agent Skills tools, any chat.
 
