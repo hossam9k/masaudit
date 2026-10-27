@@ -3,7 +3,11 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.7.1 — 2026-10-27
+
+**Two rules that were wrong in benchmark round 5 are fixed.** Rules 2.3.2. On the findings judged in
+benchmark rounds 1-5, 9 false alarms leave the fix lists and no real finding does. The release only
+removes findings, so a 0.7.0 baseline leaves nothing open.
 
 ### False alarms found by benchmark round 5
 
