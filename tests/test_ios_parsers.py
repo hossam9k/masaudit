@@ -461,3 +461,80 @@ class BinaryPlistScanTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+PROJECT = """// !$*UTF8*$!
+{
+ archiveVersion = 1; objectVersion = 77;
+ objects = {
+  F1 = {isa = PBXFileReference; path = A.swift; sourceTree = "<group>"; };
+  F2 = {isa = PBXFileReference; path = T.swift; sourceTree = "<group>"; };
+  F3 = {isa = PBXFileReference; lastKnownFileType = folder; path = Bundled; sourceTree = "<group>"; };
+  G1 = {isa = PBXGroup; children = (G2, G3, F3); sourceTree = "<group>"; };
+  G2 = {isa = PBXGroup; children = (F1); path = App; sourceTree = "<group>"; };
+  G3 = {isa = PBXGroup; children = (F2); path = Helpers; sourceTree = "<group>"; };
+  B1 = {isa = PBXBuildFile; fileRef = F1; };
+  B2 = {isa = PBXBuildFile; fileRef = F2; };
+  B3 = {isa = PBXBuildFile; fileRef = F3; };
+  P1 = {isa = PBXSourcesBuildPhase; files = (B1); };
+  P2 = {isa = PBXSourcesBuildPhase; files = (B2); };
+  P3 = {isa = PBXResourcesBuildPhase; files = (B3); };
+  T1 = {isa = PBXNativeTarget; buildConfigurationList = L1; buildPhases = (P1, P3); name = App;
+        productType = "com.apple.product-type.application"; };
+  T2 = {isa = PBXNativeTarget; buildConfigurationList = L2; buildPhases = (P2); name = AppChecks;
+        productType = "com.apple.product-type.bundle.unit-test"; };
+  L1 = {isa = XCConfigurationList; buildConfigurations = (C1); };
+  C1 = {isa = XCBuildConfiguration; buildSettings = {INFOPLIST_FILE = "$(SRCROOT)/App/Info.plist"; }; name = Release; };
+  L2 = {isa = XCConfigurationList; buildConfigurations = (); };
+  R = {isa = PBXProject; mainGroup = G1; targets = (T1, T2); };
+ };
+ rootObject = R;
+}
+"""
+
+
+class TargetMembership(unittest.TestCase):
+    """Which Apple sources and Info.plists a shipped Xcode target uses."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        files = {
+            "App.xcodeproj/project.pbxproj": PROJECT,
+            "App/A.swift": "", "App/Info.plist": "", "Helpers/T.swift": "", "App/Orphan.swift": "",
+            "App/Old-Info.plist": "", "App/Config.plist": "", "Bundled/Script.swift": "",
+            "Packages/Kit/Package.swift": "", "Packages/Kit/Sources/K.swift": "",
+            "LocalPod/LocalPod.podspec": "", "LocalPod/Classes/P.swift": "",
+            "sampleapps/BugReportSampleApp/BugReportSampleApp.xcodeproj/project.pbxproj": PROJECT,
+            "sampleapps/BugReportSampleApp/App/A.swift": "",
+        }
+        for rel, text in files.items():
+            path = os.path.join(self.tmp, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp)
+
+    def test_scopes(self):
+        from masaudit import engine, safety
+        from masaudit.detectors import ios
+        from masaudit.model import Project
+        ctx = engine.Context(Project(root=self.tmp, platforms=["ios"], files=safety.walk(self.tmp)))
+        expected = {
+            "App/A.swift": "", "App/Info.plist": "", "Bundled/Script.swift": "",
+            "Helpers/T.swift": "test",
+            "App/Orphan.swift": "unshipped", "App/Old-Info.plist": "unshipped",
+            "App/Config.plist": "",                              # may reach the app through a build script
+            "Packages/Kit/Sources/K.swift": "", "LocalPod/Classes/P.swift": "",
+            "sampleapps/BugReportSampleApp/App/A.swift": "unshipped",
+            "sampleapps/BugReportSampleApp/BugReportSampleApp.xcodeproj/project.pbxproj": "unshipped",
+        }
+        for path, scope in expected.items():
+            with self.subTest(path=path):
+                self.assertEqual(ios.target_scope(ctx, path), scope)
+        self.assertEqual(engine._shipped(ctx, "App/Orphan.swift", "main"), "unshipped")
+        self.assertEqual(ios.target_scope(engine.Context(Project(root=self.tmp, platforms=["android"],
+                                                                 files=safety.walk(self.tmp))), "App/Orphan.swift"), "")

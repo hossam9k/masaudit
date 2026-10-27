@@ -163,6 +163,137 @@ def _projects(ctx: Context) -> List[pbxproj.Project]:
     return cache["projects"]
 
 
+# ---------------------------------------------------------------------------- which files ship
+
+
+# Files whose target membership masaudit decides: sources and Info.plists. Other plists, resources and
+# configuration can reach the app through build scripts.
+_MEMBER_SOURCE = re.compile(r"\.(?:swift|m|mm)$")
+_INFO_PLIST = re.compile(r"(?i)info[^/]*\.plist$")
+# A project or target that isn't the product: a sample, demo, or example app, a test host.
+_DEMO_PART = re.compile(r"(?i)(?:^|[-_ .])(?:demo|demos|sample|samples|example|examples|playground|showcase|sandbox"
+                        r"|catalog|e2e|integration)(?:$|[-_ .])|^(?:demo|sample|example)\w*$|\w*(?:Demo|Sample|Example)"
+                        r"(?:App|Apps|Project)?$")
+
+
+def _demo_name(name: str) -> bool:
+    return bool(_DEMO_PART.search(name))
+
+
+def _target_kinds(ctx: Context) -> Optional[Tuple[Dict[str, Set[str]], Dict[str, Set[str]], Set[str], Set[str]]]:
+    """Target membership across every Xcode project: (file -> kinds, folder -> kinds, demo project roots,
+    project roots). A kind is "ship", "test", or "demo". None without a project."""
+    cache = _cache(ctx)
+    if "target_kinds" in cache:
+        return cache["target_kinds"]
+    projects = _projects(ctx)
+    if not projects:
+        cache["target_kinds"] = None
+        return None
+    files: Dict[str, Set[str]] = {}
+    folders: Dict[str, Set[str]] = {}
+    demo_roots: Set[str] = set()
+    roots: Set[str] = set()
+    for proj in projects:
+        roots.add(proj.source_root)
+        demo_project = any(_demo_name(seg) for seg in posixpath.dirname(proj.path).split("/") if seg)
+        if demo_project:
+            demo_roots.add(proj.source_root)
+        for target in proj.targets():
+            if demo_project or _demo_name(target.name):
+                kind = "demo"
+            elif target.is_test or pbxproj.is_debug_config(target.name):
+                kind = "test"
+            else:
+                kind = "ship"
+            for phase in ("PBXSourcesBuildPhase", "PBXResourcesBuildPhase", "PBXHeadersBuildPhase",
+                          "PBXCopyFilesBuildPhase"):
+                for ref in proj.phase_files(target, phase):
+                    path = proj.file_path(ref)
+                    if path is None:
+                        continue
+                    if proj.obj(ref).get("isa") != "PBXFileReference" or "folder" in str(
+                            proj.obj(ref).get("lastKnownFileType", "")):
+                        folders.setdefault(path, set()).add(kind)    # a group or folder reference: all of it
+                    else:
+                        files.setdefault(path, set()).add(kind)
+            for folder in target.synchronized_groups:
+                folders.setdefault(folder, set()).add(kind)
+            for cfg in target.configs.values():
+                for key in ("INFOPLIST_FILE", "CODE_SIGN_ENTITLEMENTS"):
+                    value = cfg.settings.get(key)
+                    if isinstance(value, str):
+                        path = proj.settings_path(value)
+                        if path is None:                    # a variable masaudit can't resolve
+                            folders.setdefault(proj.source_root, set()).add(kind)
+                        else:
+                            files.setdefault(path, set()).add(kind)
+    cache["target_kinds"] = (files, folders, demo_roots, roots)
+    return cache["target_kinds"]
+
+
+def target_scope(ctx: Context, path: str) -> str:
+    """"test" or "unshipped" when an Xcode project decides that `path` isn't in a shipped target: a Swift or
+    Objective-C file or an Info.plist in a project folder that only test or demo targets use, or none; or any
+    file of a project kept in a sample or demo folder. "" when it ships or masaudit can't tell."""
+    if "ios" not in ctx.project.platforms:
+        return ""
+    memo = _cache(ctx).setdefault("target_scope", {})
+    if path not in memo:
+        memo[path] = _target_scope(ctx, path)
+    return memo[path]
+
+
+def _target_scope(ctx: Context, path: str) -> str:
+    model = _target_kinds(ctx)
+    if model is None:
+        return ""
+    files, folders, demo_roots, roots = model
+    owner = max((r for r in roots if not r or path == r or path.startswith(r + "/")), key=len, default=None)
+    if owner is None:
+        return ""
+    names = _file_names(ctx)
+    d = posixpath.dirname(path)
+    while True:            # code a Swift package or a local pod links, with no Xcode file reference
+        if (d + "/Package.swift" if d else "Package.swift") in names or d in _podspec_dirs(ctx) \
+                or posixpath.basename(d) in ("Pods", "Carthage"):
+            return ""
+        if d == owner or not d:
+            break
+        d = posixpath.dirname(d)
+    kinds = set(files.get(path, set()))
+    d = path
+    while True:                                  # folders are keyed by path: look up each ancestor
+        kinds |= folders.get(d, set())
+        if not d:
+            break
+        d = posixpath.dirname(d)
+    if "ship" in kinds:
+        return ""
+    if owner in demo_roots:
+        return "unshipped"
+    if not (_MEMBER_SOURCE.search(path) or _INFO_PLIST.search(path)):
+        return ""
+    if "test" in kinds and "demo" not in kinds:
+        return "test"
+    return "unshipped"
+
+
+def _file_names(ctx: Context) -> Set[str]:
+    cache = _cache(ctx)
+    if "file_names" not in cache:
+        cache["file_names"] = set(ctx.project.files)
+    return cache["file_names"]
+
+
+def _podspec_dirs(ctx: Context) -> Set[str]:
+    """Folders holding a .podspec (a local or development pod)."""
+    cache = _cache(ctx)
+    if "podspec_dirs" not in cache:
+        cache["podspec_dirs"] = {posixpath.dirname(p) for p in ctx.project.files if p.endswith(".podspec")}
+    return cache["podspec_dirs"]
+
+
 def _schemes(ctx: Context, proj: pbxproj.Project) -> List[xcscheme.Scheme]:
     """Shared schemes (of the project, or of a workspace next to it) that archive this project's targets."""
     cache = _cache(ctx).setdefault("schemes", {})

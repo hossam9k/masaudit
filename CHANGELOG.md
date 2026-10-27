@@ -17,6 +17,14 @@ their own version (`rules_version`), shown in every report.
   `subprojects.filter { }`), only demo and test apps are. React Native and Flutter package modules, Gradle
   build roots, and Xcode projects in a module folder are never lowered. On the findings judged in benchmark
   rounds 3 and 4, this and the two changes below take 10 false alarms out of the fix lists and no real finding.
+- **masaudit reads which files an Xcode target builds.** A Swift or Objective-C source, or an `Info.plist`,
+  that no app or extension target compiles or uses (an orphan file left in the repository) gets the scope
+  `unshipped`; one only test targets or a debug-named target use counts as test code; and a sample or demo
+  Xcode project is unshipped. Folder references and synchronized folders count as built, a build setting
+  masaudit can't resolve keeps the whole project as shipped, and Swift package, CocoaPods, and Carthage
+  folders are never lowered. This takes the round 3 iOS false alarms (an unbuilt macOS `Info.plist`, a sample
+  app, and an unbuilt macOS source) out of the fix lists. Xcode file paths are resolved once per project, so
+  a project file with deeply nested groups no longer slows the scan.
 - A build type or flavor named by a constant (`create(BuildTypes.LEAK_CANARY)`) is read: a debug tool added
   through `leakCanaryImplementation` is no longer reported as shipping in release (AND-037).
 - AND-021 reads the merged manifest: when the app's manifest doesn't set `allowBackup`, a library module the

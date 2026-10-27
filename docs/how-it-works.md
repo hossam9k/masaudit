@@ -41,7 +41,10 @@ only to listed app types.
    shipped mobile app uses. masaudit reads the Gradle module graph from the app modules that are the
    product: a module reached only through debug or test dependencies counts as debug or test code, and a
    demo app, test harness, desktop app, or module nothing depends on counts as *unshipped*. When the
-   build wires modules together in code it can't read, it decides only the demo and test apps. A finding your team
+   build wires modules together in code it can't read, it decides only the demo and test apps. For iOS,
+   masaudit reads which files each Xcode target builds: a source or `Info.plist` no app or extension
+   target uses, or a sample or demo Xcode project, counts as *unshipped*, and a file only test targets
+   use counts as test code; Swift package, CocoaPods, and Carthage folders are never lowered. A finding your team
    already marked as intentional for another tool, such as Android Lint's `tools:ignore`, is lowered
    one level and shows that decision.
 3. **Which bucket?** Critical and high go to **Fix before release**; medium and low to **Fix soon**;
