@@ -162,7 +162,7 @@ _JS_BUILD_FILE = re.compile(r"^(?:metro|babel|react-native|webpack|rollup|vite|e
                             r"|^\.babelrc(?:\.js)?$")
 _PREVIEW_FILE = re.compile(r"(?:Preview|Previews|PreviewParam\w*|PreviewProvider|StateProvider)\.kt$")
 _MOCK_DIRS = {"mock", "mocks", "fake", "fakes", "stub", "stubs"}
-_TOOLING_TOP = {"build-logic", "buildsrc", "scripts", "tools", "fastlane"}
+_TOOLING_TOP = {"build-logic", "buildsrc", "scripts", "tools", "tool", "fastlane"}   # tool/: Dart's convention
 
 
 @functools.lru_cache(maxsize=65536)          # every rule asks about the same paths

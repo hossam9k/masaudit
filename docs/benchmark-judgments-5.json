@@ -11,6 +11,7 @@
    "rule": "CI-007",
    "path": "gradle/wrapper/gradle-wrapper.properties",
    "line": 3,
+   "message": "Gradle wrapper download is not checked against a SHA-256. The Gradle download isn't checked against a known SHA-256.",
    "verdict": "overrated",
    "reason": "No distributionSha256Sum, but distribution fetched over HTTPS from services.gradle.org; wrapper jar validated in CI. Defense-in-depth only."
   },
@@ -21,6 +22,7 @@
    "rule": "JAVASCRIPT_ENABLED_BRIDGE",
    "path": "apps/mobile/src/app/App.tsx",
    "line": 400,
+   "message": "Native module \"undefined\" called without input validation",
    "verdict": "false",
    "reason": "NativeModules.ThemeModule.setColorScheme receives the app's own themeSetting enum from Redux; no untrusted input reaches the native module."
   },
@@ -31,6 +33,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
    "line": 108,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Line logs constant 'onCreateOptionsMenu()' debug string; no sensitive data."
   },
@@ -41,6 +44,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/AppDelegateSwizzler/GULSceneDelegateSwizzler.m",
    "line": 106,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "NSAssert precondition in third-party GoogleUtilities pod; no sensitive data logged."
   },
@@ -51,6 +55,7 @@
    "rule": "android_task_hijacking2",
    "path": "app/src/main/AndroidManifest.xml",
    "line": 1,
+   "message": "Activity is found to be vulnerable to StrandHogg 2.0 task hijacking vulnerability. When vulnerable, it is possible for other applications to place a malicious activity on top of the activity stack of the vulnerable application. This makes the application an easy target for phishing attacks. The vuln",
    "verdict": "overrated",
    "reason": "StrandHogg 2.0 is an OS bug patched May 2020; only unpatched Android 8-9 (minSdk 26); LibreTube handles little sensitive data."
   },
@@ -61,6 +66,7 @@
    "rule": "android_manifest_usescleartext",
    "path": "android/app/src/debug/AndroidManifest.xml",
    "line": 1,
+   "message": "The app intends to use cleartext network traffic, such as cleartext HTTP, FTP stacks, DownloadManager, and MediaPlayer. The default value for apps that target API level 27 or lower is \"true\". Apps that target API level 28 or higher default to \"false\". The key reason for avoiding cleartext traffic is",
    "verdict": "overrated",
    "reason": "usesCleartextTraffic=true is only in src/debug manifest (Flutter dev tooling); release build unaffected."
   },
@@ -71,6 +77,7 @@
    "rule": "NO_REQUEST_TIMEOUT",
    "path": "apps/mobile/app/common/filesystem/download.ts",
    "line": 85,
+   "message": "fetch() without timeout configuration",
    "verdict": "overrated",
    "reason": "Attachment URL-resolve fetch has no timeout; at worst a stalled download/hang, reliability not a security weakness."
   },
@@ -81,6 +88,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/migration/MigrateToDevice.kt",
    "line": 785,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs constant 'MigrationChatReceiver.stop'; nothing sensitive."
   },
@@ -91,6 +99,7 @@
    "rule": "android_kotlin_webview",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/pages/PageFragment.kt",
    "line": 71,
+   "message": "Insecure WebView Implementation. Execution of user controlled code in WebView is a critical Security Hole.",
    "verdict": "false",
    "reason": "JS bridge only on pages from AnkiDroid's local server; fixed command map; external URLs opened outside WebView."
   },
@@ -101,6 +110,7 @@
    "rule": "XPL-038",
    "path": "android/app/src/main/AndroidManifest.xml",
    "line": 15,
+   "message": "No emulator detection found. No emulator or simulator detection found in the Android app.",
    "verdict": "overrated",
    "reason": "Confirmed no emulator detection (isEmulatorSync only toggles QR UI); emulator detection is defense-in-depth only."
   },
@@ -111,6 +121,7 @@
    "rule": "XPL-034",
    "path": "android/apolloui/src/main/java/io/muun/apollo/data/analytics/AnalyticsProvider.kt",
    "line": 48,
+   "message": "Analytics SDK receives personal data. An analytics or crash SDK receives the user's `email`.",
    "verdict": "false",
    "reason": "Line 48 is fba.setUserProperty(\"email\", null) in resetUserProperties: clears the property, sends no email."
   },
@@ -121,6 +132,7 @@
    "rule": "IOS-020",
    "path": "falcon/app/falcon/core/Domain/Action/DebugExecutablesGroup/UserAccountManagement/CreateVerifiedRcV1Executable.swift",
    "line": 71,
+   "message": "Secret copied to the general pasteboard without localOnly. A value that looks secret goes to the general pasteboard without .localOnly, so Universal Clipboard can send it to the user's other devices.",
    "verdict": "overrated",
    "reason": "Debug-menu executable; DebugModeDisplayer returns under #if !DEBUG, so recovery-code clipboard copy is unreachable in release builds."
   },
@@ -131,6 +143,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
    "line": 2396,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs apiListMembers failure response type/details; error diagnostics, no credentials or message content evident."
   },
@@ -141,6 +154,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/presubmit.yml",
    "line": 30,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `subosito/flutter-action` is pinned to `v2`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party subosito/flutter-action pinned to mutable tag v2, not SHA."
   },
@@ -151,6 +165,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/platform/VideoPlayer.android.kt",
    "line": 99,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Log.e of ExoPlayer prepare() stack trace for broken video; no sensitive data."
   },
@@ -161,6 +176,7 @@
    "rule": "CI-007",
    "path": "gradle/wrapper/gradle-wrapper.properties",
    "line": 3,
+   "message": "Gradle wrapper download is not checked against a SHA-256. The Gradle download isn't checked against a known SHA-256.",
    "verdict": "overrated",
    "reason": "No distributionSha256Sum; Gradle fetched over HTTPS from official host. Supply-chain hardening, not a shipped app weakness."
   },
@@ -171,6 +187,7 @@
    "rule": "MISSING_SESSION_TIMEOUT",
    "path": "apps/mobile/app/components/auth/common.ts",
    "line": 1,
+   "message": "Authentication session without timeout or inactivity expiry",
    "verdict": "false",
    "reason": "common.ts only defines AuthMode constants and hideAuth navigation helper; no session handling here; app has separate app-lock timer."
   },
@@ -181,6 +198,7 @@
    "rule": "AND-027",
    "path": "api/build.gradle.kts",
    "line": 31,
+   "message": "R8 is off in the release build. R8 minification is off in the release build type.",
    "verdict": "false",
    "reason": "api module is a published library (LibraryExtension); libraries are not minified, consuming app applies R8."
   },
@@ -191,6 +209,7 @@
    "rule": "AND-072",
    "path": "mobile/src/main/AndroidManifest.xml",
    "line": 63,
+   "message": "App requests fraud-relevant permissions. The app requests fraud-relevant access: QUERY_ALL_PACKAGES. These let it read one-time codes, draw over other apps, list installed apps or install packages; Play restricts them and reviewers expect a written justification.",
    "verdict": "overrated",
    "reason": "QUERY_ALL_PACKAGES declared only in foss (F-Droid) flavor manifest; home-automation app, no fraud use; Play build lacks it."
   },
@@ -201,6 +220,7 @@
    "rule": "AND-010",
    "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/call/CallView.android.kt",
    "line": 752,
+   "message": "WebView can read local files. This WebView setting lets page content read local files, and the WebView loads local pages.",
    "verdict": "overrated",
    "reason": "allowFileAccess=true is set, but WebView loads only bundled call.html asset; file-URL universal access stays default false."
   },
@@ -211,6 +231,7 @@
    "rule": "AND-039",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/AnkiDroidApp.kt",
    "line": 204,
+   "message": "Timber logs everything in release builds. Timber plants RobolectricDebugTree in every build, so release builds write all log calls to logcat.",
    "verdict": "false",
    "reason": "LogType.value returns PRODUCTION when !BuildConfig.DEBUG; RobolectricDebugTree only planted in debug Robolectric runs."
   },
@@ -221,6 +242,7 @@
    "rule": "NO_REQUEST_TIMEOUT",
    "path": "apps/mobile/src/features/walletConnect/api.ts",
    "line": 35,
+   "message": "fetch() without timeout - a stalled server can hang the request indefinitely",
    "verdict": "overrated",
    "reason": "Fire-and-forget WalletConnect push registration fetch without timeout; hang only affects that background call, no security impact."
   },
@@ -231,6 +253,7 @@
    "rule": "AND-022",
    "path": "android/app/build.gradle",
    "line": 284,
+   "message": "Deprecated EncryptedSharedPreferences (Jetpack Security). The build depends on the deprecated Jetpack Security library (androidx.security:security-crypto).",
    "verdict": "overrated",
    "reason": "security-crypto 1.0.0 is deprecated but still Keystore-backed AES-GCM for mnemonics; maintenance risk, no exploitable flaw shown."
   },
@@ -241,6 +264,7 @@
    "rule": "XPL-027",
    "path": "ios/SimpleXChat/KeyChain.swift",
    "line": 43,
+   "message": "SecRandomCopyBytes result is not checked. `SecRandomCopyBytes` can fail, and its status is ignored, so the buffer may stay zero.",
    "verdict": "false",
    "reason": "SecRandomCopyBytes status is checked (status == errSecSuccess) and failure handled."
   },
@@ -251,6 +275,7 @@
    "rule": "NO_REQUEST_TIMEOUT",
    "path": "apps/mobile/worker.js",
    "line": 4980,
+   "message": "fetch() without timeout - a stalled server can hang the request indefinitely",
    "verdict": "false",
    "reason": "fetch() here is a local XML-feed helper (fetch(\"updated\", childs)), not a network request."
   },
@@ -261,6 +286,7 @@
    "rule": "ANDROID_UNPROTECTED_RECEIVER",
    "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
    "line": 277,
+   "message": "Broadcast receiver is exported without permission - can be triggered by malicious apps",
    "verdict": "overrated",
    "reason": "BootRecieverService exported for BOOT_COMPLETED; spoofing only starts BootTaskService (reschedule work). Harmless trigger."
   },
@@ -271,6 +297,7 @@
    "rule": "android_kotlin_sql_raw_query",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/MetaDB.kt",
    "line": 327,
+   "message": "App uses SQLite Database and execute raw SQL query. Untrusted user input in raw SQL queries can cause SQL Injection. Also sensitive information should be encrypted and written to the database.",
    "verdict": "false",
    "reason": "rawQuery uses parameterized 'WHERE did = ?' with deck id; no injection; stores whiteboard state, not sensitive data."
   },
@@ -281,6 +308,7 @@
    "rule": "ANDROID_INTENT_FILTER_PERMISSIVE",
    "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
    "line": 217,
+   "message": "Permissive intent filter with android.intent.action.SEND: Can receive data from any app",
    "verdict": "false",
    "reason": "SEND/SEND_MULTIPLE on ShareActivity is the intended 'Make Note' share target; receiving shared content is by design."
   },
@@ -291,6 +319,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/platform/AppCommon.android.kt",
    "line": 81,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs WorkManager init exception stack trace; no sensitive data."
   },
@@ -301,6 +330,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/Network/GULNetwork.m",
    "line": 331,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Third-party GoogleUtilities pod network diagnostic NSLog; no app secrets logged."
   },
@@ -311,6 +341,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/deploy-apk.yml",
    "line": 16,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` leaves the job token in .git/config for every later step.",
    "verdict": "overrated",
    "reason": "checkout@v4 persists token, but trigger is release-created (trusted) and later actions already receive GITHUB_TOKEN explicitly."
   },
@@ -321,6 +352,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/homescreenwidget/ItemUpdateWidget.kt",
    "line": 250,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs 'Failed to set icon, attempt #n' with IllegalArgumentException; no sensitive data."
   },
@@ -331,6 +363,7 @@
    "rule": "ANDROID_INTENT_FILTER_PERMISSIVE",
    "path": "apps/mobile/android/app/src/beta/AndroidManifest.xml",
    "line": 14,
+   "message": "Permissive intent filter with android.intent.action.VIEW: Can be invoked by any app",
    "verdict": "false",
    "reason": "Beta flavor https App Link with autoVerify=true for uniswap domains; standard verified deep link."
   },
@@ -341,6 +374,7 @@
    "rule": "XPL-012",
    "path": "lib/pages/settings_user_sessions_page.dart",
    "line": 145,
+   "message": "Secret copied to the clipboard without the sensitive flag. A `token` is copied to the clipboard and Flutter's Clipboard can't mark it sensitive, so clear it after a short timeout.",
    "verdict": "overrated",
    "reason": "User-initiated copy of newly created API token; clipboard can't be flagged sensitive, but exposure requires clipboard-reading app."
   },
@@ -351,6 +385,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/AppDelegateSwizzler/GULAppDelegateSwizzler.m",
    "line": 251,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Line is an NSAssert in GULAppDelegateSwizzler, not logging; asserts disabled in release."
   },
@@ -361,6 +396,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/ci.yml",
    "line": 22,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/checkout` is GitHub-owned but pinned to the tag `v6`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "actions/checkout@v6 is GitHub-owned; tag pinning is minor hardening, no secrets in checkout step."
   },
@@ -371,6 +407,7 @@
    "rule": "WEBVIEW_DOM_STORAGE_ENABLED",
    "path": "apps/mobile/app/screens/editor/readonly-editor.tsx",
    "line": 142,
+   "message": "WebView with DOM storage and JavaScript enabled - sensitive data may be exposed to XSS",
    "verdict": "false",
    "reason": "WebView loads bundled local editor (build.bundle/index.html); DOM storage enabled on first-party local page exposes nothing by itself."
   },
@@ -381,6 +418,7 @@
    "rule": "XPL-012",
    "path": "lib/pages/campfire_migrate_view.dart",
    "line": 183,
+   "message": "Secret copied to the clipboard without the sensitive flag. A `mnemonic` is copied to the clipboard and Flutter's Clipboard can't mark it sensitive, so clear it after a short timeout.",
    "verdict": "real",
    "reason": "'Copy mnemonic' button copies full seed phrase via Clipboard.setData with no clearing or timeout."
   },
@@ -391,6 +429,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/preference/widgets/SslClientCertificatePreference.kt",
    "line": 131,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs KeyChain InterruptedException only; no key material or secrets."
   },
@@ -401,6 +440,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/ios-release-to-org-openxfacts-scanner.yml",
    "line": 66,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/setup-java` is GitHub-owned but pinned to the tag `v6.1.0`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "actions/setup-java@v6.1.0 is GitHub-owned; tag pinning is minor hardening even in the release workflow."
   },
@@ -411,6 +451,7 @@
    "rule": "INSECURE_LINKING_OPEN",
    "path": "apps/mobile/app/components/sheets/update/index.js",
    "line": 203,
+   "message": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
    "verdict": "false",
    "reason": "Linking.openURL uses constants GITHUB_URL or STORE_LINK, not untrusted input."
   },
@@ -421,6 +462,7 @@
    "rule": "AND-050",
    "path": "common/src/main/java/io/muun/common/utils/RandomGenerator.java",
    "line": 16,
+   "message": "Crypto call names an explicit provider. The app installs its own security provider (LinuxSecureRandom.getProvider()), which replaces the platform's maintained implementation for later crypto calls.",
    "verdict": "overrated",
    "reason": "Global provider insert only supplies SecureRandom backed by /dev/urandom (bitcoinj Android PRNG fix); sound implementation, hygiene concern only."
   },
@@ -431,6 +473,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/ios-release-to-org-openfoodfacts-scanner.yml",
    "line": 60,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/setup-java` is GitHub-owned but pinned to the tag `v6.0.1`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "GitHub-owned actions/setup-java pinned to release tag; tag-move risk low versus third-party actions."
   },
@@ -441,6 +484,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/checks.yaml",
    "line": 28,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `subosito/flutter-action` is pinned to `v2.16.0`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "subosito/flutter-action pinned to tag v2.16.0, third-party, not a commit SHA."
   },
@@ -451,6 +495,7 @@
    "rule": "XPL-044",
    "path": "lib/wallets/wallet/impl/mimblewimblecoin_wallet.dart",
    "line": 577,
+   "message": "Password or token is written to a file in plain text. A `secret` is written to a file in plain text.",
    "verdict": "overrated",
    "reason": "Writes MWC node API secret to .api_secret in app wallet dir because the mwc library reads it; app-private storage."
   },
@@ -461,6 +506,7 @@
    "rule": "XPL-046",
    "path": "ios/extension.bundle/clipper.bundle.js",
    "line": 18,
+   "message": "Web page or HTML string inserts untrusted text as markup. Markup built from `location.href` is written into the page, so a crafted link runs its own script.",
    "verdict": "false",
    "reason": "location.href only used as base URL for CSS inlining via style.setProperty; not written as markup."
   },
@@ -471,6 +517,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/CloudNotificationListFragment.kt",
    "line": 134,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs only notification count ('got N items'); not sensitive."
   },
@@ -481,6 +528,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/gradle-wrapper-validation.yml",
    "line": 20,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` leaves the job token in .git/config for every later step.",
    "verdict": "false",
    "reason": "Only following step is gradle wrapper-validation; no untrusted code runs after checkout to read the token."
   },
@@ -491,6 +539,7 @@
    "rule": "RN-012",
    "path": "src/features/biometrics/biometrics-utils.ts",
    "line": 50,
+   "message": "React Native biometric check only returns a boolean. expo-local-authentication's `authenticateAsync()` only returns true or false and unlocks no key. A hooked app returns true, and since nothing needed the biometric to decrypt or sign, the check protects nothing.",
    "verdict": "real",
    "reason": "Biometric is a boolean gate; Keychain storage uses no biometric access control, so hooking authenticateAsync bypasses it in wallet."
   },
@@ -501,6 +550,7 @@
    "rule": "XPL-040",
    "path": "macos/Runner/Info.plist",
    "line": 17,
+   "message": "App has no way to force an update. No way to force an update found in the iOS app.",
    "verdict": "overrated",
    "reason": "No forced-update mechanism found, but that's process hygiene, not a code weakness; macOS Info.plist, self-custody wallet."
   },
@@ -511,6 +561,7 @@
    "rule": "android_prevent_screenshot",
    "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench5/src/streetcomplete",
    "line": 1,
+   "message": "This app does not have capabilities to prevent against Screenshots from Recent Task History/ Now On Tap etc.",
    "verdict": "false",
    "reason": "StreetComplete is an OSM mapping app with no sensitive screens; FLAG_SECURE not warranted."
   },
@@ -521,6 +572,7 @@
    "rule": "XPL-020",
    "path": "lib/themes/theme_service.dart",
    "line": 81,
+   "message": "Zip entry name is used as a path without a containment check (Zip Slip). A zip entry's name becomes a file path with no check that it stays inside the target folder.",
    "verdict": "false",
    "reason": "Entry names containing '..' are rejected before OutputFileStream(\"$assetsPath/${file.name}\"); the claimed missing containment check exists."
   },
@@ -531,6 +583,7 @@
    "rule": "WEBVIEW_FILE_ACCESS",
    "path": "apps/mobile/app/screens/editor/index.tsx",
    "line": 148,
+   "message": "WebView with allowFileAccessFromFileURLs={true} - exposes local file system",
    "verdict": "overrated",
    "reason": "allowFileAccessFromFileURLs/universal access set, but WebView loads bundled local editor; exploitation needs separate XSS in note rendering."
   },
@@ -541,6 +594,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/platform/VideoPlayer.desktop.kt",
    "line": 61,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs missing local media file path on desktop; not sensitive."
   },
@@ -551,6 +605,7 @@
    "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
    "path": "apps/mobile/app/components/image-preview/index.tsx",
    "line": 165,
+   "message": "Error object logged directly - may contain sensitive data or stack traces",
    "verdict": "false",
    "reason": "console.error of a FileViewer/Share open failure; no sensitive data."
   },
@@ -561,6 +616,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/deploy-apk.yml",
    "line": 73,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `svenstaro/upload-release-action` is pinned to `v2`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party svenstaro/upload-release-action@v2 mutable tag in release job holding GITHUB_TOKEN and signed APK."
   },
@@ -571,6 +627,7 @@
    "rule": "CI-006",
    "path": "tools/fallback-release-keystore.jks",
    "line": 1,
+   "message": "Signing key or signing password is committed to the repository. `fallback-release-keystore.jks` looks like a signing key or certificate with its private key.",
    "verdict": "overrated",
    "reason": "Committed keystore is a fallback (Test@123) used only when KEYSTOREPATH env unset; official releases signed with env-provided key."
   },
@@ -581,6 +638,7 @@
    "rule": "AND-060",
    "path": "compat/src/main/java/com/ichi2/anki/compat/BaseCompat.kt",
    "line": 235,
+   "message": "App writes to shared external storage. The app writes to shared storage, which other apps can read (WRITE_EXTERNAL_STORAGE in AnkiDroid/src/main/AndroidManifest.xml). Nothing here suggests sensitive data, as with a download or export the user asked for; check what ends up there.",
    "verdict": "false",
    "reason": "User-initiated save of image to Pictures on API<29; finding itself notes no sensitive data."
   },
@@ -591,6 +649,7 @@
    "rule": "MISSING_RUNTIME_INTEGRITY_CHECKS",
    "path": "apps/mobile/src/index.ts",
    "line": 1,
+   "message": "Payments/banking/health/crypto-wallet app without runtime integrity or tamper detection",
    "verdict": "false",
    "reason": "App uses App Attest entitlement and Play Integrity / Firebase App Check; src/index.ts is just an empty export."
   },
@@ -601,6 +660,7 @@
    "rule": "ROOT_JAILBREAK_DETECTION_ABSENT",
    "path": "apps/mobile/index.js",
    "line": 1,
+   "message": "Payments/banking/health/crypto-wallet app without a root/jailbreak detection library",
    "verdict": "overrated",
    "reason": "Confirmed no root/jailbreak detection in Uniswap wallet; such checks are bypassable defense-in-depth."
   },
@@ -611,6 +671,7 @@
    "rule": "AND-016",
    "path": "android/app/src/main/res/xml/wallpaper_file_paths.xml",
    "line": 3,
+   "message": "FileProvider shares too much of the filesystem. <cache-path path=\".\"> shares the app's whole private cache directory.",
    "verdict": "overrated",
    "reason": "cache-path '.' covers whole cache, but provider exported=false; only explicitly granted URIs reachable."
   },
@@ -621,6 +682,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yaml",
    "line": 444,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/checkout` is GitHub-owned but pinned to the tag `v6`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "actions/checkout@v6 is GitHub-owned; tag pinning is minor supply-chain hardening, as the finding itself concedes."
   },
@@ -631,6 +693,7 @@
    "rule": "IOS-020",
    "path": "ownCloudAppShared/Client/Password%20Composer/PasswordComposerViewController.swift",
    "line": 263,
+   "message": "Secret copied to the general pasteboard without localOnly. A value that looks secret goes to the general pasteboard without .localOnly, so Universal Clipboard can send it to the user's other devices.",
    "verdict": "overrated",
    "reason": "Share-link password intentionally copied for sending to recipients; missing localOnly/expiry is minor."
   },
@@ -641,6 +704,7 @@
    "rule": "IOS_ATS_DISABLED",
    "path": "apps/mobile/ios/Make Note/Info.plist",
    "line": 29,
+   "message": "NSAllowsArbitraryLoads is enabled, disabling ATS",
    "verdict": "real",
    "reason": "Make Note share extension (embedded appex, ships) sets NSAllowsArbitraryLoads true, disabling ATS for the extension."
   },
@@ -651,6 +715,7 @@
    "rule": "AND-046",
    "path": "android/apolloui/src/main/AndroidManifest.xml",
    "line": 55,
+   "message": "App has no overlay (tapjacking) protection. No screen filters touches when another window covers it (filterTouchesWhenObscured or setHideOverlayWindows), so a partial overlay can trick users into confirming actions. Android 12+ blocks most full overlays, but not partial ones. A protection recommende",
    "verdict": "real",
    "reason": "No filterTouchesWhenObscured/setHideOverlayWindows anywhere in Muun wallet; minSdk 21 lacks Android 12 overlay protections."
   },
@@ -661,6 +726,7 @@
    "rule": "android_safetynet_api",
    "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench5/src/ankidroid",
    "line": 1,
+   "message": "This app does not uses SafetyNet Attestation API that provides cryptographically-signed attestation, assessing the device's integrity. This check helps to ensure that the servers are interacting with the genuine app running on a genuine Android device.",
    "verdict": "false",
    "reason": "AnkiDroid is an offline flashcard app; no server trust decisions requiring device attestation."
   },
@@ -671,6 +737,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/onboarding/WhatsNewView.kt",
    "line": 78,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Debug log of exception message from setConditionsNotified; no sensitive data."
   },
@@ -681,6 +748,7 @@
    "rule": "XPL-022",
    "path": "ios/Uniswap.xcodeproj/project.pbxproj",
    "line": 1004,
+   "message": "No debugger detection found. No debugger detection found in the iOS app.",
    "verdict": "overrated",
    "reason": "No debugger detection found in repo, but it's defense-in-depth only for a user-owned wallet."
   },
@@ -691,6 +759,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chatlist/TagListView.kt",
    "line": 246,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs exception message for tag update failure; no sensitive data."
   },
@@ -701,6 +770,7 @@
    "rule": "swift.lang.storage.sensitive-storage-userdefaults.swift-user-defaults",
    "path": "OnionBrowser/Settings/Settings.swift",
    "line": 391,
+   "message": "Potentially sensitive data was observed to be stored in UserDefaults, which is not adequate protection of sensitive information. For data of a sensitive nature, applications should leverage the Keychain.",
    "verdict": "real",
    "reason": "nextcloudPassword stored via UserDefaults.standard.set(..., \"nextcloud_password\") instead of Keychain."
   },
@@ -711,6 +781,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/AppAuth/Sources/AppAuthCore/OIDIDToken.m",
    "line": 120,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Third-party AppAuth logs JWT payload section only when JSON parse fails; unsigned payload, not a credential."
   },
@@ -721,6 +792,7 @@
    "rule": "RN-019",
    "path": "package.json",
    "line": 99,
+   "message": "npm dependencies can be swapped at the source or in transit. `react-native-config` comes from git at `fabric-windows-implementation`, a branch or tag that can be moved to other code.",
    "verdict": "overrated",
    "reason": "package.json references fork branch, but package-lock.json resolves it to commit 98077afd; npm ci cannot be silently swapped."
   },
@@ -731,6 +803,7 @@
    "rule": "INSECURE_LINKING_OPEN",
    "path": "apps/mobile/app/components/sheets/export-notes/index.tsx",
    "line": 294,
+   "message": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
    "verdict": "false",
    "reason": "Opens app-generated export directory path (result.fileDir), not external/untrusted URL."
   },
@@ -741,6 +814,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/model/ServerConfiguration.kt",
    "line": 101,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs toRedactedString() of server config; credentials redacted."
   },
@@ -751,6 +825,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yml",
    "line": 588,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/download-artifact` is GitHub-owned but pinned to the tag `v4`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "actions/download-artifact@v4 is GitHub-owned; major-tag pin is a low supply-chain risk."
   },
@@ -761,6 +836,7 @@
    "rule": "AND-046",
    "path": "mobile/src/main/AndroidManifest.xml",
    "line": 63,
+   "message": "App has no overlay (tapjacking) protection. No screen filters touches when another window covers it (filterTouchesWhenObscured or setHideOverlayWindows), so a partial overlay can trick users into confirming actions. Android 12+ blocks most full overlays, but not partial ones. A protection recommende",
    "verdict": "overrated",
    "reason": "No filterTouchesWhenObscured found in repo, but generic tapjacking; modern Android limits untrusted overlays. Low impact."
   },
@@ -771,6 +847,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/activity/AbstractWebViewFragment.kt",
    "line": 243,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs WebView subpage path being loaded; not sensitive."
   },
@@ -781,6 +858,7 @@
    "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
    "path": "apps/mobile/scripts/ios-build-interactive/main.ts",
    "line": 399,
+   "message": "Error object logged directly - may contain sensitive data or stack traces",
    "verdict": "false",
    "reason": "Dev-only interactive iOS build script (scripts/), console.error of fatal error; not shipped in app."
   },
@@ -791,6 +869,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/AppAuth/Sources/AppAuthCore/OIDEndSessionRequest.m",
    "line": 184,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "NSAssert in AppAuth pod about missing end-session endpoint; not logging sensitive data."
   },
@@ -801,6 +880,7 @@
    "rule": "CUSTOM_CRYPTO_IMPLEMENTATION",
    "path": "apps/mobile/app/common/database/encryption.ts",
    "line": 82,
+   "message": "Custom cryptographic function \"encryptDatabaseKeyWithPassword\" - likely insecure implementation",
    "verdict": "false",
    "reason": "encryptDatabaseKeyWithPassword uses libsodium deriveKey/encrypt; no custom crypto primitive."
   },
@@ -811,6 +891,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/homescreenwidget/ItemUpdateWidget.kt",
    "line": 128,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs onDeleted() and widget IDs only; no sensitive data."
   },
@@ -821,6 +902,7 @@
    "rule": "IOS-007",
    "path": "scripts/app_config/templates/ios/Runner.xcodeproj/project.pbxproj",
    "line": 135,
+   "message": "No certificate pinning (needed for high-risk apps). No certificate pinning found for app Runner: no NSPinnedDomains, TrustKit, or pin-checking URLSession delegate.",
    "verdict": "overrated",
    "reason": "No pinning found in repo, but wallet talks to user-configurable nodes/APIs over TLS; pinning is defense-in-depth here."
   },
@@ -831,6 +913,7 @@
    "rule": "ANDROID_CLEARTEXT_ENABLED",
    "path": "apps/mobile/android/app/src/prod/AndroidManifest.xml",
    "line": 6,
+   "message": "android:usesCleartextTraffic is set to true",
    "verdict": "real",
    "reason": "prod flavor manifest sets usesCleartextTraffic=true with no networkSecurityConfig; release wallet allows HTTP."
   },
@@ -841,6 +924,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/usersettings/networkAndServers/ProtocolServerView.kt",
    "line": 288,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs exception stack trace of server test; no secrets."
   },
@@ -851,6 +935,7 @@
    "rule": "HARDCODED_SECRETS",
    "path": "apps/mobile/worker.js",
    "line": 5874,
+   "message": "Potential hardcoded secret in property \"password\"",
    "verdict": "false",
    "reason": "\"password\" is a CSS pseudo-selector map entry ([type=password]) in bundled css-select code."
   },
@@ -861,6 +946,7 @@
    "rule": "AND-031",
    "path": "multiplatform/desktop/src/jvmMain/kotlin/chat/simplex/desktop/Main.kt",
    "line": 56,
+   "message": "Code is loaded at runtime. Code is loaded at runtime. Check that the file can't come from outside the signed app.",
    "verdict": "false",
    "reason": "System.load of bundled native libs from app's own compose resources dir, not external input."
   },
@@ -871,6 +957,7 @@
    "rule": "KMP-002",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/helpers/DatabaseUtils.kt",
    "line": 8,
+   "message": "Platform crypto, keystore, or biometric API used in commonMain. `java.security.SecureRandom` is a platform trust API used from commonMain.",
    "verdict": "false",
    "reason": "commonMain targets only androidMain and desktopMain (both JVM); java.security.SecureRandom is correct there."
   },
@@ -881,6 +968,7 @@
    "rule": "android_kotlin_logging",
    "path": "app/src/main/java/com/github/libretube/player/parser/SabrClient.kt",
    "line": 609,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs constant StreamProtectionStatus strings; no sensitive data."
   },
@@ -891,6 +979,7 @@
    "rule": "AND-028",
    "path": "android/apolloui/build.gradle",
    "line": 106,
+   "message": "targetSdk is below Google Play's requirement. targetSdk is 35 in build.gradle; it should be at least 36.",
    "verdict": "real",
    "reason": "targetSdk 35 in apolloui; Play requires API 36 for updates since Aug 2026."
   },
@@ -901,6 +990,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/newchat/ConnectPlan.kt",
    "line": 278,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Constant debug string; SimpleX Log.d only emits when developerTools enabled."
   },
@@ -911,6 +1001,7 @@
    "rule": "android_manifest_base_config_cleartext",
    "path": "mobile/src/main/res/xml/network_security_config.xml",
    "line": 1,
+   "message": "App allows clear text HTTP communication. Disable this for production endpoints.",
    "verdict": "overrated",
    "reason": "Cleartext base-config is deliberate for user-configured local openHAB servers on LAN; remote cloud uses HTTPS."
   },
@@ -921,6 +1012,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/core/connection/CloudConnection.kt",
    "line": 66,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs 'Error parsing proxy URL endpoint response' with JSONException; no credentials logged."
   },
@@ -931,6 +1023,7 @@
    "rule": "AND-028",
    "path": "multiplatform/android/build.gradle.kts",
    "line": 18,
+   "message": "targetSdk is below Google Play's requirement. targetSdk is 35 in build.gradle.kts; it should be at least 36.",
    "verdict": "real",
    "reason": "targetSdk=35 in android/build.gradle.kts; below Play's API 36 requirement in effect as of late 2026."
   },
@@ -941,6 +1034,7 @@
    "rule": "AND-055",
    "path": "app/src/main/java/com/github/libretube/services/DownloadService.kt",
    "line": 656,
+   "message": "App-internal action is sent as an implicit Intent. The app-internal action com.github.libretube.services.DownloadService.ACTION_SERVICE_STOPPED is sent as an implicit Intent, so another app can intercept it or answer it.",
    "verdict": "overrated",
    "reason": "Implicit broadcast carries no extras; only reveals download service stopped."
   },
@@ -951,6 +1045,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
    "line": 1868,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "overrated",
    "reason": "Log.e of unexpected core response details could include contact data, but only on error path, logcat app-private."
   },
@@ -961,6 +1056,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build-debug-apk.yml",
    "line": 12,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/checkout` is GitHub-owned but pinned to the tag `v4`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "GitHub-owned checkout@v4 in workflow_dispatch debug build with contents: read and no secrets."
   },
@@ -971,6 +1067,7 @@
    "rule": "AND-059",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/ViewExtensions.kt",
    "line": 50,
+   "message": "WebView runs JavaScript with content access on. This WebView runs JavaScript and keeps content:// access on (the default). It loads only web pages, which can't open content:// URLs, so turn it off as hardening.",
    "verdict": "overrated",
    "reason": "JS enabled with default content access for openHAB server pages; finding itself says web pages can't open content://, hardening only."
   },
@@ -981,6 +1078,7 @@
    "rule": "android_kotlin_logging",
    "path": "app/src/main/java/com/github/libretube/ui/dialogs/PlaylistDescriptionDialog.kt",
    "line": 76,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs exception from playlist description update; no secrets."
   },
@@ -991,6 +1089,7 @@
    "rule": "AND-019",
    "path": "app/src/main/AndroidManifest.xml",
    "line": 339,
+   "message": "App Link is not verified. Web links for youtube.com, m.youtube.com, www.youtube.com, music.youtube.com, www.youtube-nocookie.com open .ui.activities.RouterActivity without android:autoVerify, so another app can claim them.",
    "verdict": "false",
    "reason": "LibreTube is a third-party YouTube client; it cannot autoVerify youtube.com. Expected handler, not a weakness."
   },
@@ -1001,6 +1100,7 @@
    "rule": "XPL-036",
    "path": "falcon/app/falconPushNotifications/Environment.swift",
    "line": 54,
+   "message": "Staging, test, or private-network endpoint in release code. `dev.muun.com` is a non-production host name, in code that ships.",
    "verdict": "overrated",
    "reason": "dev.muun.com is in an Environment switch; Fastfile sets .prod for release so it's unreachable, just a string."
   },
@@ -1011,6 +1111,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yml",
    "line": 196,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `subosito/flutter-action` is pinned to `v2.19.0`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party subosito/flutter-action@v2.19.0 tag used in release build jobs producing shipped binaries."
   },
@@ -1021,6 +1122,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/homescreenwidget/ItemUpdateWidget.kt",
    "line": 133,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs widget id being deleted; not sensitive."
   },
@@ -1031,6 +1133,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/foss/java/org/openhab/habdroid/util/CrashReportingHelper.kt",
    "line": 31,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs ACRA isOutdated boolean; not sensitive."
   },
@@ -1041,6 +1144,7 @@
    "rule": "AND-016",
    "path": "AnkiDroid/src/main/res/xml/filepaths.xml",
    "line": 4,
+   "message": "FileProvider shares too much of the filesystem. <cache-path path=\"/\"> shares the app's whole private cache directory.",
    "verdict": "overrated",
    "reason": "cache-path '/' broad, but FileProvider grants are per-URI; risk only if app shares attacker-chosen path."
   },
@@ -1051,6 +1155,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chat/item/CIFileView.kt",
    "line": 295,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs decryption exception stack trace, not file contents or keys."
   },
@@ -1061,6 +1166,7 @@
    "rule": "AND-010",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/AbstractFlashcardViewer.kt",
    "line": 1065,
+   "message": "WebView can read local files. This WebView setting lets page content read local files. The WebView loads only web pages here, so turn it off as hardening.",
    "verdict": "overrated",
    "reason": "allowFileAccess=true, but cards loaded via loadDataWithBaseURL on local http server origin; file:// access blocked cross-scheme. Hardening."
   },
@@ -1071,6 +1177,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build-debug-apk.yml",
    "line": 15,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/setup-java` is GitHub-owned but pinned to the tag `v4`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "GitHub-owned actions/setup-java@v4 tag in a debug-APK build workflow; low supply-chain risk."
   },
@@ -1081,6 +1188,7 @@
    "rule": "AND-019",
    "path": "android/apolloui/src/main/AndroidManifest.xml",
    "line": 102,
+   "message": "App Link is not verified. Web links for @string/muun_link_host open .presentation.ui.launcher.LauncherActivity without android:autoVerify, so another app can claim them.",
    "verdict": "real",
    "reason": "Muun https verify/authorize login link filters lack autoVerify anywhere; auth-token links could be claimed by other apps."
   },
@@ -1091,6 +1199,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yaml",
    "line": 819,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/setup-go` is GitHub-owned but pinned to the tag `v6`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "GitHub-owned actions/setup-go@v6 tag pin; low supply-chain risk."
   },
@@ -1101,6 +1210,7 @@
    "rule": "NO_REQUEST_TIMEOUT",
    "path": "apps/mobile/src/features/scantastic/ScantasticModal.tsx",
    "line": 185,
+   "message": "fetch() without timeout configuration",
    "verdict": "false",
    "reason": "OTP-state polling fetch lacking timeout is a reliability issue, not a security weakness."
   },
@@ -1111,6 +1221,7 @@
    "rule": "AND-032",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/multimedia/MultimediaArgsStorage.kt",
    "line": 28,
+   "message": "Java deserialization with ObjectInputStream. ObjectInputStream deserializes arbitrary classes. Check where the bytes come from.",
    "verdict": "false",
    "reason": "Deserializes files app wrote itself into private cacheDir; path passed via non-exported MultimediaActivity."
   },
@@ -1121,6 +1232,7 @@
    "rule": "IOS-039",
    "path": "ios/ShareExtension/ShareExtension.entitlements",
    "line": 5,
+   "message": "Entitlement has no matching feature in code. The App Groups entitlement is granted, and no code uses App Groups.",
    "verdict": "false",
    "reason": "ShareViewController subclasses share_handler's ShareHandlerIosViewController, which uses the App Group container; entitlement is used."
   },
@@ -1131,6 +1243,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/pr.yml",
    "line": 26,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` leaves the job token in .git/config for every later step.",
    "verdict": "overrated",
    "reason": "pull_request workflow with no write perms declared; fork PR tokens read-only, though PR code builds after checkout."
   },
@@ -1141,6 +1254,7 @@
    "rule": "XPL-036",
    "path": "falcon/app/falconPushNotifications/Environment.swift",
    "line": 41,
+   "message": "Staging, test, or private-network endpoint in release code. `dev.api.muun.wtf` is a non-production host name, in code that ships.",
    "verdict": "false",
    "reason": "dev host is one branch of an env switch; Fastlane seds Environment.current to prod for releases, which uses pub.api.muun.io."
   },
@@ -1151,6 +1265,7 @@
    "rule": "XPL-009",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/views/chat/ComposeView.kt",
    "line": 418,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `simplex.chat`.",
    "verdict": "false",
    "reason": "http://simplex.chat is only a prefix match in isSimplexLink(), not a network request."
   },
@@ -1161,6 +1276,7 @@
    "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
    "path": "apps/mobile/app/components/sheets/recovery-key/index.jsx",
    "line": 159,
+   "message": "Catch block shows raw error message to user - may expose sensitive backend details",
    "verdict": "false",
    "reason": "alert(e.message) for local file-write errors when saving recovery key; no backend details."
   },
@@ -1171,6 +1287,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/screenshot_compare.yml",
    "line": 56,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` v6+ keeps the job token in a file under $RUNNER_TEMP that every later step can read.",
    "verdict": "overrated",
    "reason": "Persisted checkout token scoped to contents:read/actions:write; fork PRs get read-only token; hardening (persist-credentials:false)."
   },
@@ -1181,6 +1298,7 @@
    "rule": "IOS_BACKGROUND_MODES_UNNECESSARY",
    "path": "apps/mobile/ios/Notesnook/Info.plist",
    "line": 108,
+   "message": "Background mode 'fetch' enabled: Background fetch may expose data during background updates",
    "verdict": "false",
    "reason": "Background fetch mode is a normal capability; no data exposure mechanism shown."
   },
@@ -1191,6 +1309,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yml",
    "line": 53,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `reactivecircus/android-emulator-runner` is pinned to `v2`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party reactivecircus/android-emulator-runner pinned to mutable tag v2."
   },
@@ -1201,6 +1320,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
    "line": 553,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "overrated",
    "reason": "Logs response type/details on unexpected subs-total response; error path only, low-sensitivity data."
   },
@@ -1211,6 +1331,7 @@
    "rule": "hardcoded_api_key",
    "path": "android/apolloui/src/main/java/io/muun/apollo/data/preferences/rx/RxSharedPreferences.java",
    "line": 83,
+   "message": "A hardcoded Key is identified.",
    "verdict": "false",
    "reason": "Line 83 is Preconditions.checkNotNull(key,...): a preference key parameter, not a hardcoded secret."
   },
@@ -1221,6 +1342,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/call/CallAudioDeviceManager.kt",
    "line": 43,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs audio device type integers; not sensitive."
   },
@@ -1231,6 +1353,7 @@
    "rule": "XPL-046",
    "path": "ios/extension.bundle/clipper.bundle.js",
    "line": 1,
+   "message": "Web page or HTML string inserts untrusted text as markup. Markup built from `location.href` is written into the page, so a crafted link runs its own script.",
    "verdict": "false",
    "reason": "Flagged line 1 has no location.href; elsewhere it's used as CSS base URL in Readability clipper, not markup injection."
   },
@@ -1241,6 +1364,7 @@
    "rule": "MISSING_SECURITY_HEADERS",
    "path": "apps/mobile/app/screens/editor/index.tsx",
    "line": 148,
+   "message": "WebView loading external content without security headers",
    "verdict": "false",
    "reason": "WebView loads bundled local editor (build.bundle/index.html), not external content; HTTP security headers not applicable."
   },
@@ -1251,6 +1375,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/chatlist/UserPicker.android.kt",
    "line": 173,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs CancellationException stack trace from an animation; not sensitive."
   },
@@ -1261,6 +1386,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/translation-validation.yml",
    "line": 33,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `peter-evans/find-comment` is pinned to `v4`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party peter-evans/find-comment@v4 mutable tag running with pull-requests: write token."
   },
@@ -1271,6 +1397,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build-ci-image.yaml",
    "line": 44,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `docker/build-push-action` is pinned to `v7`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party docker/build-push-action@v7 tag-pinned in job with packages:write pushing CI image used by release builds."
   },
@@ -1281,6 +1408,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/commit-release.yml",
    "line": 75,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `EndBug/add-and-commit` is pinned to `v9.1.4`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party EndBug/add-and-commit pinned to mutable tag v9.1.4 in job with contents: write."
   },
@@ -1291,6 +1419,7 @@
    "rule": "CI-007",
    "path": "android/gradle/wrapper/gradle-wrapper.properties",
    "line": 5,
+   "message": "Gradle wrapper download is not checked against a SHA-256. The Gradle download isn't checked against a known SHA-256.",
    "verdict": "overrated",
    "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org; defense-in-depth only."
   },
@@ -1301,6 +1430,7 @@
    "rule": "IOS-019",
    "path": "scripts/app_config/templates/ios/Runner.xcodeproj/project.pbxproj",
    "line": 135,
+   "message": "App target has no privacy manifest. App target Runner has no PrivacyInfo.xcprivacy.",
    "verdict": "overrated",
    "reason": "No PrivacyInfo.xcprivacy found, but that's App Store compliance, not a security weakness; file is a template."
   },
@@ -1311,6 +1441,7 @@
    "rule": "AND-031",
    "path": "multiplatform/desktop/src/jvmMain/kotlin/chat/simplex/desktop/Main.kt",
    "line": 100,
+   "message": "Code is loaded at runtime. Code is loaded at runtime. Check that the file can't come from outside the signed app.",
    "verdict": "false",
    "reason": "Windows path loads fixed bundled DLL names from app resources/vlc dirs; not externally supplied."
   },
@@ -1321,6 +1452,7 @@
    "rule": "XPL-027",
    "path": "damus/Core/Nostr/NostrEvent.swift",
    "line": 483,
+   "message": "SecRandomCopyBytes result is not checked. `SecRandomCopyBytes` can fail, and its status is ignored, so the buffer may stay zero.",
    "verdict": "false",
    "reason": "SecRandomCopyBytes result is checked: guard == errSecSuccess else fatalError."
   },
@@ -1331,6 +1463,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
    "line": 242,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs 'Error reading log' exception; log content itself is redacted elsewhere."
   },
@@ -1341,6 +1474,7 @@
    "rule": "AND-021",
    "path": "android/app/src/main/AndroidManifest.xml",
    "line": 17,
+   "message": "Backup is on with no exclusion rules. allowBackup isn't set, so Android backs up the app's files by default, and there are no rules excluding sensitive files.",
    "verdict": "real",
    "reason": "allowBackup defaults on, no backup rules; login credentials stored in SharedPreferences (_loginCredentialsKey) get backed up."
   },
@@ -1351,6 +1485,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/WriteTagActivity.kt",
    "line": 189,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Constant debug string \"Tag is initialized, writing\"; no sensitive data."
   },
@@ -1361,6 +1496,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/core/OpenHabApplication.kt",
    "line": 196,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs data saver / battery saver state; not sensitive."
   },
@@ -1371,6 +1507,7 @@
    "rule": "android_kotlin_sql_raw_query",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/MetaDB.kt",
    "line": 91,
+   "message": "App uses SQLite Database and execute raw SQL query. Untrusted user input in raw SQL queries can cause SQL Injection. Also sensitive information should be encrypted and written to the database.",
    "verdict": "false",
    "reason": "Static CREATE TABLE IF NOT EXISTS DDL via execSQL; no user input; non-sensitive widget/toolbar state."
   },
@@ -1381,6 +1518,7 @@
    "rule": "XPL-039",
    "path": "falcon/app/falcon.xcodeproj/project.pbxproj",
    "line": 5544,
+   "message": "No hooking or instrumentation detection found. No hooking or instrumentation detection found in the iOS app.",
    "verdict": "overrated",
    "reason": "No Frida/hooking detection in muun-ios sources; anti-hooking is defense-in-depth only."
   },
@@ -1391,6 +1529,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/pr-signed-apk.yml",
    "line": 109,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `subosito/flutter-action` is pinned to `v2`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party subosito/flutter-action@v2 tag pin in signed-APK workflow."
   },
@@ -1401,6 +1540,7 @@
    "rule": "AND-003",
    "path": "android/app/src/main/res/xml/network_security_config.xml",
    "line": 6,
+   "message": "User-installed CAs are trusted in release. User-installed CAs are trusted in the base config, so a proxy CA can read release traffic.",
    "verdict": "overrated",
    "reason": "Base config trusts user CAs (and cleartext) in release; intentional for self-hosted KitchenOwl servers, needs user-installed CA."
   },
@@ -1411,6 +1551,7 @@
    "rule": "IOS-001",
    "path": "damus/Info.plist",
    "line": 70,
+   "message": "App Transport Security is turned off. NSAllowsArbitraryLoads turns off App Transport Security for every host.",
    "verdict": "real",
    "reason": "NSAllowsArbitraryLoads=true in shipping Info.plist disables ATS globally."
   },
@@ -1421,6 +1562,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/preference/fragments/TileSettingsFragment.kt",
    "line": 66,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs ActivityResult object (result code/intent summary) for tile item picker; no sensitive data."
   },
@@ -1431,6 +1573,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/WriteTagActivity.kt",
    "line": 208,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs NFC tag write IOException; not sensitive."
   },
@@ -1441,6 +1584,7 @@
    "rule": "RN-005",
    "path": "app/screens/editor/index.tsx",
    "line": 181,
+   "message": "WebView can read local files. allowFileAccess is on: pages in this WebView can open file:// URLs inside the app.",
    "verdict": "overrated",
    "reason": "allowFileAccess required to load file:// editor bundle; exploitation needs XSS in editor, though universal file access also enabled."
   },
@@ -1451,6 +1595,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/openxfacts-release.yml",
    "line": 94,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `maierj/fastlane-action` is pinned to `v3.2.0`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party maierj/fastlane-action@v3.2.0 tag-pinned in release job that has decrypted signing/store secrets."
   },
@@ -1461,6 +1606,7 @@
    "rule": "AND-003",
    "path": "android/app/src/main/res/xml/network_security_config.xml",
    "line": 10,
+   "message": "User-installed CAs are trusted in release. User-installed CAs are trusted in the base config, so a proxy CA can read release traffic.",
    "verdict": "real",
    "reason": "Release manifest uses network_security_config whose base-config trusts user CAs."
   },
@@ -1471,6 +1617,7 @@
    "rule": "IOS-019",
    "path": "ios/Runner.xcodeproj/project.pbxproj",
    "line": 146,
+   "message": "App target has no privacy manifest. App target Runner has no PrivacyInfo.xcprivacy.",
    "verdict": "overrated",
    "reason": "No PrivacyInfo.xcprivacy in Runner confirmed; App Store compliance gap, not a security weakness."
   },
@@ -1481,6 +1628,7 @@
    "rule": "XPL-008",
    "path": "lib/pages/add_wallet_views/new_wallet_recovery_phrase_view/new_wallet_recovery_phrase_view.dart",
    "line": 324,
+   "message": "Non-cryptographic or seeded random number generator. dart:math `Random()` is predictable, and it produces a `mnemonic`.",
    "verdict": "false",
    "reason": "Random() only picks which mnemonic word index to verify; mnemonic generated elsewhere."
   },
@@ -1491,6 +1639,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/android-release-to-org-openfoodfacts-scanner.yml",
    "line": 61,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` v6+ keeps the job token in a file under $RUNNER_TEMP that every later step can read.",
    "verdict": "real",
    "reason": "checkout persists token (no persist-credentials:false, no permissions block); later unpinned third-party actions can read it."
   },
@@ -1501,6 +1650,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/MainActivity.kt",
    "line": 670,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Constant debug string \"runAfterDelay()\"; no sensitive data."
   },
@@ -1511,6 +1661,7 @@
    "rule": "XPL-042",
    "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/AppUpdater.kt",
    "line": 460,
+   "message": "Shell command built from a variable. A shell command is built from a variable; if any part comes from input, it can run other commands.",
    "verdict": "false",
    "reason": "Runtime.exec(String) has no shell; arg is app's downloaded update file path, not attacker input."
   },
@@ -1521,6 +1672,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/on-demand.yml",
    "line": 128,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `stefanzweifel/git-auto-commit-action` is pinned to `v7`, a tag its owner can move to different code.",
    "verdict": "real",
    "reason": "Third-party stefanzweifel/git-auto-commit-action@v7 tag-pinned in comment-triggered job with checked-out token and push."
   },
@@ -1531,6 +1683,7 @@
    "rule": "kotlin.lang.security.use-of-sha1.use-of-sha1",
    "path": "libanki/src/main/java/com/ichi2/anki/libanki/Utils.kt",
    "line": 105,
+   "message": "Detected SHA1 hash algorithm which is considered insecure. SHA1 is not collision resistant and is therefore not suitable as a cryptographic signature. Use SHA256 or SHA3 instead.",
    "verdict": "false",
    "reason": "SHA1 used for Anki field checksum compatible with Python sha1; not a security signature."
   },
@@ -1541,6 +1694,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/WriteTagActivity.kt",
    "line": 210,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs NFC write IOException; no sensitive data."
   },
@@ -1551,6 +1705,7 @@
    "rule": "kotlin.lang.security.use-of-md5.use-of-md5",
    "path": "common/src/testFixtures/java/com/ichi2/anki/TestUtils.kt",
    "line": 15,
+   "message": "Detected MD5 hash algorithm which is considered insecure. MD5 is not collision resistant and is therefore not suitable as a cryptographic signature. Use SHA256 or SHA3 instead.",
    "verdict": "false",
    "reason": "MD5 in testFixtures TestUtils for file checksums; test code, not shipped, not security use."
   },
@@ -1561,6 +1716,7 @@
    "rule": "RN-005",
    "path": "app/share/editor.tsx",
    "line": 237,
+   "message": "WebView can read local files. allowFileAccess is on: pages in this WebView can open file:// URLs inside the app.",
    "verdict": "overrated",
    "reason": "allowFileAccess (plus universal) set, but WebView loads bundled file:///android_asset/plaineditor.html; needs separate XSS."
   },
@@ -1571,6 +1727,7 @@
    "rule": "AND-012",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/cardviewer/TypeAnswerWebView.kt",
    "line": 26,
+   "message": "JavaScript bridge is reachable from every frame. addJavascriptInterface exposes native methods to every frame in this WebView.",
    "verdict": "overrated",
    "reason": "Bridge reachable from all frames, but only exposes setNoSuggest(boolean) toggling keyboard suggestions; negligible impact."
   },
@@ -1581,6 +1738,7 @@
    "rule": "CUSTOM_CRYPTO_IMPLEMENTATION",
    "path": "apps/mobile/app/common/database/encryption.ts",
    "line": 352,
+   "message": "Custom cryptographic function \"hash\" - likely insecure implementation",
    "verdict": "false",
    "reason": "hash() delegates to libsodium Sodium.hashPassword; not custom crypto."
   },
@@ -1591,6 +1749,7 @@
    "rule": "ios_sha1_collision",
    "path": "falcon/app/Pods/FirebaseInstallations/FirebaseInstallations/Source/Library/IIDMigration/FIRInstallationsIIDStore.m",
    "line": 25,
+   "message": "SHA1 is a weak hash known to have hash collisions.",
    "verdict": "false",
    "reason": "Firebase pod imports CommonCrypto for IID fingerprint derivation; not a security-relevant collision use."
   },
@@ -1601,6 +1760,7 @@
    "rule": "AND-027",
    "path": "multiplatform/android/build.gradle.kts",
    "line": 62,
+   "message": "R8 is off in the release build. R8 minification is off in the release build type.",
    "verdict": "overrated",
    "reason": "release isMinifyEnabled=false is real, but only reduces reverse-engineering hardening for an open-source app."
   },
@@ -1611,6 +1771,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/IntroActivity.kt",
    "line": 58,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs constant strings 'Show restore intro'/'Show regular intro'."
   },
@@ -1621,6 +1782,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/test.yaml",
    "line": 31,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` v6+ keeps the job token in a file under $RUNNER_TEMP that every later step can read.",
    "verdict": "overrated",
    "reason": "pull_request-triggered test job with contents:read/packages:read token; persisted token has little value; hardening only."
   },
@@ -1631,6 +1793,7 @@
    "rule": "XPL-009",
    "path": "falcon/app/falcon/Resource/Environment%2BExtension.swift",
    "line": 25,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `totally-explorer`.",
    "verdict": "false",
    "reason": "http://totally-explorer is placeholder explorer for debug/regtest envs; prod uses https mempool.space."
   },
@@ -1641,6 +1804,7 @@
    "rule": "XPL-009",
    "path": "OnionBrowser/Bookmarks/NcBookmarks.swift",
    "line": 107,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `fpfjxcrmw437h6z2xl3w4czl55kvkmxpapg37bbopsafdu7q454byxid.onion`.",
    "verdict": "false",
    "reason": "http to .onion v3 address; Tor onion services are end-to-end encrypted and authenticated."
   },
@@ -1651,6 +1815,7 @@
    "rule": "XPL-005",
    "path": "android/apolloui/src/main/java/io/muun/apollo/data/os/secure_storage/KeyStoreProvider.java",
    "line": 188,
+   "message": "AES-CBC needs a separate MAC to detect tampering. A Keystore key that uses CBC mode.",
    "verdict": "overrated",
    "reason": "Keystore AES-CBC/PKCS7 without MAC for local storage; tampering needs root access to app-private data."
   },
@@ -1661,6 +1826,7 @@
    "rule": "WEBVIEW_JAVASCRIPT_INJECTION",
    "path": "apps/mobile/app/share/editor.tsx",
    "line": 216,
+   "message": "WebView with JavaScript enabled loading dynamic content - potential XSS vulnerability",
    "verdict": "false",
    "reason": "WebView source is the bundled local editor asset (EDITOR_URI), not dynamic remote content."
   },
@@ -1671,6 +1837,7 @@
    "rule": "RN-007",
    "path": "src/screens/WebViewScreen.tsx",
    "line": 47,
+   "message": "WebView loads a URL from navigation params or user input with no allowlist. The WebView loads `uriLink`, a URL from navigation params, with no host check. A deep link or another screen that passes params decides which page runs inside the app.",
    "verdict": "false",
    "reason": "No deep-link linking config; all navigate(MobileScreens.WebView) callers pass static Uniswap URLs (privacy, terms, help)."
   },
@@ -1681,6 +1848,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/android/src/main/java/chat/simplex/app/CallService.kt",
    "line": 37,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs constant 'null intent' message; nothing sensitive."
   },
@@ -1691,6 +1859,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/GTMSessionFetcher/Sources/Full/GTMMIMEDocument.m",
    "line": 472,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "NSLog inside #if DEBUG in GTMSessionFetcher pod; no sensitive data, not in release."
   },
@@ -1701,6 +1870,7 @@
    "rule": "android_kotlin_sql_raw_query",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/MetaDB.kt",
    "line": 610,
+   "message": "App uses SQLite Database and execute raw SQL query. Untrusted user input in raw SQL queries can cause SQL Injection. Also sensitive information should be encrypted and written to the database.",
    "verdict": "false",
    "reason": "rawQuery/execSQL use bound ? parameters with numeric did; no injection."
   },
@@ -1711,6 +1881,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/util/HttpClient.kt",
    "line": 119,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "overrated",
    "reason": "Log.d of item command and server URL in release (no log stripping); not credentials, logcat app-private."
   },
@@ -1721,6 +1892,7 @@
    "rule": "XPL-009",
    "path": "damus/TestData.swift",
    "line": 149,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `cdn.jb55.com`.",
    "verdict": "false",
    "reason": "http URL is inside test Nostr event JSON fixture string; never fetched as a network request."
   },
@@ -1731,6 +1903,7 @@
    "rule": "IOS-019",
    "path": "iosApp/iosApp.xcodeproj/project.pbxproj",
    "line": 70,
+   "message": "App target has no privacy manifest. App target iosApp has no PrivacyInfo.xcprivacy.",
    "verdict": "false",
    "reason": "StreetComplete iOS app is an unreleased prototype; privacy manifest is App Store compliance, not a security weakness."
   },
@@ -1741,6 +1914,7 @@
    "rule": "AND-059",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/shareddeck/SharedDecksActivity.kt",
    "line": 221,
+   "message": "WebView runs JavaScript with content access on. This WebView runs JavaScript and keeps content:// access on (the default). It loads only web pages, which can't open content:// URLs, so turn it off as hardening.",
    "verdict": "overrated",
    "reason": "WebView loads AnkiWeb shared decks; default content access is defense-in-depth only, as message itself notes."
   },
@@ -1751,6 +1925,7 @@
    "rule": "AND-019",
    "path": "android/app/src/main/AndroidManifest.xml",
    "line": 162,
+   "message": "App Link is not verified. Web links for app.notesnook.com open .MainActivity without android:autoVerify, so another app can claim them.",
    "verdict": "overrated",
    "reason": "app.notesnook.com filter lacks autoVerify, but links carry only note/tag IDs; Android 12+ won't route unverified links."
   },
@@ -1761,6 +1936,7 @@
    "rule": "AND-019",
    "path": "android/apolloui/src/main/AndroidManifest.xml",
    "line": 132,
+   "message": "App Link is not verified. Web links for @string/muun_link_host open .presentation.ui.launcher.LauncherActivity without android:autoVerify, so another app can claim them.",
    "verdict": "real",
    "reason": "https intent-filters for verify/authorize/confirm links lack autoVerify anywhere; other apps can claim auth links."
   },
@@ -1771,6 +1947,7 @@
    "rule": "android_kotlin_logging",
    "path": "app/src/main/java/com/github/libretube/player/parser/SabrClient.kt",
    "line": 537,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs skipped format itag number in SABR stream parser; not sensitive."
   },
@@ -1781,6 +1958,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yaml",
    "line": 873,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/upload-artifact` is GitHub-owned but pinned to the tag `v7`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "GitHub-owned upload-artifact pinned to major tag v7; lower risk than third-party actions."
   },
@@ -1791,6 +1969,7 @@
    "rule": "XPL-010",
    "path": "lib/pages/paynym/paynym_claim_view.dart",
    "line": 234,
+   "message": "Token, password, or secret written to the log. `token.message` is written to the log.",
    "verdict": "false",
    "reason": "token.message is the API error message on failure, not the token value."
   },
@@ -1801,6 +1980,7 @@
    "rule": "AND-012",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/pages/DeckOptions.kt",
    "line": 168,
+   "message": "JavaScript bridge is reachable from every frame. addJavascriptInterface exposes native methods to every frame in this WebView.",
    "verdict": "overrated",
    "reason": "Bridge exposes only modal open/close and save-reload events; content is bundled pages, external navigation opened outside."
   },
@@ -1811,6 +1991,7 @@
    "rule": "IOS-015",
    "path": "OnionBrowser/Browsing/Tab%2BWKScriptMessageHandler.swift",
    "line": 74,
+   "message": "Script message handler doesn't check who sent the message. This script message handler never checks message.frameInfo (main frame and securityOrigin), so any page or iframe in the web view can call it.",
    "verdict": "overrated",
    "reason": "Only registered handler is showDonate (main-frame script); any page can only open donation screen."
   },
@@ -1821,6 +2002,7 @@
    "rule": "XPL-009",
    "path": "ios/Shared/Views/Chat/ComposeMessage/ComposeView.swift",
    "line": 1898,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `simplex.chat`.",
    "verdict": "false",
    "reason": "String prefix check recognizing simplex links; no HTTP request is made to that URL."
   },
@@ -1831,6 +2013,7 @@
    "rule": "IMPROPER_BIOMETRIC_FALLBACK",
    "path": "apps/mobile/app/utils/events.js",
    "line": 173,
+   "message": "Biometric authentication falls back to insecurely stored credentials",
    "verdict": "false",
    "reason": "Line 173 is an event-name constant (eUnlockWithBiometrics); no biometric fallback logic there."
   },
@@ -1841,6 +2024,7 @@
    "rule": "NO_REQUEST_TIMEOUT",
    "path": "apps/mobile/src/features/scantastic/ScantasticModal.tsx",
    "line": 125,
+   "message": "fetch() without timeout configuration",
    "verdict": "false",
    "reason": "Missing fetch timeout is reliability, not a security weakness; user-driven modal."
   },
@@ -1851,6 +2035,7 @@
    "rule": "MISSING_SECURITY_HEADERS",
    "path": "apps/mobile/app/share/fetch-webview.tsx",
    "line": 96,
+   "message": "WebView loading external content without security headers",
    "verdict": "false",
    "reason": "Security headers are a server concept; hidden clipper WebView loading a user-shared URL isn't missing headers."
   },
@@ -1861,6 +2046,7 @@
    "rule": "AND-012",
    "path": "AnkiDroid/src/main/java/com/ichi2/anki/pages/PageFragment.kt",
    "line": 71,
+   "message": "JavaScript bridge is reachable from every frame. addJavascriptInterface exposes native methods to every frame in this WebView.",
    "verdict": "overrated",
    "reason": "Bridge only dispatches fixed command names (unbury, customStudy) on local Anki pages; trivial impact."
   },
@@ -1871,6 +2057,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/Utils.desktop.kt",
    "line": 170,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs image decode stack trace for user-picked local file; no sensitive data."
   },
@@ -1881,6 +2068,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/widget/WidgetImageView.kt",
    "line": 366,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs image URL refresh on user's openHAB server; credentials not in URL, logcat is app-private."
   },
@@ -1891,6 +2079,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/IntroActivity.kt",
    "line": 51,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs static string 'Show restore intro'."
   },
@@ -1901,6 +2090,7 @@
    "rule": "XPL-042",
    "path": "tool/build_standalone_mwebd_windows.dart",
    "line": 34,
+   "message": "Shell command built from a variable. A shell command is built from a variable; if any part comes from input, it can run other commands.",
    "verdict": "false",
    "reason": "Developer build tool (tool/), not shipped; curl args passed as list, inputs are developer env/constants."
   },
@@ -1911,6 +2101,7 @@
    "rule": "XPL-040",
    "path": "mobile/src/main/AndroidManifest.xml",
    "line": 63,
+   "message": "App has no way to force an update. No way to force an update found in the Android app.",
    "verdict": "false",
    "reason": "Lack of forced-update mechanism is not a vulnerability for this open-source home-automation client."
   },
@@ -1921,6 +2112,7 @@
    "rule": "XPL-009",
    "path": "anki-common/src/main/kotlin/com/ichi2/anki/common/android/AdaptionUtil.kt",
    "line": 80,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `www.google.com`. It's opened in the browser rather than fetched by the app; still link to https.",
    "verdict": "false",
    "reason": "URL only used to queryIntentActivities for browser presence; never opened or fetched."
   },
@@ -1931,6 +2123,7 @@
    "rule": "android_kotlin_command_injection",
    "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/AppUpdater.kt",
    "line": 460,
+   "message": "User controlled strings in exec() will result in command execution.",
    "verdict": "false",
    "reason": "Desktop-only updater; file name filtered to fixed githubAssetName in app temp dir, not user controlled."
   },
@@ -1941,6 +2134,7 @@
    "rule": "XPL-042",
    "path": "multiplatform/common/src/desktopMain/kotlin/chat/simplex/common/views/helpers/AppUpdater.kt",
    "line": 433,
+   "message": "Shell command built from a variable. A shell command is built from a variable; if any part comes from input, it can run other commands.",
    "verdict": "false",
    "reason": "Runtime.exec(String) does no shell parsing; path is app-controlled download file; no injection."
   },
@@ -1951,6 +2145,7 @@
    "rule": "INSECURE_RANDOM",
    "path": "apps/mobile/app/share/share.tsx",
    "line": 382,
+   "message": "Date.now() used as a predictable value for \"sessionId\"",
    "verdict": "false",
    "reason": "sessionId is an editor session identifier, not a security token; predictability irrelevant."
   },
@@ -1961,6 +2156,7 @@
    "rule": "AND-059",
    "path": "multiplatform/common/src/androidMain/kotlin/chat/simplex/common/views/call/CallView.android.kt",
    "line": 754,
+   "message": "WebView runs JavaScript with content access on. This WebView runs JavaScript and keeps content:// access on (the default), and it loads local or outside URLs, so a page script can read content providers the app can open.",
    "verdict": "overrated",
    "reason": "Content access on, but WebView loads bundled file:android_asset call.html via LocalContentWebViewClient; hardening only."
   },
@@ -1971,6 +2167,7 @@
    "rule": "AND-041",
    "path": "android/apolloui/src/main/java/io/muun/apollo/data/os/secure_storage/KeyStoreProvider.java",
    "line": 190,
+   "message": "Keystore key accepts caller-chosen IVs. setRandomizedEncryptionRequired(false) lets callers choose the IV, so a repeated IV can expose plaintext.",
    "verdict": "overrated",
    "reason": "Persistent per-key IV reused on rewrites (getPersistentSecureRandomBytes); CBC reuse leaks equal prefixes only, needs app-private storage access."
   },
@@ -1981,6 +2178,7 @@
    "rule": "AND-036",
    "path": "androidApp/src/main/AndroidManifest.xml",
    "line": 43,
+   "message": "Backup rules don't keep sensitive data out of device-to-device transfer. allowBackup=\"false\" stops cloud backup but not device-to-device transfer on Android 12 and higher (targetSdk 37); there are no dataExtractionRules to exclude files from it.",
    "verdict": "overrated",
    "reason": "allowBackup=false yet no dataExtractionRules so D2D transfer possible; requires user-initiated device migration, data is OSM token."
   },
@@ -1991,6 +2189,7 @@
    "rule": "AND-040",
    "path": "app/src/main/java/com/github/libretube/api/poToken/PoTokenWebView.kt",
    "line": 40,
+   "message": "WebView Safe Browsing is turned off. This WebView has Safe Browsing turned off.",
    "verdict": "false",
    "reason": "PoToken WebView has blockNetworkLoads=true and runs local JS; Safe Browsing irrelevant."
   },
@@ -2001,6 +2200,7 @@
    "rule": "AND-001",
    "path": "AnkiDroid/src/main/AndroidManifest.xml",
    "line": 95,
+   "message": "Cleartext (plain HTTP) traffic is allowed. usesCleartextTraffic=\"true\" allows plain HTTP on Android 6 and lower (minSdk 16), where the network security config doesn't apply.",
    "verdict": "overrated",
    "reason": "Cleartext is permitted (NSC base-config too) for custom sync servers, but minSdk is 24, not 16; AnkiWeb uses HTTPS."
   },
@@ -2011,6 +2211,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/build.yml",
    "line": 689,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` leaves the job token in .git/config for every later step.",
    "verdict": "overrated",
    "reason": "Persisted token in release_web job; later actions already get GITHUB_TOKEN, .dockerignore excludes .git."
   },
@@ -2021,6 +2222,7 @@
    "rule": "NO_REQUEST_TIMEOUT",
    "path": "apps/mobile/worker.js",
    "line": 4966,
+   "message": "fetch() without timeout - a stalled server can hang the request indefinitely",
    "verdict": "false",
    "reason": "fetch(\"summary\", children) is a local feed-parsing helper (htmlparser2), not network fetch."
   },
@@ -2031,6 +2233,7 @@
    "rule": "ios_cert_pinning",
    "path": "/private/tmp/claude-501/-Users-hossamatef-Desktop-Areeb-atlast-parent/ec7821f6-23e2-4aba-a1f5-e3c4d89750c0/scratchpad/bench5/src/damus",
    "line": 1,
+   "message": "This app does not have Certificate Pinning implemented in code.",
    "verdict": "overrated",
    "reason": "No pinning in damus; Nostr connects to arbitrary user-chosen relays so pinning is impractical, defense-in-depth."
   },
@@ -2041,6 +2244,7 @@
    "rule": "AND-001",
    "path": "android/app/src/main/res/xml/network_security_config.xml",
    "line": 3,
+   "message": "Cleartext (plain HTTP) traffic is allowed. The base config allows plain HTTP for every host.",
    "verdict": "overrated",
    "reason": "Self-hosted client: cleartext/user CAs allow user-configured HTTP servers; default hosted server uses HTTPS."
   },
@@ -2051,6 +2255,7 @@
    "rule": "CI-007",
    "path": "gradle/wrapper/gradle-wrapper.properties",
    "line": 3,
+   "message": "Gradle wrapper download is not checked against a SHA-256. The Gradle download isn't checked against a known SHA-256.",
    "verdict": "overrated",
    "reason": "No distributionSha256Sum, but download is HTTPS from services.gradle.org with validateDistributionUrl; build-side hardening."
   },
@@ -2061,6 +2266,7 @@
    "rule": "ANDROID_MISSING_NETWORK_SECURITY_CONFIG",
    "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
    "line": 62,
+   "message": "Network-enabled app without network_security_config.xml - missing certificate pinning and cleartext traffic control",
    "verdict": "false",
    "reason": "network_security_config.xml exists and is wired in src/release/AndroidManifest.xml."
   },
@@ -2071,6 +2277,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
    "line": 77,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs 'Log too large to share' exception; not sensitive."
   },
@@ -2081,6 +2288,7 @@
    "rule": "INSECURE_WEBVIEW",
    "path": "apps/mobile/app/share/editor.tsx",
    "line": 216,
+   "message": "WebView with javaScriptEnabled and wildcard originWhitelist",
    "verdict": "overrated",
    "reason": "Share editor WebView loads bundled local HTML with JS and '*' whitelist; risk requires content injection."
   },
@@ -2091,6 +2299,7 @@
    "rule": "XPL-009",
    "path": "damus/Shared/Media/Images/FullScreenCarouselView.swift",
    "line": 156,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `cdn.jb55.com`.",
    "verdict": "false",
    "reason": "http URL in fileprivate SwiftUI preview struct; never used at runtime."
   },
@@ -2101,6 +2310,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
    "line": 603,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Constant debug string \"startChat: running\", gated on developerTools."
   },
@@ -2111,6 +2321,7 @@
    "rule": "AND-016",
    "path": "android/app/src/main/res/xml/file_viewer_provider_paths.xml",
    "line": 3,
+   "message": "FileProvider shares too much of the filesystem. <files-path path=\"/\"> shares the app's whole private files directory.",
    "verdict": "overrated",
    "reason": "files-path '/' exposes files dir, but FileProvider exported=false; only granted URIs accessible."
   },
@@ -2121,6 +2332,7 @@
    "rule": "XPL-009",
    "path": "OnionBrowser/Bookmarks/NcBookmarks.swift",
    "line": 89,
+   "message": "Hardcoded plain-HTTP URL. A plain-HTTP URL to `fpfjxcrmw437h6z2xl3w4czl55kvkmxpapg37bbopsafdu7q454byxid.onion`.",
    "verdict": "false",
    "reason": "Plain http to .onion service; Tor onion transport provides end-to-end encryption and authentication."
   },
@@ -2131,6 +2343,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/build.yaml",
    "line": 115,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` v6+ keeps the job token in a file under $RUNNER_TEMP that every later step can read.",
    "verdict": "overrated",
    "reason": "checkout persists token but job has contents/packages read-only and trusted triggers (tags/staging/dispatch)."
   },
@@ -2141,6 +2354,7 @@
    "rule": "XPL-016",
    "path": "lib/utilities/electrum_seed_utils.dart",
    "line": 24,
+   "message": "Password hashing uses a fixed salt. The password-hashing salt is a fixed value in the code, so every user's derived key can be attacked at once.",
    "verdict": "false",
    "reason": "Fixed 'electrum' salt is the Electrum seed spec for high-entropy mnemonics, not password hashing."
   },
@@ -2151,6 +2365,7 @@
    "rule": "android_kotlin_logging",
    "path": "app/src/main/java/com/github/libretube/ui/dialogs/SubmitSegmentDialog.kt",
    "line": 108,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs exception toString for SponsorBlock submit failure; no sensitive data."
   },
@@ -2161,6 +2376,7 @@
    "rule": "AND-072",
    "path": "android/app/src/main/AndroidManifest.xml",
    "line": 15,
+   "message": "App requests fraud-relevant permissions. The app requests fraud-relevant access: SYSTEM_ALERT_WINDOW. These let it read one-time codes, draw over other apps, list installed apps or install packages; Play restricts them and reviewers expect a written justification.",
    "verdict": "overrated",
    "reason": "SYSTEM_ALERT_WINDOW only in beta and debug manifests, not main/prod."
   },
@@ -2171,6 +2387,7 @@
    "rule": "MISSING_SESSION_TIMEOUT",
    "path": "apps/mobile/app/components/auth/index.tsx",
    "line": 1,
+   "message": "Authentication session without timeout or inactivity expiry",
    "verdict": "false",
    "reason": "Auth screen UI component switching login/signup; no session management here."
   },
@@ -2181,6 +2398,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/core/connection/ConnectionFactory.kt",
    "line": 553,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs KeyChainException when loading cert chain; no secret material logged."
   },
@@ -2191,6 +2409,7 @@
    "rule": "AND-019",
    "path": "AnkiDroid/src/main/AndroidManifest.xml",
    "line": 131,
+   "message": "App Link is not verified. Web links for *, *, *, *, *, *, *, *, *, *, *, *, *, *, *, *, *, *, *, * open com.ichi2.anki.IntentHandler without android:autoVerify, so another app can claim them.",
    "verdict": "false",
    "reason": "Filter matches .apkg file paths with host *; not an App Link, autoVerify not applicable."
   },
@@ -2201,6 +2420,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/ChatModel.kt",
    "line": 4379,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs decryption exception stack trace, not file contents or keys."
   },
@@ -2211,6 +2431,7 @@
    "rule": "RN-007",
    "path": "src/screens/WebViewScreen.tsx",
    "line": 27,
+   "message": "WebView loads a URL from navigation params or user input with no allowlist. The WebView loads `uriLink`, a URL from navigation params, with no host check. A deep link or another screen that passes params decides which page runs inside the app.",
    "verdict": "false",
    "reason": "All callers pass static UniswapStaticUrls/HelpUrls constants; no deep link route to WebView screen found."
   },
@@ -2221,6 +2442,7 @@
    "rule": "MISSING_SECURITY_HEADERS",
    "path": "apps/mobile/src/screens/WebViewScreen.tsx",
    "line": 47,
+   "message": "WebView loading external content without security headers",
    "verdict": "false",
    "reason": "Security headers are server-side; WebView loads static first-party Uniswap URLs; finding not applicable."
   },
@@ -2231,6 +2453,7 @@
    "rule": "MISSING_SECURITY_HEADERS",
    "path": "apps/mobile/app/screens/editor/readonly-editor.tsx",
    "line": 142,
+   "message": "WebView loading external content without security headers",
    "verdict": "false",
    "reason": "Readonly editor loads bundled local EDITOR_URI, not external content."
   },
@@ -2241,6 +2464,7 @@
    "rule": "CI-001",
    "path": ".github/workflows/build.yml",
    "line": 537,
+   "message": "Action is pinned to a tag or branch, not a commit SHA. `actions/download-artifact` is GitHub-owned but pinned to the tag `v4`, which GitHub can move. Lower risk than a third-party action, but pin it too.",
    "verdict": "overrated",
    "reason": "GitHub-owned actions/download-artifact@v4 tag pin; low supply-chain risk."
   },
@@ -2251,6 +2475,7 @@
    "rule": "IOS-028",
    "path": "falcon/app/falcon.xcodeproj/project.pbxproj",
    "line": 5519,
+   "message": "App Attest isn't integrated. App Muun uses DeviceCheck only (a device-level signal, not app integrity); App Attest isn't integrated, so the server can't tell your app from a modified copy or a script.",
    "verdict": "overrated",
    "reason": "DeviceCheck used, App Attest absent; app attestation is server-side defense-in-depth for a self-custody wallet."
   },
@@ -2261,6 +2486,7 @@
    "rule": "XPL-042",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/LogActivity.kt",
    "line": 193,
+   "message": "Shell command built from a variable. A shell command is built from a variable; if any part comes from input, it can run other commands.",
    "verdict": "false",
    "reason": "Runtime.exec(\"logcat -b all $args\") with args from constants only; no input."
   },
@@ -2271,6 +2497,7 @@
    "rule": "AND-003",
    "path": "app/src/main/res/xml/network_security_config.xml",
    "line": 11,
+   "message": "User-installed CAs are trusted in release. User-installed CAs are trusted in the base config, so a proxy CA can read release traffic.",
    "verdict": "real",
    "reason": "base-config trusts src=\"user\" CAs, applied via manifest networkSecurityConfig in release; user CA proxy can intercept traffic."
   },
@@ -2281,6 +2508,7 @@
    "rule": "AND-001",
    "path": "android/app/src/dev/AndroidManifest.xml",
    "line": 5,
+   "message": "Cleartext (plain HTTP) traffic is allowed. The manifest allows plain HTTP for the whole app.",
    "verdict": "overrated",
    "reason": "Cleartext allowed only in dev flavor manifest (com.uniswap.mobile.dev)."
   },
@@ -2291,6 +2519,7 @@
    "rule": "SENSITIVE_DATA_IN_ERROR_MESSAGES",
    "path": "apps/mobile/app/services/pinned-notes-widget.ts",
    "line": 61,
+   "message": "Error object logged directly - may contain sensitive data or stack traces",
    "verdict": "false",
    "reason": "console.error of widget DB update failure; no sensitive data in error."
   },
@@ -2301,6 +2530,7 @@
    "rule": "AND-029",
    "path": "mobile/build.gradle",
    "line": 40,
+   "message": "minSdk is below 24. minSdk is 23 in build.gradle; it should be at least 24.",
    "verdict": "overrated",
    "reason": "minSdk 23 supports Android 6; no concrete vulnerability, just older-OS support."
   },
@@ -2311,6 +2541,7 @@
    "rule": "android_kotlin_logging",
    "path": "android/app/src/main/kotlin/nl/jknaapen/fladder/api/BatteryOptimizationPigeon.g.kt",
    "line": 33,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Generated Pigeon code builds error details list for Dart; no logging call."
   },
@@ -2321,6 +2552,7 @@
    "rule": "CI-005",
    "path": ".github/workflows/localization-signature-check.yml",
    "line": 20,
+   "message": "actions/checkout leaves the job token on disk. `actions/checkout` v6+ keeps the job token in a file under $RUNNER_TEMP that every later step can read.",
    "verdict": "overrated",
    "reason": "pull_request workflow with contents:read only; persisted checkout token has minimal value."
   },
@@ -2331,6 +2563,7 @@
    "rule": "INSECURE_LINKING_OPEN",
    "path": "apps/mobile/app/components/announcements/cta.tsx",
    "line": 45,
+   "message": "Linking.openURL with unvalidated URL - may open malicious schemes (tel:, sms:, custom://)",
    "verdict": "false",
    "reason": "CTA link comes from first-party Notesnook announcements; opening links is intended behavior."
   },
@@ -2341,6 +2574,7 @@
    "rule": "CI-007",
    "path": "gradle/wrapper/gradle-wrapper.properties",
    "line": 3,
+   "message": "Gradle wrapper download is not checked against a SHA-256. The Gradle download isn't checked against a known SHA-256.",
    "verdict": "overrated",
    "reason": "No distributionSha256Sum, but HTTPS download with validateDistributionUrl; defense-in-depth only."
   },
@@ -2351,6 +2585,7 @@
    "rule": "android_kotlin_logging",
    "path": "app/src/main/java/com/github/libretube/api/poToken/PoTokenWebView.kt",
    "line": 123,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Log.e is inside if (BuildConfig.DEBUG); not emitted in release."
   },
@@ -2361,6 +2596,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/common/src/commonMain/kotlin/chat/simplex/common/model/SimpleXAPI.kt",
    "line": 1833,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs error response type/details on failed profile update; no secrets."
   },
@@ -2371,6 +2607,7 @@
    "rule": "kotlin.lang.security.use-of-sha1.use-of-sha1",
    "path": "api/src/main/java/com/ichi2/anki/api/Utils.kt",
    "line": 43,
+   "message": "Detected SHA1 hash algorithm which is considered insecure. SHA1 is not collision resistant and is therefore not suitable as a cryptographic signature. Use SHA256 or SHA3 instead.",
    "verdict": "false",
    "reason": "SHA1 used for Anki field checksum (duplicate detection, format compatibility), not security."
   },
@@ -2381,6 +2618,7 @@
    "rule": "ANDROID_INTENT_FILTER_PERMISSIVE",
    "path": "apps/mobile/android/app/src/main/AndroidManifest.xml",
    "line": 157,
+   "message": "Permissive intent filter with android.intent.action.VIEW: Can be invoked by any app",
    "verdict": "false",
    "reason": "Line 157 filter belongs to ExpoDevClientSchemeActivity declared android:enabled=false."
   },
@@ -2391,6 +2629,7 @@
    "rule": "android_kotlin_logging",
    "path": "multiplatform/android/src/main/java/chat/simplex/app/SimplexService.kt",
    "line": 58,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs static message about null intent."
   },
@@ -2401,6 +2640,7 @@
    "rule": "TEST_CREDENTIALS_IN_CODE",
    "path": "apps/mobile/src/screens/DevScreen.tsx",
    "line": 80,
+   "message": "Test password found in production code: password = \"password\"",
    "verdict": "false",
    "reason": "DevScreen dev-only navigation passes placeholder password param; not a credential."
   },
@@ -2411,6 +2651,7 @@
    "rule": "XPL-010",
    "path": "android/apolloui/src/main/java/io/muun/apollo/data/async/gcm/FirebaseManager.kt",
    "line": 40,
+   "message": "Token, password, or secret written to the log. `token` is written to the log.",
    "verdict": "overrated",
    "reason": "FCM token logged via Timber.i: logcat gated to debug/dogfood; Crashlytics breadcrumb only. FCM token low sensitivity."
   },
@@ -2421,6 +2662,7 @@
    "rule": "android_kotlin_logging",
    "path": "mobile/src/main/java/org/openhab/habdroid/ui/MainActivity.kt",
    "line": 711,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "Logs 'Cannot auto select server: Location off'; not sensitive."
   },
@@ -2431,6 +2673,7 @@
    "rule": "IOS-001",
    "path": "macos/Runner/Info.plist",
    "line": 35,
+   "message": "App Transport Security is turned off. NSAllowsArbitraryLoads turns off App Transport Security for every host.",
    "verdict": "real",
    "reason": "Shipped macOS Info.plist sets NSAllowsArbitraryLoads=true, disabling ATS for all hosts."
   },
@@ -2441,6 +2684,7 @@
    "rule": "ios_app_logging",
    "path": "falcon/app/Pods/GoogleUtilities/GoogleUtilities/MethodSwizzler/GULSwizzler.m",
    "line": 52,
+   "message": "The App logs information. Sensitive information should never be logged.",
    "verdict": "false",
    "reason": "NSAssert in GoogleUtilities pod about missing selector; no sensitive data."
   }
