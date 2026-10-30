@@ -6,9 +6,20 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: pip
     directories: ["/scripts", "/fuzz"]
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      python-tools:
+        patterns: ["*"]
+    # Dependabot relocks with pip-compile, which drops setuptools from build-requirements.txt.
+    # Bump these two by hand with the uv command at the top of that file.
+    ignore:
+      - dependency-name: setuptools
+      - dependency-name: build
