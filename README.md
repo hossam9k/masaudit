@@ -155,6 +155,10 @@ scanned the apps again.
   are published.
 - **Fast on large code bases:** the largest app, DuckDuckGo for Android (about 10,000 files), scans in
   about 5 seconds on a laptop, with no crashes on any of the 19.
+- **The 8 rules new in 0.8.0 were checked on all 116 apps measured so far.** 55 of them commit AI-agent
+  files; the new rules put 3 findings in the fix lists, all real (MCP servers started from `@latest` or
+  with no version). The Trojan Source rule's first version had 14 false alarms on the corpus and was
+  rewritten before release; its 6 findings now are test strings, listed under *Notes*.
 
 - **On apps no rule was tuned on, expect much more noise.** On 16 new apps, 29% (19–40%) of the sampled
   app-code findings in 0.7.0's fix lists were false alarms (33% for 0.6.5), against 1 in 10 on the tuned
@@ -173,8 +177,14 @@ Method and per-rule numbers: [Accuracy and speed](https://github.com/hossam9k/ma
   breaches happen. Every report has a *Residual risk* section for that reason.
 - **Safe to run on any code:** masaudit never builds or runs your code, makes no network calls (a test
   enforces it), sends no telemetry, and masks secrets in every output. Crafted files can't stall it.
+- **Honest about what it didn't read:** every report lists the files it skipped (too large, binary, a
+  link) and how many your `exclude` setting left out, so a clean report can't come from an unread file.
+  `--fail-on-incomplete` fails CI when a file wasn't read.
+- **Hidden text stays visible:** bidirectional and invisible Unicode characters from the scanned code
+  appear as markers such as `<U+202E>`, so they can't reorder or hide what you, or an AI assistant
+  reading the report, see.
 
-[How masaudit works](https://github.com/hossam9k/masaudit/blob/main/docs/how-it-works.md) explains both.
+[How masaudit works](https://github.com/hossam9k/masaudit/blob/main/docs/how-it-works.md) explains each.
 To report a vulnerability, see [SECURITY.md](https://github.com/hossam9k/masaudit/blob/main/SECURITY.md).
 
 ## How it compares
@@ -186,7 +196,7 @@ To report a vulnerability, see [SECURITY.md](https://github.com/hossam9k/masaudi
 | Plain-language why, fix, and verify per finding | **Yes** | Partly | Partly | Partly |
 | Android + iOS + React Native + KMP + Flutter + GitHub Actions | **Yes** | Android, iOS (binaries and source) | Android, iOS (source) | Android |
 | Install | Single file, no dependencies | Docker (recommended) | pip (Semgrep) | Android SDK |
-| Imports SARIF from Android Lint, mobsfscan, Semgrep, and zizmor, and sorts it by app type | **Yes** | — | — | — |
+| Imports SARIF from Android Lint, mobsfscan, Semgrep, zizmor, and osv-scanner (dependency CVEs), and sorts it by app type | **Yes** | — | — | — |
 | Published precision on real apps | **Yes** | — | — | — |
 
 MobSF also analyzes built APK and IPA files and runs the app for dynamic testing, which masaudit
