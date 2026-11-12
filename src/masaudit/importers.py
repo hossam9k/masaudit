@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Import SARIF from other scanners (Android Lint, mobsfscan, Semgrep, zizmor).
+"""Import SARIF from other scanners (Android Lint, mobsfscan, Semgrep, zizmor, osv-scanner).
 
 Known rule IDs map to the matching masaudit rule when one exists, so the advice, book link,
 and calibration are masaudit's. Anything else becomes an "imported" finding whose severity
@@ -60,7 +60,30 @@ TOOL_KEYS = [
     ("mobsfscan", "mobsfscan", "cross"),
     ("semgrep", "semgrep", "cross"),
     ("zizmor", "zizmor", "ci"),
+    ("osv-scanner", "osv-scanner", "cross"),
 ]
+
+# Advice for a tool whose results never map to a masaudit rule: the book section, why it matters, and a fix
+# when the tool's own help text has none. osv-scanner reports known vulnerabilities in the versions a lockfile
+# pins, which masaudit doesn't look up itself: it never uses the network.
+TOOL_ADVICE: Dict[str, Tuple[str, str, str]] = {
+    "osv-scanner": ("§15.4",
+                    "A dependency at the version this lockfile pins has a published vulnerability. Attackers "
+                    "search apps for libraries with known flaws, because the exploit is already written.",
+                    "Upgrade the package to a version the advisory lists as fixed, regenerate the lockfile, and "
+                    "rebuild the app."),
+}
+
+_MD_LINK = re.compile(r"!?\[([^\]\n]{0,200})\]\(([^)\s]{0,300})\)")
+
+
+def _plain(markdown: str) -> str:
+    """Markdown help text as plain words: `[text](url)` becomes `text (url)`, and emphasis, headings, and code
+    marks go. The report still escapes the result; this only keeps it readable."""
+    s = _MD_LINK.sub(lambda m: f"{m.group(1)} ({m.group(2)})" if m.group(2) else m.group(1), markdown)
+    s = re.sub(r"(?m)^\s{0,3}#{1,6}\s+", "", s)
+    s = re.sub(r"(\*\*|__|`+)", "", s)
+    return s
 
 
 def _one_line(text: object, limit: int = 240) -> str:
@@ -79,7 +102,7 @@ def _driver(run: dict) -> dict:
 
 def _tool_of(run: dict) -> Tuple[str, str, str]:
     driver = _driver(run)
-    name = str(driver.get("name") or "unknown")
+    name = _one_line(driver.get("name"), 80) or "unknown"
     low = name.lower()
     for needle, key, platform in TOOL_KEYS:
         if needle in low:
@@ -122,6 +145,17 @@ def _book() -> Tuple[str, str]:
         from masaudit import BOOK_URL
 
         return "Chapter 23", BOOK_URL
+
+
+@functools.lru_cache(maxsize=32)
+def _book_section(section: str) -> str:
+    """The book link for a section such as "§15.4", or "" when the shipped section list doesn't have it."""
+    try:
+        from masaudit.engine import rules_data
+
+        return str(json.loads(rules_data("_book_sections.json").decode("utf-8")).get(section, ""))
+    except Exception:  # pragma: no cover - packaging problem
+        return ""
 
 
 @functools.lru_cache(maxsize=8)
@@ -337,21 +371,28 @@ def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list,
             short = meta.get("shortDescription") if isinstance(meta, dict) else None
             title = _one_line((short or {}).get("text") if isinstance(short, dict) else "", 120) or ext_id
             help_obj = meta.get("help") if isinstance(meta, dict) else None
-            help_text = _one_line((help_obj or {}).get("text") if isinstance(help_obj, dict) else "", 300)
+            help_text = _one_line(_plain(str((help_obj or {}).get("text") or "")) if isinstance(help_obj, dict)
+                                  else "", 300)
+            advice = TOOL_ADVICE.get(tool_key)
+            rule_book, rule_book_url = book, book_url
+            if advice is not None and _book_section(advice[0]):
+                rule_book, rule_book_url = advice[0], _book_section(advice[0])
+            why = (advice[1] if advice else f"{tool_name} reported this with level '{level}'.") + (
+                " masaudit has no matching rule, so it keeps the source tool's severity.")
             rule = Rule(
                 id=key,
                 title=f"{title} (from {tool_name})",
                 platform=tool_platform,
                 severity=_severity_from(level, meta if isinstance(meta, dict) else {}),
                 profiles=["L1"],
-                why=f"{tool_name} reported this with level '{level}'. masaudit has no matching rule, "
-                    "so it keeps the source tool's severity.",
-                fix=help_text or f"See the {tool_name} documentation for {ext_id}.",
+                why=why,
+                fix=help_text or (advice[2] if advice else f"See the {tool_name} documentation for {ext_id}."),
                 verify=f"Run {tool_name} again and confirm the result is gone.",
                 effort="hours",
-                book=book,
-                book_url=book_url,
+                book=rule_book,
+                book_url=rule_book_url,
                 confidence="medium",
+                imported=True,
             )
             synthetic[key] = rule
     return Finding(rule=rule, location=Location(path=rel, line=line, snippet=safety.mask_names(snippet),
@@ -360,4 +401,4 @@ def _one_result(res, root, rules, tool_name, tool_key, tool_platform, meta_list,
 
 
 def is_imported(finding: Finding) -> bool:
-    return ":" in finding.rule.id
+    return finding.rule.imported

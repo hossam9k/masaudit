@@ -3,6 +3,93 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
+## Unreleased
+
+**Reports can't be hidden from, and a scan can't look cleaner than it was.** Rules 2.4.0, 214 rules. Several
+ideas come from NVIDIA's [SkillSpector](https://github.com/NVIDIA/skillspector), a scanner for AI agent
+skills: an incomplete scan never passes as clean, suppressions carry reasons, and hidden Unicode is shown.
+A baseline from 0.7.1 keeps matching: no fingerprint changed.
+
+### New rules
+
+- **XPL-049 Trojan Source** (CVE-2021-42574): a bidirectional control character that makes code read
+  differently from how it runs. Reported for an override anywhere in code, a control outside any string or
+  comment, a right-to-left pair that spans two strings or comments, or a right-to-left or first-strong
+  control left open at the end of a line. Code that handles these characters by name is left alone: a
+  literal holding only control characters (`const val RLO = "\u202e"` written raw, a sanitizer's
+  `'\u202a'..'\u202e'`), an isolate around a value (`"\u2068" + name + "\u2069"`), LRM and RLM marks, and
+  translation files, so Arabic, Hebrew, and Persian UI text doesn't trigger it. On the 19 precision-corpus
+  apps the first version reported 14 such lines, all false alarms (Signal, Element, Wikipedia). On all 116
+  measured apps this one puts none in a fix list; the 6 lines it finds are test strings holding a raw
+  override inside text, listed under Notes.
+- **AI coding agents (CI-009 to CI-014).** A committed agent setup runs on every developer's machine that
+  opens the repository, and a pull request can change it:
+  - CI-009: an MCP server started with `npx`, `uvx`, `pipx run`, `pnpm dlx`, or `docker run` without an
+    exact version or digest.
+  - CI-010: a secret written into an MCP server's `env`, `headers`, arguments, or URL.
+  - CI-011: invisible text in `AGENTS.md`, `CLAUDE.md`, Cursor rules, and similar files: Unicode tag
+    characters (the finding shows what they spell), variation-selector runs, zero-width runs, and
+    bidirectional controls.
+  - CI-012 (*Check by hand*): an HTML or `[//]: #` comment, which no Markdown viewer shows, that orders the
+    agent to ignore instructions, keep something from the user, pipe a download into a shell, or send
+    secrets somewhere.
+  - CI-013: committed settings that let the agent run any command (`bypassPermissions`, an unrestricted
+    `Bash` allow rule, Codex's `danger-full-access` or `approval_policy = "never"`) or start every project
+    MCP server without asking.
+  - CI-014: a committed hook that downloads code and runs it, or runs an unpinned package.
+
+  masaudit now reads these agent files: MCP server lists (including `.vscode/mcp.json`, the only file read
+  in `.vscode`), agent settings, and the Markdown agents load as instructions. No other Markdown is read.
+  Of the 116 apps measured, 55 commit agent files (over 400 files in all). CI-009 finds 3 MCP servers
+  started from `@latest` or with no version (Expensify, WooCommerce iOS, wger), all real; the other five
+  rules find nothing, which matches a reading of every hook, MCP server, and hidden comment. See
+  [Accuracy](docs/precision.md#hidden-characters-and-ai-coding-agents-rules-240).
+
+### Reports
+
+- **Hidden characters are shown.** Bidirectional controls, Unicode tag characters, zero-width and
+  invisible characters from the scanned project appear as markers such as `<U+202E>` in Markdown, JSON,
+  SARIF, terminal output, and GitHub annotations, so they can't reorder or hide what a reviewer or an AI
+  assistant reads. JSON keeps a finding's real `path` for tools.
+- **Imported SARIF text can't shape the report.** A rule that `--import-sarif` creates takes its help text
+  from the other tool's file; it was written into `SECURITY-AUDIT.md` and the SARIF help as Markdown, so
+  a crafted file could add links, headings, or lines to the fix plan an AI assistant reads. It's now
+  escaped, its Markdown turned into plain words, and the tool name kept to one line.
+- **What wasn't scanned is reported.** Files that `exclude` leaves out are counted per glob in every
+  format, and a glob that matches nothing is named. A file with a source file's name but binary content
+  is listed as not scanned instead of passing as clean. JSON has a new `scope` object; SARIF lists files
+  not read as `toolExecutionNotifications`.
+- **`--fail-on-incomplete`** (or `fail_on_incomplete = true` in `.masaudit.ini`, or the Action's
+  `fail-on-incomplete` input) exits 1 when a file of a scanned type wasn't read. `--no-fail-on-incomplete`
+  turns the setting off for one run.
+- **`--fail-on none`** on the command line overrides `fail_on` in `.masaudit.ini`. The Action uses it, so
+  `fail-on: none` no longer depends on resetting the exit code.
+
+### Baselines
+
+- Baseline schema 3: an entry can have a `reason` (shown in the report, the SARIF suppression, and the
+  JSON) and an `expires` date, after which its finding counts again. Set them for new entries with
+  `--baseline-reason` and `--baseline-expires`; `--update-baseline` keeps the ones already in the file and
+  never moves an expiry date. Schema 1 and 2 files are still read.
+- Entries that match no finding (fixed, moved, or excluded) and expired entries are reported, with their
+  counts in the JSON `baseline` object.
+- The Action's job summary lists every accepted finding with its reason, so a pull request's reviewer
+  sees what it accepted.
+
+### Other tools
+
+- **osv-scanner** results import with dependency-specific advice and the book's section on dependencies
+  (§15.4): masaudit stays offline, and `osv-scanner ... --format sarif` then `--import-sarif` adds known
+  vulnerabilities in the versions your lockfiles pin. See [Bring results from other tools](docs/team.md).
+
+### Tests
+
+- `tests/test_fixture_snapshot.py` runs every rule on every fixture and fails on any change in any count,
+  so a new rule that fires on another rule's fixtures is caught. Adding the eight rules changed no count
+  for the existing rules.
+- The fuzz harness covers the agent-config parsers, the Trojan Source check, hidden-text detection, and
+  baseline files, with bidirectional and tag characters among its mutations.
+
 ## 0.7.1 — 2026-10-27
 
 **Two rules that were wrong in benchmark round 5 are fixed.** Rules 2.3.2. On the findings judged in

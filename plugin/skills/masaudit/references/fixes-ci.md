@@ -144,3 +144,67 @@ dependencyLocking {
 Verify: Run `./gradlew dependencies --write-locks`, commit the result, and confirm a later build fails if a resolved version changes.
 
 Book: [§15.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs)
+
+## CI-009: MCP server runs a package or image that isn't pinned
+
+Pin each server to an exact version (`name@1.2.3` for npx, `name==1.2.3` for uvx) or a Docker image digest, and update it on purpose, the way you update a dependency.
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@2025.4.8"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }
+    }
+  }
+}
+```
+
+Verify: Open the MCP config: every `npx`, `uvx`, `pipx run`, and `docker run` entry names an exact version or an `@sha256:` digest.
+
+Book: [§15.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs)
+
+## CI-010: Secret is written into a committed MCP server config
+
+Revoke the token, then read it from the environment instead: `"${GITHUB_TOKEN}"` in .mcp.json, `"${env:GITHUB_TOKEN}"` or an `inputs` prompt in VS Code. Remove the old value from the history if the repository is public.
+
+```json
+"env": { "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}" }
+```
+
+Verify: Search the MCP configs for literal values in `env` and `headers`: each one should be a `${...}` reference, and the old token should no longer work.
+
+Book: [§15.2](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#152-secrets-classify-then-protect)
+
+## CI-013: Committed agent settings let it run commands without asking
+
+Remove the setting from the committed file. Allow specific commands instead (`Bash(./gradlew test)`), and leave broader choices to each developer's own settings.local.json, which isn't committed.
+
+```json
+{
+  "permissions": {
+    "allow": ["Bash(./gradlew test)", "Bash(./gradlew lint)"]
+  }
+}
+```
+
+Verify: Open the agent in the repository and ask it to run a command the allow list doesn't name: it asks first.
+
+Book: [§15.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#153-hardening-the-workflow)
+
+## CI-014: Committed agent hook downloads and runs code
+
+Commit the hook's script into the repository and run that file, or pin the tool to an exact version. Never pipe a download into a shell from a hook.
+
+```json
+"hooks": {
+  "PostToolUse": [
+    { "matcher": "Edit", "hooks": [ { "type": "command", "command": "./scripts/format-changed.sh" } ] }
+  ]
+}
+```
+
+Verify: Read each `command` in the hooks block: it runs a file in the repository or a pinned tool, and fetches nothing to execute.
+
+Book: [§15.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs)

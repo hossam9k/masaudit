@@ -262,6 +262,35 @@ The 7 still missed, and why:
 - **A PIN compared with a hardcoded base64 value in a Java native module:** XPL-043 doesn't decode
   base64.
 
+## Hidden characters and AI coding agents (rules 2.4.0)
+
+The eight rules added in rules 2.4.0 were run on all 116 apps measured so far: the 19 corpus apps, the 10
+React Native apps, and the 87 apps of benchmark rounds 1 to 5. Every finding was opened in its file.
+
+| Rule | Findings | In the fix lists | Judged |
+|---|---|---|---|
+| XPL-049 Trojan Source | 6 | 0 | All 6 are a raw override or embedding inside text in a test (Signal, Keyguard, AnkiDroid): the shape the rule looks for, written as test data for a spoofing check. Test code is lowered, so they appear under *Notes*. |
+| CI-009 Unpinned MCP server | 3 | 3 | All real: Expensify and WooCommerce iOS start `@latest` packages, wger starts `uvx wger-mcp` with no version. |
+| CI-010 to CI-014 | 0 | 0 | No finding. |
+
+- **XPL-049 was rewritten before release.** Its first version reported 14 lines on the 19 corpus apps,
+  all false alarms: Signal's constants (`const val RLO = "‮"` written raw) and a sanitizer's
+  `'‪'..'‮'` range, Element's isolate around a user name (`"⁨" + id + "⁩"`), and a minified
+  Wikipedia test fixture. A literal that holds only control characters, and a left-to-right or
+  first-strong isolate around a value, are now left alone; each shape has a clean fixture. Every
+  attack form in the fixtures is still reported.
+- **The agent rules were read against 55 apps that commit agent files:** 145 CLAUDE.md, 46 AGENTS.md, 9
+  `.mcp.json`, 12 Claude settings files, 5 Copilot instructions, and 196 rule, skill, and command files.
+  The hooks run scripts in the repository (Pocket Casts, MetaMask, DuckDuckGo, Expensify), the other MCP
+  servers start local commands (`dart mcp-server`, `./gradlew`, a server built from the repository), and
+  the 22 HTML comments are license headers and notes to maintainers. None of it should be reported,
+  and none is. These apps hold no real positives, so the agent rules' recall rests on their fixtures.
+- **Files not read:** 29 of the 116 apps have files of a scanned type that weren't read, now listed in
+  every report: 47 larger than 2 MiB, 5 hard links, 4 links outside the folder, and 5 binary files named
+  `.xml` (Aegis's FreeOTP backup test fixtures). With `--fail-on-incomplete`, those apps would fail until
+  the files are excluded on purpose.
+- **Speed:** the eight rules add under 0.25 s to the largest scan (Expensify), and about 20 ms to Signal.
+
 ## Speed
 
 Every app in the corpus scans without a crash. End-to-end times for the largest, as a banking app (so

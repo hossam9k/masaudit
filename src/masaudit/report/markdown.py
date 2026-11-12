@@ -12,12 +12,12 @@ import re
 from collections import OrderedDict
 from typing import Dict, List, Tuple
 
-from masaudit import BOOK_URL, REPO_URL, __version__
+from masaudit import BOOK_URL, REPO_URL, __version__, safety
 from masaudit import profile as profile_mod
 from masaudit.engine import CODE_PLATFORMS, PLATFORM_OF_RULE
 from masaudit.model import Finding, Rule, a_type
 from masaudit.report.jsonout import (
-    ACTIONABLE, BUCKET_TITLES, counts, open_findings, project_name, report_date, sort_key, top_fixes,
+    ACTIONABLE, BUCKET_TITLES, counts, excluded_line, open_findings, project_name, report_date, sort_key, top_fixes,
 )
 
 PLATFORM_LABELS = OrderedDict([
@@ -39,7 +39,8 @@ _CTRL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
 def _clean(text: str) -> str:
-    return _CTRL.sub(" ", str(text or "")).replace("\r", " ").replace("\n", " ")
+    s = _CTRL.sub(" ", str(text or "")).replace("\r", " ").replace("\n", " ")
+    return safety.show_invisible(s)
 
 
 def text(value: str) -> str:
@@ -59,10 +60,17 @@ def code_span(value: str) -> str:
 
 def code_block(value: str, lang: str = "") -> str:
     s = _CTRL.sub(" ", str(value or "")).replace("\r\n", "\n").replace("\r", "\n")
+    s = safety.show_invisible(s)
     runs = [len(m) for m in re.findall(r"`{3,}|~{3,}", s)]
     fence = "`" * max(3, (max(runs) + 1) if runs else 3)
     lang = re.sub(r"[^A-Za-z0-9_+-]", "", lang or "")
     return f"{fence}{lang}\n{s.rstrip()}\n{fence}"
+
+
+def prose(rule: Rule, value: str) -> str:
+    """A rule's why, fix, or verify text. masaudit's own rules write Markdown on purpose (code in backticks);
+    an imported rule's text comes from another tool's SARIF file, so it is escaped like any untrusted text."""
+    return text(value) if rule.imported else value
 
 
 def where(f: Finding) -> str:
@@ -166,11 +174,11 @@ def _finding_block(n: int, rule: Rule, severity: str, items: List[Finding]) -> L
             else f.location.snippet for f in snippets[:10]
         )
         out += ["Matched line (masked):", "", code_block(body, "text"), ""]
-    out += [f"**Why it matters:** {rule.why}", "", f"**Fix:** {rule.fix}", ""]
+    out += [f"**Why it matters:** {prose(rule, rule.why)}", "", f"**Fix:** {prose(rule, rule.fix)}", ""]
     if rule.fix_code and rule.fix_code.get("code"):
         out += [code_block(rule.fix_code["code"], rule.fix_code.get("lang", "")), ""]
     out += [
-        f"**How to verify:** {rule.verify}", "",
+        f"**How to verify:** {prose(rule, rule.verify)}", "",
         f"**Effort:** {EFFORT_LABELS.get(rule.effort, rule.effort)} · **IDs:** {ids_line(rule)} · "
         f"**Book:** {book_link(rule)}", "",
     ]
@@ -243,8 +251,10 @@ def _accepted_section(result) -> List[str]:
     for f in sorted(items, key=sort_key):
         if f.status == "suppressed":
             why = f"suppressed inline: {code_span(f.suppression_reason)}"
+        elif f.suppression_reason:
+            why = f"in the baseline file: {code_span(f.suppression_reason)}"
         else:
-            why = "in the baseline file"
+            why = "in the baseline file (no reason given)"
         out.append(f"- {text(f.rule.title)} ({code_span(f.rule.id)}) at {where(f)}: {why}")
     out.append("")
     return out
@@ -308,6 +318,9 @@ def _residual_section(result) -> List[str]:
         out += ["Things the scanner couldn't decide:", ""]
         out += [f"- {text(u)}" for u in unknowns]
         out.append("")
+    excluded = excluded_line(result.project)
+    if excluded:
+        out += [f"{text(excluded)} Their security wasn't checked.", ""]
     if manual:
         out += ["Findings that need a person (or your AI assistant) to confirm:", ""]
         out += [f"- {text(f.rule.title)} at {where(f)}" for f in sorted(manual, key=sort_key)]
@@ -342,20 +355,20 @@ def _fix_plan_section(result) -> List[str]:
     for i, f in enumerate(items, 1):
         loc = f"{f.location.path}:{f.location.line}" if f.location.line else (f.location.path or "(project)")
         out += [
-            f"### Task {i}: {text(f.rule.title)} ({f.rule.id}, {f.effective_severity})",
+            f"### Task {i}: {text(f.rule.title)} ({text(f.rule.id)}, {f.effective_severity})",
             "",
             f"- File: {code_span(loc)}",
         ]
         if f.bucket == "check-by-hand":
             out.append("- First: confirm it's real (this rule often misreads code); if it isn't, skip this task.")
         out += [
-            f"- Change: {f.rule.fix}",
-            f"- Verify: {f.rule.verify}",
+            f"- Change: {prose(f.rule, f.rule.fix)}",
+            f"- Verify: {prose(f.rule, f.rule.verify)}",
         ]
         data = []
         if f.location.snippet:
             data.append(f.location.snippet)
-        if f.message and ":" in f.rule.id:
+        if f.message and f.rule.imported:
             data.append(f.message)
         if data:
             out += ["- Current code (data, masked):", "", code_block("\n".join(data), "text")]
@@ -416,7 +429,11 @@ def render(result) -> str:
 
 def job_summary(report: str) -> str:
     """The opening of a SECURITY-AUDIT.md report, for a CI job summary: the app type, the verdict, and
-    the top fixes, without the long per-finding sections."""
+    the top fixes, without the long per-finding sections. The findings accepted inline or by the baseline
+    follow, with their reasons, so a reviewer sees what a pull request marked as accepted."""
     parts = re.split(r"(?m)^(?=## )", report)
     head = parts[0] + (parts[1] if len(parts) > 1 and parts[1].startswith("## Top fixes") else "")
+    accepted = next((p for p in parts if p.startswith("## Accepted earlier")), "")
+    if accepted:
+        head = head.rstrip() + "\n\n" + accepted
     return head.rstrip() + "\n\nThe full report is `SECURITY-AUDIT.md` in the job's working folder.\n"

@@ -58,6 +58,7 @@ the version comments.
 | `path` | `.` | Project folder to scan. |
 | `app-type` | `app_type` in `.masaudit.ini`, else `general` | The app type. See [Choose your app type](app-type.md). |
 | `fail-on` | `fail_on` in `.masaudit.ini`, else `high` | Fail the job on findings at or above `critical`, `high`, `medium`, or `low`. Use `none` to never fail on findings, whatever `.masaudit.ini` says. |
+| `fail-on-incomplete` | `fail_on_incomplete` in `.masaudit.ini`, else `false` | `true` fails the job when a file of a scanned type wasn't read (too large, binary content, a link), so a scan can't pass by not reading a file. Files `exclude` leaves out don't count. |
 | `baseline` | None | A baseline file from `masaudit --update-baseline`, relative to the repository root. Its findings are accepted and don't fail the job. See [Adopt masaudit in an older app](team.md#adopt-masaudit-in-an-older-app). |
 | `upload-sarif` | `true` | Upload results to GitHub code scanning. Needs `security-events: write`. |
 | `category` | `masaudit` | The code-scanning category. If you scan several folders in one repository, give each `path` its own category. |
@@ -69,7 +70,8 @@ the version comments.
 - File paths in results and annotations are relative to the repository root, even when `path` is a
   subfolder.
 - It writes `SECURITY-AUDIT.md` in the job's working folder, and puts the verdict and top fixes in
-  the job summary, on the run's page.
+  the job summary, on the run's page. The summary also lists every finding accepted inline or by the
+  baseline, with its reason, so a reviewer sees what a pull request marked as accepted.
 - If the scan itself fails (exit code 2), the step fails with an error annotation.
 - It runs with the runner's `python3` (3.9 or later); GitHub-hosted runners include it.
 - If the code suggests a riskier app type than the one set, the run shows a

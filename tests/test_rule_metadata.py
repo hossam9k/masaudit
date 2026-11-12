@@ -87,7 +87,7 @@ class RuleFiles(unittest.TestCase):
         detectors = os.path.join(os.path.dirname(RULES_DIR), "detectors")
         modules = {n[:-3] for n in os.listdir(detectors) if n.endswith(".py") and n != "__init__.py"}
         self.assertTrue(modules <= {"android", "ios", "cross", "ci", "kmp", "flutter", "reactnative", "rn_storage",
-                                    "rn_network", "rn_webview", "rn_platform", "rn_build", "rn_expo"},
+                                    "rn_network", "rn_webview", "rn_platform", "rn_build", "rn_expo", "agents"},
                         "add new detector modules to the list in engine._import_detectors")
 
 

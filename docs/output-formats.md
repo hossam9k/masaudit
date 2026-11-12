@@ -48,6 +48,8 @@ Top-level fields:
 | `profile` | `app_type`, `mas_profiles`, `source` (`flag`, `config`, `prompt`, or `default`), `description`, `suggestions` (code clues), and `warnings` ("Check your app type"). |
 | `summary` | Counts per bucket: `fix-before-release`, `fix-soon`, `check-by-hand`, `hardening`, `notes`, `not-needed`, `suppressed`, `baselined`. |
 | `findings` | One object per finding (below). |
+| `scope` | What the scan covered: `files_scanned`, `files_not_read` and `not_read` (each `path` and `reason`, the first 1,000), `files_excluded` and `excluded_by_pattern` (each `exclude` glob and how many files it left out), and `complete` (`false` when a file of a scanned type wasn't read). |
+| `baseline` | With a baseline: `matched` (findings it accepted), `stale` (entries that match no finding), and `expired` (entries past their `expires` date, whose findings count again). Otherwise `null`. |
 | `unknowns` | What the scanner couldn't decide. |
 | `notes` | Messages about the run, such as imports or baselines. |
 
@@ -62,7 +64,8 @@ Each finding has:
   module no shipped mobile app uses, such as a demo app or a desktop app, or an iOS file no app or
   extension target builds, such as an orphan source or a sample Xcode project; `unused` is a function
   nothing in the project calls).
-- **Status:** `status` (`open`, `suppressed`, or `baselined`), `suppression_reason`, and
+- **Status:** `status` (`open`, `suppressed`, or `baselined`), `suppression_reason` (the inline
+  comment's reason, or the baseline entry's), and
   `acknowledged` (a decision recorded for another tool, such as Lint's `tools:ignore`).
 - **Advice:** `why`, `fix`, `verify`, `effort`, `safe_fix`, and the references `maswe`, `masvs`,
   `mastg`, `book`, and `book_url`.
@@ -104,4 +107,8 @@ SARIF 2.1.0, ready for GitHub code scanning (the [GitHub Action](ci.md) uploads 
 - Suppressed findings carry an `inSource` suppression and baselined ones an `external` suppression,
   both accepted, so code scanning shows them as dismissed rather than open.
 - "Check your app type" warnings appear as `toolConfigurationNotifications`, pointing at the evidence
-  file.
+  file, and so does a note on what `exclude` left out.
+- Files of a scanned type that weren't read appear as `toolExecutionNotifications`, one per reason.
+- Text from the scanned project shows hidden characters as markers such as `<U+202E>` in every
+  format, so a bidirectional control or invisible tag text can't reorder or hide what a reviewer (or an
+  AI assistant) reads. A finding's `path` in JSON keeps the real name, for tools.

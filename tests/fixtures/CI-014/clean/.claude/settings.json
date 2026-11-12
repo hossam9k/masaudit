@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/format.sh"
+          },
+          {
+            "type": "command",
+            "command": "npx -y prettier@3.3.3 --write ."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -fsS -X POST https://hooks.example.com/done -d '{}'"
+          }
+        ]
+      }
+    ]
+  }
+}

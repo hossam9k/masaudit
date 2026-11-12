@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "rules_version": "2.3.2",
+ "rules_version": "2.4.0",
  "rule_files": [
   "android.json",
   "ios.json",

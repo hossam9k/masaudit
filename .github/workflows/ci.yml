@@ -152,6 +152,33 @@ jobs:
           fail-on: high
           baseline: examples/acme-wallet/.masaudit-baseline.json
           upload-sarif: "false"
+      - name: Plant a binary file under a source file's name
+        run: printf 'x\0y' > examples/acme-wallet/android/app/src/main/java/com/acme/wallet/Binary.kt
+      - name: Scan with fail-on-incomplete
+        id: incomplete
+        continue-on-error: true
+        uses: ./
+        with:
+          path: examples/acme-wallet
+          app-type: banking
+          fail-on: none
+          fail-on-incomplete: "true"
+          upload-sarif: "false"
+      - name: The incomplete scan failed, and its SARIF and report say which file wasn't read
+        env:
+          OUTCOME: ${{ steps.incomplete.outcome }}
+        run: |
+          test "$OUTCOME" = failure
+          grep -q 'masaudit/not-scanned' masaudit.sarif
+          grep -q 'Binary.kt' SECURITY-AUDIT.md
+      - name: fail-on-incomplete false passes the same scan
+        uses: ./
+        with:
+          path: examples/acme-wallet
+          app-type: banking
+          fail-on: none
+          fail-on-incomplete: "false"
+          upload-sarif: "false"
 
   # Coverage-guided fuzzing of every parser that reads untrusted repository files.
   fuzz:

@@ -16,7 +16,7 @@ import os
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 from masaudit import lexer, safety
 from masaudit.detect import scope_of
@@ -69,6 +69,8 @@ class Context:
         self._all_names: Optional[tuple] = None
         self.names_complete = True          # set by all_names(): False when the name listing hit its cap
         self._listing_of: Optional[tuple] = None
+        self._scanned_set: Set[str] = set()
+        self._scanned_of: Optional[tuple] = None
         self._lines: Dict[str, List[str]] = {}
         # id(text) -> (text, offsets of its newlines once a second lookup asks for them); a few recent texts.
         self._newlines: "OrderedDict[int, tuple]" = OrderedDict()
@@ -114,6 +116,13 @@ class Context:
             self._listing[key] = cached
         return list(cached)
 
+    def _scanned(self) -> Set[str]:
+        files = self.project.files
+        if self._scanned_of != (id(files), len(files)):
+            self._scanned_set = set(files)
+            self._scanned_of = (id(files), len(files))
+        return self._scanned_set
+
     def lower(self, path: str) -> Optional[str]:
         """The file text lower-cased for case-insensitive substring prefilters, with the three characters
         that a case-insensitive regex matches to an ASCII letter but str.lower() doesn't map to one
@@ -130,7 +139,11 @@ class Context:
 
     def text(self, path: str) -> Optional[str]:
         if path not in self._text:
-            text = safety.read_text(self.root, path)
+            text, why = safety.read_text_why(self.root, path)
+            # A scanned file that turns out unreadable (binary content under a source file's name) is listed
+            # as not scanned. Files rules open by name (a keystore) aren't scanned types, so they don't count.
+            if text is None and why and path in self._scanned():
+                self.project.skipped.append((path, why))
             # Detectors see one line ending. Files committed with CRLF (common from Windows) would
             # otherwise leave a `\r` before every `$` in a pattern.
             if text is not None and "\r" in text:
@@ -406,7 +419,7 @@ def _import_detectors() -> None:
     # Listing modules can fail inside a zipapp on old Pythons, so the known modules are always
     # imported, plus anything else that's discoverable.
     names = {"android", "ios", "cross", "ci", "kmp", "flutter", "reactnative", "rn_storage", "rn_network",
-             "rn_webview", "rn_platform", "rn_build", "rn_expo"}
+             "rn_webview", "rn_platform", "rn_build", "rn_expo", "agents"}
     names |= {mod.name for mod in pkgutil.iter_modules(pkg.__path__)}
     for name in sorted(names):
         importlib.import_module(f"masaudit.detectors.{name}")

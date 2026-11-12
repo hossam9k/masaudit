@@ -173,5 +173,104 @@ class Baseline(unittest.TestCase):
         self.assertIn("baseline", err)
 
 
+
+class BaselineReasonsAndExpiry(unittest.TestCase):
+    """Schema 3: each entry may say why it was accepted and until when; stale entries are reported."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.tmp.name, "base.json")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def finding(self, name="a.xml"):
+        return Finding(rule=rule(), location=Location(path=name, line=1, snippet=f"<{name}/>"))
+
+    def test_reason_and_expiry_round_trip_and_survive_an_update(self):
+        a = self.finding("a.xml")
+        suppress.write_baseline(self.path, [a], reason="legacy host, fixed in 3.0", expires="2027-01-31")
+        entry = json.loads(_read(self.path))["findings"][a.fingerprint()]
+        self.assertEqual((entry["reason"], entry["expires"]), ("legacy host, fixed in 3.0", "2027-01-31"))
+        self.assertEqual(json.loads(_read(self.path))["schema_version"], 3)
+        # A refresh keeps hand-written reasons; a new entry gets this run's reason.
+        b = self.finding("b.xml")
+        previous = suppress.load_baseline(self.path)
+        suppress.write_baseline(self.path, [self.finding("a.xml"), b], previous=previous, reason="new reason")
+        found = json.loads(_read(self.path))["findings"]
+        self.assertEqual(found[a.fingerprint()]["reason"], "legacy host, fixed in 3.0")
+        self.assertEqual(found[a.fingerprint()]["expires"], "2027-01-31")      # an update never renews expiry
+        self.assertEqual(found[b.fingerprint()]["reason"], "new reason")
+        self.assertNotIn("expires", found[b.fingerprint()])
+
+    def test_reason_is_shown_and_expired_entries_count_again(self):
+        a, b = self.finding("a.xml"), self.finding("b.xml")
+        suppress.write_baseline(self.path, [a], reason="accepted risk")
+        suppress.write_baseline(self.path + "2", [b], expires="2026-01-01")
+        merged = json.loads(_read(self.path))
+        merged["findings"].update(json.loads(_read(self.path + "2"))["findings"])
+        _write(self.path, json.dumps(merged))
+        base = suppress.load_baseline(self.path)
+        a2, b2 = self.finding("a.xml"), self.finding("b.xml")
+        outcome = suppress.apply([a2, b2], base, today="2026-06-01")
+        self.assertEqual((a2.status, a2.suppression_reason), ("baselined", "accepted risk"))
+        self.assertEqual(b2.status, "open")                                    # expired on 2026-01-01
+        self.assertEqual((outcome.matched, len(outcome.expired), outcome.stale), (1, 1, []))
+        self.assertIn("expired (the first on 2026-01-01)", " ".join(outcome.notes("base.json")))
+        # The day it expires, it still holds.
+        b3 = self.finding("b.xml")
+        suppress.apply([b3], base, today="2026-01-01")
+        self.assertEqual(b3.status, "baselined")
+
+    def test_stale_entries_are_reported(self):
+        a, gone = self.finding("a.xml"), self.finding("gone.xml")
+        suppress.write_baseline(self.path, [a, gone])
+        outcome = suppress.apply([self.finding("a.xml")], suppress.load_baseline(self.path), today="2026-06-01")
+        self.assertEqual([e["path"] for e in outcome.stale], ["gone.xml"])
+        self.assertIn("1 entry in base.json no longer match", " ".join(outcome.notes("base.json")))
+
+    def test_bad_dates_and_reasons_are_refused(self):
+        a = self.finding()
+        for bad in ("2027-13-01", "tomorrow", 20270101):
+            _write(self.path, json.dumps({"schema_version": 3, "findings": {a.fingerprint(): {"expires": bad}}}))
+            with self.subTest(bad=bad), self.assertRaises(suppress.BaselineError):
+                suppress.load_baseline(self.path)
+        _write(self.path, json.dumps({"schema_version": 3, "findings": {a.fingerprint(): {"reason": ["x"]}}}))
+        with self.assertRaises(suppress.BaselineError):
+            suppress.load_baseline(self.path)
+        with self.assertRaises(suppress.BaselineError):
+            suppress.write_baseline(self.path, [a], expires="31/01/2027")
+
+    def test_a_hostile_reason_is_one_masked_line(self):
+        a = self.finding()
+        evil = "ok\n## Injected\n" + "token=ghp_" + "a" * 36
+        _write(self.path, json.dumps({"schema_version": 3, "findings": {a.fingerprint(): {"reason": evil}}}))
+        reason = suppress.load_baseline(self.path).entries[a.fingerprint()]["reason"]
+        self.assertNotIn("\n", reason)
+        self.assertNotIn("a" * 36, reason)
+
+    def test_cli_reason_expiry_and_report(self):
+        base = os.path.join(self.tmp.name, "b.json")
+        out = os.path.join(self.tmp.name, "r.md")
+        code, _o, err = run_cli(VULN, "--app-type", "banking", "--format", "md", "--output", out,
+                                "--baseline", base, "--baseline-reason", "release 1.2 exception")
+        self.assertEqual(code, 2)
+        self.assertIn("only work together with --update-baseline", err)
+        run_cli(VULN, "--app-type", "banking", "--format", "md", "--output", out, "--baseline", base,
+                "--update-baseline", "--baseline-reason", "release 1.2 exception", "--baseline-expires", "2099-12-31")
+        md = _read(out)
+        self.assertIn("in the baseline file: `release 1.2 exception`", md)
+        from masaudit.report import markdown
+        self.assertIn("release 1.2 exception", markdown.job_summary(md))   # a pull request's reviewer sees it
+        # A baseline entry for code that no longer exists is reported as stale in JSON and the report.
+        doc = json.loads(_read(base))
+        doc["findings"]["0" * 32] = {"rule": "AND-001", "path": "gone.xml", "line": 1}
+        _write(base, json.dumps(doc))
+        jout = os.path.join(self.tmp.name, "r.json")
+        run_cli(VULN, "--app-type", "banking", "--format", "json", "--output", jout, "--baseline", base)
+        data = json.loads(_read(jout))
+        self.assertEqual(data["baseline"]["stale"], 1)
+        self.assertTrue(any("no longer match a finding" in n for n in data["notes"]))
+
 if __name__ == "__main__":
     unittest.main()

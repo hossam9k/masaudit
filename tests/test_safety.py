@@ -90,6 +90,24 @@ class Safety(unittest.TestCase):
         self.assertNotIn("build/gen.xml", safety.walk(self.root))
         self.assertIsNone(safety.read_text(self.root, "bin.json"))
 
+    def test_binary_file_under_a_source_name_is_reported_not_hidden(self):
+        # It passes the walk (its name says Kotlin), then holds binary content: listed as not scanned, never
+        # treated as a clean file. A compiled plist is read by the plist parser, so it isn't a gap.
+        os.makedirs(os.path.join(self.root, "app"))
+        with open(os.path.join(self.root, "app", "Blob.kt"), "wb") as fh:
+            fh.write(b"\x00\x01binary")
+        with open(os.path.join(self.root, "app", "Info.plist"), "wb") as fh:
+            fh.write(b"bplist00\x00\x01")
+        self.assertEqual(safety.read_text_why(self.root, "app/Blob.kt"),
+                         (None, "binary content in a file of a scanned type"))
+        self.assertEqual(safety.read_text_why(self.root, "app/Info.plist"), (None, ""))
+        self._write(os.path.join(self.root, "app", "Main.kt"), "fun main() {}\n")
+        from masaudit import cli
+        result = cli.scan(self.root, cli_type="general", cfg={}, allow_prompt=False)
+        self.assertEqual(result.project.skipped, [("app/Blob.kt", "binary content in a file of a scanned type")])
+        self.assertIn("Not scanned (binary content in a file of a scanned type): app/Blob.kt.", result.project.unknowns)
+        self.assertTrue(cli.incomplete(result.project))
+
     def test_mask_hides_aws_keys(self):
         line = 'val key = "AKIAIOSFODNN7EXAMPLE" // AWS'
         masked = safety.mask(line)

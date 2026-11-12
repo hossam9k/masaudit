@@ -1,0 +1,42 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ]
+    },
+    "latest": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "figma-mcp@latest"
+      ]
+    },
+    "range": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "some-mcp@^1.2.0"
+      ]
+    },
+    "py": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    },
+    "img": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "TOKEN",
+        "ghcr.io/acme/mcp:1.0"
+      ]
+    }
+  }
+}

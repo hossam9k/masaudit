@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import bisect
 import itertools
+import os
 import re
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Pattern, Sequence, Set, Tuple
 
-from masaudit import safety
+from masaudit import lexer, safety
 from masaudit.guards import debug_guarded, preprocessor_debug_guarded
 from masaudit.textscan import _raw_index, bracket_match, finditer_lit, holds_any, text_memo, xml_tags
 from masaudit.detect import scope_of as _scope_of
@@ -5184,3 +5185,123 @@ def _js_biometric_fallback(ctx: Context) -> Iterable[Hit]:
                 if line not in seen:
                     seen.add(line)
                     yield _hit_at(ctx, path, code, m.start(), what, blank)
+
+
+# ---------------------------------------------------------------------------- XPL-049 Trojan Source
+
+# Bidirectional formatting characters (CVE-2021-42574). The marks LRM, RLM and ALM are left out: they can't
+# reorder text, and Arabic and Hebrew strings use them.
+_BIDI_CONTROL = re.compile("[‪-‮⁦-⁩]")
+_BIDI_NAMES = {
+    "‪": "left-to-right embedding", "‫": "right-to-left embedding", "‬": "pop directional formatting",
+    "‭": "left-to-right override", "‮": "right-to-left override", "⁦": "left-to-right isolate",
+    "⁧": "right-to-left isolate", "⁨": "first strong isolate", "⁩": "pop directional isolate",
+}
+_EMBEDDINGS = "‪‫‭‮"            # closed by U+202C
+_ISOLATES = "⁦⁧⁨"                     # closed by U+2069
+_QUOTES = "\"'`"
+_RIGHT_TO_LEFT = "\u202b\u2067"                     # RLE, RLI: reorder the left-to-right code they span
+# Open to the end of a line, these can reorder ASCII code after them: right-to-left ones, and a first-strong
+# isolate followed by right-to-left text. LRE and LRI keep left-to-right code as it is.
+_REORDERS_ASCII = "\u202b\u2067\u2068"
+_TEMPLATE_EXPR = re.compile(r"\$\{[^{}\n]{0,200}\}")
+TROJAN_SOURCE_FILES = CODE + (".c", ".cc", ".cpp", ".kts", ".gradle", ".podspec", ".sh", ".yml", ".yaml") + JS
+# Translations and generated localization code: their strings may hold a stray embedding a translator left, so
+# only an override, or a control outside any string or comment, is reported there.
+_LOCALIZATION = re.compile(r"(?i)(?:^|/)(?:l10n|i18n|locales?|langs?|languages|translations?)/"
+                           r"|(?:^|/)[\w-]*locali[sz]ations?[\w-]*\.\w+$")
+
+
+def _bidi_name(ch: str) -> str:
+    return f"U+{ord(ch):04X} ({_BIDI_NAMES[ch]})"
+
+
+def _literal_around(line: str, blank: str, i: int) -> Optional[str]:
+    """The text of the string or character literal holding column i: between the nearest quotes the lexer
+    kept as code on either side. None when i isn't between two such quotes (a comment, say)."""
+    left = next((j for j in range(i - 1, -1, -1) if blank[j] == line[j] and line[j] in _QUOTES), None)
+    right = next((j for j in range(i + 1, len(line)) if blank[j] == line[j] and line[j] in _QUOTES), None)
+    return None if left is None or right is None else line[left + 1:right]
+
+
+def _bidi_problem(line: str, blank: Optional[str], balance: bool) -> Optional[Tuple[int, str]]:
+    """The first place on one line where a bidirectional control can make the code read differently from how
+    it runs, as (column, message), or None. `blank` is the same line with strings and comments blanked (None
+    when the language has no lexer). Each line is its own paragraph to the Unicode bidi algorithm, so a
+    control's effect ends at the line's end.
+
+    Trojan Source puts a control inside a comment or string, next to the text it disguises, or reorders code
+    with a right-to-left control. What legitimate code does is left alone: a literal that holds only control
+    characters names the character (`const val RLO = "\u202e"`, a sanitizer's `'\u202a'..'\u202e'`), and a
+    left-to-right or first-strong isolate around a value (`"\u2068" + name + "\u2069"`) is what localization
+    guides recommend; neither can reorder ASCII code."""
+    def literal(i: int) -> bool:
+        return blank is None or blank[i] != line[i]
+
+    def constant(i: int) -> bool:
+        if blank is None or not literal(i):
+            return False
+        text = _literal_around(line, blank, i)
+        return text is not None and all(c.isspace() or _BIDI_CONTROL.match(c) for c in text)
+
+    open_at: List[Tuple[int, str]] = []                 # (column, character) of each open embedding or isolate
+    for m in _BIDI_CONTROL.finditer(line):
+        i, ch = m.start(), m.group(0)
+        if not literal(i):
+            return i, (f"{_bidi_name(ch)} sits in the code itself, outside any string or comment, where no program "
+                       "needs it; it can hide or reorder what a reviewer sees.")
+        if constant(i):
+            continue
+        if ch in safety.BIDI_OVERRIDES:
+            return i, (f"{_bidi_name(ch)} shows the text after it in reverse order, so a reviewer reads different "
+                       "code from the code that runs.")
+        if ch in _EMBEDDINGS or ch in _ISOLATES:
+            open_at.append((i, ch))
+            continue
+        # A closer: PDI closes the innermost isolate (and any embedding inside it); PDF closes an embedding.
+        if ch == "\u2069":
+            while open_at and open_at[-1][1] not in _ISOLATES:
+                open_at.pop()
+            if not open_at:
+                continue                                 # a stray closer changes nothing
+        elif not open_at or open_at[-1][1] in _ISOLATES:
+            continue
+        start, opener = open_at.pop()
+        # Code between them means the pair spans two strings or comments, and a right-to-left one shows that
+        # code reordered. A template literal's `${name}` doesn't count (Kotlin, Swift and Dart interpolations
+        # are blanked anyway).
+        if (opener in _RIGHT_TO_LEFT and blank is not None
+                and _TEMPLATE_EXPR.sub("", blank[start + 1:i]).strip()):
+            return start, (f"{_bidi_name(opener)} opens in one string or comment and closes in another, so the "
+                           "code between them is shown reordered.")
+    unclosed = [(i, ch) for i, ch in open_at if ch in _REORDERS_ASCII]
+    if unclosed and balance:
+        start, ch = unclosed[0]
+        return start, (f"{_bidi_name(ch)} is never closed on this line, so everything after it, code included, is "
+                       "shown reordered.")
+    return None
+
+
+@detector("xpl_trojan_source")
+def trojan_source(ctx: Context, rule: Rule) -> Iterable[Hit]:
+    paths = ctx.files(*TROJAN_SOURCE_FILES) + ctx.files(name="Podfile")
+    for path in paths:
+        if path.endswith((".min.js", ".min.mjs", ".min.cjs")):
+            continue                                     # a bundled library's minified copy: not code anyone reviews
+        text = ctx.text(path)
+        if not text or text.isascii() or not _BIDI_CONTROL.search(text):
+            continue
+        lines = safety.lines(text)
+        blanks = None                                    # no lexer for the language: only overrides and balance
+        if os.path.splitext(path)[1] in lexer.LANG_BY_SUFFIX:
+            code = ctx.code(path, keep_strings=False)
+            if code is not None and len(code) == len(text):
+                blanks = safety.lines(code)
+        balance = not _LOCALIZATION.search(path)
+        for n, line in enumerate(lines, start=1):
+            if not _BIDI_CONTROL.search(line):
+                continue
+            blank = blanks[n - 1] if blanks is not None and len(blanks[n - 1]) == len(line) else None
+            problem = _bidi_problem(line, blank, balance)
+            if problem is not None:
+                yield Hit(path, n, ctx.snippet(path, n), problem[1])

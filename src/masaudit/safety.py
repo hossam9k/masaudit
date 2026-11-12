@@ -39,6 +39,25 @@ SCANNED_SUFFIXES = {
 }
 SCANNED_NAMES = {"Podfile", "Package.swift", "Cartfile", "gradlew", "CODEOWNERS", "Fastfile",
                  "contents", ".npmrc", ".yarnrc", ".yarnrc.yml", ".env"}
+# AI coding-agent instructions (detectors/agents.py): Markdown an agent loads, by name or by folder. Other
+# Markdown is never read, so documentation can't add findings.
+AGENT_INSTRUCTION_NAMES = {"AGENTS.md", "AGENT.md", "CLAUDE.md", "GEMINI.md", ".cursorrules", ".windsurfrules",
+                           ".clinerules", "copilot-instructions.md"}
+AGENT_INSTRUCTION_DIR = re.compile(
+    r"(?:^|/)(?:\.cursor/rules|\.windsurf/rules|\.clinerules|\.github/instructions|\.github/prompts|"
+    r"\.claude/commands|\.claude/agents|\.claude/skills|\.gemini/commands)(?:/|$)")
+AGENT_INSTRUCTION_SUFFIXES = (".md", ".mdc")
+# A folder walk skips, except for these files in it: VS Code's list of MCP servers.
+SKIP_DIR_EXCEPTIONS = {".vscode": {"mcp.json"}}
+
+
+def is_agent_instructions(rel: str) -> bool:
+    """A repo-relative path an AI coding agent reads as instructions."""
+    folder, _, name = rel.rpartition("/")
+    return name in AGENT_INSTRUCTION_NAMES or (
+        name.endswith(AGENT_INSTRUCTION_SUFFIXES) and bool(AGENT_INSTRUCTION_DIR.search(folder + "/")))
+
+
 # Environment files that React Native tooling bundles into the app: .env.production, .env.staging...
 _ENV_FILE = re.compile(r"^\.env\.[\w.-]{1,40}$")  # "contents": a Core Data model (Model.xcdatamodel/contents)
 
@@ -81,14 +100,19 @@ def walk(root: str, skipped: Optional[List[Tuple[str, str]]] = None) -> List[str
         skip(err.filename or root, f"folder not readable ({err.strerror or err.__class__.__name__})")
 
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False, onerror=unreadable):
-        # Prune in place: skipped dirs are never entered.
-        dirnames[:] = sorted(
+        # Prune in place: skipped dirs are never entered (a few are entered for the files they're kept for).
+        only = SKIP_DIR_EXCEPTIONS.get(os.path.basename(dirpath)) if dirpath != root else None
+        dirnames[:] = [] if only is not None else sorted(
             d for d in dirnames
-            if d not in SKIP_DIRS and not os.path.islink(os.path.join(dirpath, d))
+            if (d not in SKIP_DIRS or d in SKIP_DIR_EXCEPTIONS) and not os.path.islink(os.path.join(dirpath, d))
         )
+        folder = os.path.relpath(dirpath, root).replace(os.sep, "/")
         for name in sorted(filenames):
+            if only is not None and name not in only:
+                continue
             suffix = os.path.splitext(name)[1]
-            if suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES and not _ENV_FILE.match(name):
+            if (suffix not in SCANNED_SUFFIXES and name not in SCANNED_NAMES and not _ENV_FILE.match(name)
+                    and not is_agent_instructions(f"{folder}/{name}")):
                 continue
             full = os.path.join(dirpath, name)
             rel = os.path.relpath(full, root)
@@ -166,29 +190,37 @@ def _is_regular(full: str) -> bool:
 
 def read_text(root: str, rel: str) -> Optional[str]:
     """Read a text file, tolerating BOMs and UTF-16 (.strings files). None if binary/unreadable."""
+    return read_text_why(root, rel)[0]
+
+
+def read_text_why(root: str, rel: str) -> Tuple[Optional[str], str]:
+    """read_text, plus why a file couldn't be read ("" when it was read, or when the file is a compiled plist,
+    which the plist parser reads). The reason goes into the report, so a binary file with a source file's name
+    is listed as not scanned instead of passing as clean."""
     full = os.path.join(root, rel)
     if not is_within(root, full) or _is_hard_link(full) or not _is_regular(full):
-        return None
+        return None, "link or not a regular file"
     try:
         with open(full, "rb") as fh:
             data = fh.read(max_bytes(rel) + 1)
     except OSError:
-        return None
+        return None, "unreadable"
     if len(data) > max_bytes(rel):
-        return None
+        return None, f"larger than {max_bytes(rel) // (1024 * 1024)} MiB"
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
-            return data.decode("utf-16")
+            return data.decode("utf-16"), ""
         except UnicodeDecodeError:
-            return None
+            return None, "invalid UTF-16 text"
     if b"\x00" in data[:8192]:
-        return None      # binary (compiled plists are read separately by the plist parser)
+        # Binary. A compiled plist (bplist00) is read separately by the plist parser, so it isn't a gap.
+        return None, "" if data.startswith(b"bplist") else "binary content in a file of a scanned type"
     for enc in ("utf-8-sig", "latin-1"):
         try:
-            return data.decode(enc)
+            return data.decode(enc), ""
         except UnicodeDecodeError:
             continue
-    return None
+    return None, "unreadable"                   # latin-1 decodes any bytes; kept for safety
 
 
 def read_bytes(root: str, rel: str) -> Optional[bytes]:
@@ -304,6 +336,33 @@ def clean_text(text: str) -> str:
         return text
     except UnicodeEncodeError:
         return text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+
+
+# Characters that change how text reads without being seen: bidirectional overrides, embeddings and isolates
+# (Trojan Source, CVE-2021-42574), Unicode tag characters and ideographic variation selectors (which can carry
+# a hidden message an AI model reads), zero-width and invisible-operator characters, Hangul fillers (invisible
+# identifiers), soft hyphens, line and paragraph separators, and C1 controls. Left alone: the bidi marks
+# LRM, RLM and ALM (U+200E, U+200F, U+061C), ZWNJ and ZWJ (U+200C, U+200D), and the emoji variation selectors
+# (U+FE00-U+FE0F). Arabic, Persian, Hebrew and emoji text use them, and none of them can reorder text or
+# hide a message on its own.
+INVISIBLE = re.compile(
+    "[\u0080-\u009f­ᅟᅠ᠎​  ‪-‮⁠-⁤⁦-⁩"
+    "ㅤ﻿ﾠ\U000e0000-\U000e007f\U000e0100-\U000e01ef]"
+)
+# Bidirectional formatting characters: the ones that reorder what a reader sees.
+BIDI_OVERRIDES = "‭‮"                    # LRO, RLO: reverse everything up to their end
+BIDI_OPENERS = "‪‫‭‮"          # LRE, RLE, LRO, RLO: closed by PDF (U+202C)
+BIDI_ISOLATES = "⁦⁧⁨"               # LRI, RLI, FSI: closed by PDI (U+2069)
+
+
+def show_invisible(text: str) -> str:
+    """`text` with every INVISIBLE character replaced by a visible marker such as `<U+202E>`. Used on text from
+    the scanned project when a report is written: a reviewer (or an AI assistant reading the report) then sees
+    that the line holds a hidden character, instead of a reordered line or a hidden message. Fingerprints are
+    built from the text before this, so baselines keep matching."""
+    if text.isascii():
+        return text
+    return INVISIBLE.sub(lambda m: f"<U+{ord(m.group(0)):04X}>", text)
 
 
 def write_text(path: str, text: str, root: Optional[str] = None, newline: Optional[str] = "\n") -> None:

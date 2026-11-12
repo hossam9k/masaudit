@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """masaudit command line.
 
-Exit codes: 0 ok, 1 open findings at or above --fail-on, 2 tool error.
+Exit codes: 0 ok, 1 open findings at or above --fail-on (or, with --fail-on-incomplete, files that weren't
+read), 2 tool error.
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ class ScanResult:
     rules: List[Rule]
     rules_version: str
     notes: List[str] = field(default_factory=list)
+    baseline: Optional[suppress.BaselineOutcome] = None     # set when a baseline file was used
 
 
 # ---------------------------------------------------------------------------- arguments
@@ -75,11 +77,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--format", choices=["md", "json", "sarif", "text"],
                    help="output format (default: summary on screen + SECURITY-AUDIT.md)")
     p.add_argument("--output", metavar="FILE", help="write the report here instead of the default")
-    p.add_argument("--fail-on", choices=list(config.FAIL_ON),
-                   help="exit 1 if an open finding to fix is at or above this severity")
+    p.add_argument("--fail-on", choices=list(config.FAIL_ON) + ["none"],
+                   help="exit 1 if an open finding to fix is at or above this severity (none: never, even when "
+                        ".masaudit.ini sets fail_on)")
+    p.add_argument("--fail-on-incomplete", action=argparse.BooleanOptionalAction, default=None,
+                   help="exit 1 if a file of a scanned type wasn't read (too large, binary, a link, ...); "
+                        "files your exclude setting leaves out don't count (default: fail_on_incomplete in "
+                        ".masaudit.ini, else off)")
     p.add_argument("--baseline", metavar="FILE", help="accept findings listed in this baseline file (still listed, not counted)")
     p.add_argument("--update-baseline", action="store_true",
                    help=f"write current findings to the baseline (default file: {DEFAULT_BASELINE})")
+    p.add_argument("--baseline-reason", metavar="TEXT", default="",
+                   help="with --update-baseline: why the new entries are accepted (shown in every report)")
+    p.add_argument("--baseline-expires", metavar="YYYY-MM-DD", default="",
+                   help="with --update-baseline: after this date the new entries' findings count again")
     p.add_argument("--fix-safe", action="store_true",
                    help="print a diff of vetted safe fixes (changes nothing)")
     p.add_argument("--write-patch", nargs="?", const=DEFAULT_PATCH, metavar="FILE",
@@ -87,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--yes", action="store_true",
                    help="with --fix-safe: apply the fixes in place (needs a clean git tree)")
     p.add_argument("--import-sarif", nargs="+", metavar="FILE", default=[],
-                   help="add results from Android Lint, mobsfscan, Semgrep, or zizmor SARIF files")
+                   help="add results from Android Lint, mobsfscan, Semgrep, zizmor, osv-scanner, or other SARIF files")
     p.add_argument("--sarif-include-not-needed", action="store_true",
                    help="include 'not needed for your app' findings in SARIF as notes")
     p.add_argument("--explain", metavar="RULE-ID", help="print what a rule checks and how to fix it")
@@ -179,8 +190,10 @@ def _confirm_against_clues(chosen: str, clues: Sequence[profile_mod.Clue], rules
 
 
 def _gh_escape(value: str, prop: bool = False) -> str:
-    """GitHub workflow-command escaping; property values also escape ':' and ','."""
-    value = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    """GitHub workflow-command escaping; property values also escape ':' and ','. In a message, hidden
+    characters (a reordering bidi control) are shown as markers; a property (a file path) keeps the real
+    name, so the annotation still lands on the file."""
+    value = (value if prop else safety.show_invisible(value)).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     return value.replace(":", "%3A").replace(",", "%2C") if prop else value
 
 
@@ -302,7 +315,7 @@ def _skipped_messages(skipped: Sequence[Tuple[str, str]]) -> List[str]:
 def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, object]] = None,
          rules: Optional[List[Rule]] = None, import_sarif: Sequence[str] = (),
          baseline: Optional[str] = None, update_baseline: bool = False,
-         allow_prompt: bool = True) -> ScanResult:
+         allow_prompt: bool = True, baseline_reason: str = "", baseline_expires: str = "") -> ScanResult:
     root = os.path.abspath(root)
     if not os.path.isdir(root):
         raise ToolError(f"not a directory: {root}")
@@ -310,8 +323,16 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     skipped: List[Tuple[str, str]] = []
     files = safety.walk(root, skipped)
     excludes = list(cfg.get("exclude") or [])  # type: ignore[arg-type]
+    excluded: Dict[str, int] = {g: 0 for g in excludes}   # every glob, so one that matches nothing shows as 0
     if excludes:
-        files = [f for f in files if not config.is_excluded(f, excludes)]
+        kept = []
+        for f in files:
+            glob = config.matching_glob(f, excludes)
+            if glob is None:
+                kept.append(f)
+            else:
+                excluded[glob] += 1
+        files = kept
         skipped = [(p, why) for p, why in skipped if not config.is_excluded(p, excludes)]
     platforms = detect.platforms(files, root)
     clues = collect_clues(root, files)
@@ -319,9 +340,10 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     prof = resolve_profile(cli_type, cfg, root, [c.describe() for c in clues], allow_prompt, clues, all_rules,
                            platforms)
 
-    project = Project(root=root, platforms=platforms, files=files, exclude=excludes)
-    findings = engine.run(project, all_rules, prof)
-    project.unknowns += _skipped_messages(skipped)
+    project = Project(root=root, platforms=platforms, files=files, exclude=excludes, skipped=skipped,
+                      excluded=excluded)
+    findings = engine.run(project, all_rules, prof)       # adds files a rule found it couldn't read
+    project.unknowns += _skipped_messages(project.skipped)
     notes: List[str] = []
     for sarif_path in import_sarif:
         try:
@@ -334,11 +356,22 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
     _number_occurrences(findings)
     engine.calibrate(findings, prof)
     notes += suppress.apply_inline(findings, root)
+    outcome: Optional[suppress.BaselineOutcome] = None
     if baseline or update_baseline:
+        from masaudit.report.jsonout import report_date
+
         path = baseline or os.path.join(root, DEFAULT_BASELINE)
         if update_baseline:
+            previous = None
+            if os.path.isfile(path):
+                try:
+                    previous = suppress.load_baseline(path)     # keeps each entry's reason and expires date
+                except suppress.BaselineError:
+                    previous = None                             # unreadable: replaced, as before
             try:
-                n = suppress.write_baseline(path, findings, root)
+                n = suppress.write_baseline(path, findings, root, previous, baseline_reason, baseline_expires)
+            except suppress.BaselineError as exc:
+                raise ToolError(str(exc)) from exc
             except OSError as exc:
                 raise ToolError(f"Couldn't write the baseline {path}: {exc.strerror or exc}") from exc
             notes.append(f"Wrote {n} finding(s) to the baseline {os.path.basename(path)}.")
@@ -346,7 +379,8 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
             fps = suppress.load_baseline(path)
         except suppress.BaselineError as exc:
             raise ToolError(str(exc)) from exc
-        suppress.apply_baseline(findings, fps)
+        outcome = suppress.apply(findings, fps, today=report_date())
+        notes += outcome.notes(os.path.basename(path))
     reviewed = list(cfg.get("app_type_reviewed") or [])  # type: ignore[arg-type]
     prof.warnings = profile_mod.check(prof, clues, all_rules, findings, reviewed=reviewed,
                                       applies=lambda r: engine.applies_to_platforms(r, platforms))
@@ -357,7 +391,7 @@ def scan(root: str, cli_type: Optional[str] = None, cfg: Optional[Dict[str, obje
             notes.append(f"App type {prof.app_type} kept on purpose: the code suggests {t}, and .masaudit.ini "
                          f"marks that as reviewed (app_type_reviewed).")
     return ScanResult(root=root, project=project, profile=prof, findings=findings, rules=all_rules,
-                      rules_version=engine.rules_version(), notes=notes)
+                      rules_version=engine.rules_version(), notes=notes, baseline=outcome)
 
 
 def _number_occurrences(findings: List[Finding]) -> None:
@@ -382,8 +416,14 @@ def _dedupe(findings: List[Finding]) -> List[Finding]:
     return out
 
 
+def incomplete(project: Project) -> bool:
+    """Files of a scanned type weren't read (a safety limit, binary content, a link). Files the user's exclude
+    globs leave out are a choice, not a gap."""
+    return bool(project.skipped)
+
+
 def fails(findings: List[Finding], fail_on: Optional[str]) -> bool:
-    if not fail_on:
+    if not fail_on or fail_on == "none":
         return False
     limit = SEVERITY_RANK[fail_on]
     return any(f.status == "open" and f.bucket in ("fix-before-release", "fix-soon")
@@ -535,6 +575,8 @@ def _main(args) -> int:
         return EXIT_OK
     if (args.yes or args.write_patch) and not args.fix_safe:
         raise ToolError("--yes and --write-patch only work together with --fix-safe")
+    if (args.baseline_reason or args.baseline_expires) and not args.update_baseline:
+        raise ToolError("--baseline-reason and --baseline-expires only work together with --update-baseline")
 
     root = os.path.abspath(args.path)
     if not os.path.isdir(root):
@@ -542,7 +584,8 @@ def _main(args) -> int:
     cfg = config.load(root)
     fail_on = config.resolve_fail_on(args.fail_on, cfg)
     result = scan(root, cli_type=args.app_type, cfg=cfg, import_sarif=args.import_sarif,
-                  baseline=args.baseline, update_baseline=args.update_baseline)
+                  baseline=args.baseline, update_baseline=args.update_baseline,
+                  baseline_reason=args.baseline_reason, baseline_expires=args.baseline_expires)
 
     if args.fix_safe:
         return run_fix_safe(result, args)
@@ -573,12 +616,19 @@ def _main(args) -> int:
                 lines = w.lines()
                 sys.stderr.write(asciify("WARNING: " + "\n  ".join(lines)) + "\n")
     _annotate_github(result.profile.warnings, result.root)
+    code = EXIT_OK
     if fails(result.findings, fail_on):
         n = sum(1 for f in result.findings if f.status == "open" and f.bucket in ("fix-before-release", "fix-soon")
                 and SEVERITY_RANK.get(f.effective_severity, 9) <= SEVERITY_RANK[fail_on])
         sys.stderr.write(f"Exit 1: {n} open finding(s) at {fail_on} severity or above (--fail-on {fail_on}).\n")
-        return EXIT_FINDINGS
-    return EXIT_OK
+        code = EXIT_FINDINGS
+    gate = args.fail_on_incomplete if args.fail_on_incomplete is not None else cfg.get("fail_on_incomplete")
+    if gate and incomplete(result.project):
+        n = len(result.project.skipped)
+        sys.stderr.write(f"Exit 1: {n} file(s) of a scanned type weren't read, so the scan is incomplete "
+                         "(--fail-on-incomplete). See Residual risk in the report.\n")
+        code = EXIT_FINDINGS
+    return code
 
 
 if __name__ == "__main__":  # pragma: no cover

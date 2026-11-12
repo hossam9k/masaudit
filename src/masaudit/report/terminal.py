@@ -9,10 +9,10 @@ import shutil
 import sys
 from typing import List, Optional
 
-from masaudit import __version__, fix
+from masaudit import __version__, fix, safety
 from masaudit import profile as profile_mod
 from masaudit.model import Rule
-from masaudit.report.jsonout import counts, project_name, top_fixes
+from masaudit.report.jsonout import counts, excluded_count, project_name, top_fixes
 
 _ASCII = {
     "§": "Section ", "—": "-", "–": "-", "…": "...", "‘": "'", "’": "'", "“": '"', "”": '"',
@@ -24,7 +24,8 @@ _COLORS = {"critical": "\033[1;31m", "high": "\033[31m", "medium": "\033[33m", "
 
 
 def asciify(value: str) -> str:
-    s = "".join(_ASCII.get(ch, ch) for ch in str(value))
+    # A hidden character becomes a visible marker such as <U+202E>, not a "?" that hides what it was.
+    s = "".join(_ASCII.get(ch, ch) for ch in safety.show_invisible(str(value)))
     s = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", " ", s)
     return s.encode("ascii", "replace").decode("ascii")
 
@@ -84,6 +85,11 @@ def render(result, report_path: Optional[str] = None, color: bool = False) -> st
     if result.project.unknowns:
         n = len(result.project.unknowns)
         lines.append(f"Couldn't decide {n} {'thing' if n == 1 else 'things'}; see Residual risk in the report.")
+    skipped, excluded = len(getattr(result.project, "skipped", [])), excluded_count(result.project)
+    if skipped or excluded:
+        parts = ([f"{skipped} file{'s' if skipped != 1 else ''} not read"] if skipped else []) + \
+                ([f"{excluded} excluded by .masaudit.ini"] if excluded else [])
+        lines.append(f"Not scanned: {', '.join(parts)}.")
     lines.append("")
     if report_path:
         lines.append(a(f"Report: {report_path}"))

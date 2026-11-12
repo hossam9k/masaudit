@@ -1,0 +1,21 @@
+{
+  "inputs": [
+    {
+      "id": "token",
+      "type": "promptString",
+      "password": true
+    }
+  ],
+  "servers": {
+    "gh": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "s@1.0.0"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${input:token}"
+      }
+    }
+  }
+}

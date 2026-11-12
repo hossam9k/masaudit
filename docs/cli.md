@@ -17,8 +17,9 @@ way, type `uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in plac
 | `--app-type TYPE` | The app type. See [Choose your app type](app-type.md) for the list. |
 | `--format md\|json\|sarif\|text` | Output format. Without it, masaudit prints a summary and writes `SECURITY-AUDIT.md` in the scanned folder. |
 | `--output FILE` | Write the report to this file instead of the default. A relative path is relative to the current folder. |
-| `--fail-on critical\|high\|medium\|low` | Exit with code 1 if an open finding to fix is at or above this severity. Default: `fail_on` in `.masaudit.ini`; if neither is set, findings never change the exit code. |
-| `--import-sarif FILE [FILE ...]` | Add results from Android Lint, mobsfscan, Semgrep, or zizmor SARIF files. |
+| `--fail-on critical\|high\|medium\|low\|none` | Exit with code 1 if an open finding to fix is at or above this severity. Default: `fail_on` in `.masaudit.ini`; if neither is set, findings never change the exit code. `none` never fails on findings, even when `.masaudit.ini` sets `fail_on`. |
+| `--fail-on-incomplete`, `--no-fail-on-incomplete` | Exit with code 1 if a file of a scanned type wasn't read: too large, binary content under a source file's name, a link, or past the file limit. Files your `exclude` setting leaves out don't count. Default: `fail_on_incomplete` in `.masaudit.ini`, else off. |
+| `--import-sarif FILE [FILE ...]` | Add results from Android Lint, mobsfscan, Semgrep, zizmor, osv-scanner, or another tool's SARIF files. |
 | `--sarif-include-not-needed` | With `--format sarif`: include *Not needed* findings, as notes. |
 | `--no-color` | No colors in terminal output. |
 
@@ -27,7 +28,9 @@ way, type `uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in plac
 | Option | What it does |
 |---|---|
 | `--update-baseline` | Write the current findings to the baseline file: the `--baseline` file if you give one, else `.masaudit-baseline.json` in the scanned folder. |
-| `--baseline FILE` | Treat findings listed in this baseline as accepted. A relative path is relative to the current folder, not the scanned folder. A missing file is an error (exit code 2). |
+| `--baseline FILE` | Treat findings listed in this baseline as accepted. A relative path is relative to the current folder, not the scanned folder. A missing file is an error (exit code 2). Entries that match no finding, and entries past their `expires` date, are listed in the report. |
+| `--baseline-reason TEXT` | With `--update-baseline`: the reason recorded on each new entry, shown wherever its finding is listed as accepted. Entries already in the file keep theirs. |
+| `--baseline-expires YYYY-MM-DD` | With `--update-baseline`: after this date the new entries' findings count again. |
 
 ## Safe fixes
 
@@ -51,7 +54,7 @@ way, type `uvx masaudit`, `pipx run masaudit`, or `python3 masaudit.pyz` in plac
 | Code | Meaning |
 |---|---|
 | `0` | The scan finished, and no open finding is at or above the `--fail-on` level (or no level is set). |
-| `1` | At least one open finding is at or above `--fail-on`. masaudit prints how many. |
+| `1` | At least one open finding is at or above `--fail-on`, or, with `--fail-on-incomplete`, a file of a scanned type wasn't read. masaudit prints which. |
 | `2` | Tool error: for example a missing folder, an invalid `.masaudit.ini` or option, an unknown rule ID in `--explain`, `--yes` on a folder that isn't a clean git tree, or an internal error. |
 
 ## Where settings come from

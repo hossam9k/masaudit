@@ -102,7 +102,7 @@ fix, how long it takes, its OWASP IDs, and the section of a free book that expla
 
 ## What it checks
 
-207 rules: 70 Android, 47 iOS, 20 React Native, 48 cross-platform code, 8 Flutter, 8 CI and supply
+214 rules: 70 Android, 47 iOS, 20 React Native, 49 cross-platform code, 8 Flutter, 14 CI and supply
 chain, 6 Kotlin Multiplatform. Together they cover 52 of the 78 weaknesses in OWASP's MASWE catalog and
 cite 140 OWASP MASTG tests.
 
@@ -112,7 +112,8 @@ cite 140 OWASP MASTG tests.
 - **Platform:** exported components, intent redirection, deep links, FileProvider, Dirty Stream, Zip Slip, SQL and HTML injection, WebView risks, native buffer overflows, screenshot and overlay protection.
 - **Auth:** biometrics not bound to a key, passcode fallback for sensitive actions, keys that survive new enrollments.
 - **Privacy:** sensitive permissions, hardware identifiers, IDFA without App Tracking Transparency, privacy manifests, tracking domains.
-- **Build and CI:** debuggable releases, debug tools in release, R8 keep rules, unpinned actions, persisted tokens, script injection, committed signing keys.
+- **Build and CI:** debuggable releases, debug tools in release, R8 keep rules, unpinned actions, persisted tokens, script injection, committed signing keys, and hidden bidirectional characters that make code read differently from how it runs (Trojan Source).
+- **AI coding agents:** what a committed agent setup lets a pull request do on a developer's machine: unpinned MCP servers, secrets in MCP configs, hidden text and hidden instructions in `AGENTS.md`, `CLAUDE.md`, and Cursor rules, settings that let the agent run any command, and hooks that download and run code.
 - **Resilience,** for banking, identity, loyalty, and game apps: Play Integrity, App Attest, and root, debugger, emulator, and hooking detection.
 - **React Native and Expo:** tokens in AsyncStorage or unencrypted MMKV, secrets bundled through `.env` or `EXPO_PUBLIC_` variables, WebView file access and open origins, deep-link data reaching `openURL` or a WebView, `eval`, unsigned over-the-air updates, Hermes turned off, source maps and console output in release builds, and Expo config in `app.json`. The JavaScript and TypeScript are read along with the native `android/` and `ios/` folders, and a managed Expo app with no native folders gets the Android and iOS checks from its config.
 
