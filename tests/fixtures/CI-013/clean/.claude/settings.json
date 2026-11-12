@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew test)",
+      "Bash(npm run lint:*)",
+      "Read"
+    ],
+    "deny": [
+      "Bash(curl:*)"
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "enableAllProjectMcpServers": false
+}

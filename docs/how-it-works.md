@@ -60,7 +60,8 @@ only to listed app types.
    A missing protection reported from test or debug code keeps the usual downgrade instead; a *Check by
    hand* finding there is lowered too, and stays in *Check by hand*.
 4. **Accepted?** A suppression with a reason, or a baseline entry, moves the finding to *Accepted
-   earlier*. It stays visible but doesn't count.
+   earlier*. It stays visible, with its reason, but doesn't count. A baseline entry past its `expires`
+   date no longer accepts its finding.
 
 ## When the code disagrees with your app type
 
@@ -75,6 +76,12 @@ masaudit reads source and configuration: manifests, Gradle files, `Info.plist`, 
 schemes, entitlements, Kotlin, Java, Swift, Objective-C, Dart, JavaScript, TypeScript, and C or C++
 code, and GitHub workflows. Code rules run after comments are removed, so a comment never triggers a
 finding.
+
+- **AI coding agents:** MCP server lists (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`,
+  `.gemini/settings.json`), agent settings (`.claude/settings.json`, `.codex/config.toml`), and the
+  instruction files agents load (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`,
+  `.github/copilot-instructions.md`, and the rule, prompt, command, agent, and skill folders of Cursor,
+  Windsurf, Cline, Copilot, Claude Code, and Gemini CLI). No other Markdown is read.
 
 - **React Native and Expo:** a project is React Native when a `package.json` lists `react-native` or
   `expo` as a dependency. masaudit then reads the JavaScript and TypeScript (`.js`, `.jsx`, `.ts`,
@@ -99,8 +106,10 @@ finding.
 - **Skipped files:** files over 2 MiB (16 MiB for `project.pbxproj`), hard links, symbolic links to
   folders, symbolic links to files outside the folder, and anything that isn't a regular file, such
   as a FIFO. A scan reads at most 200,000 files; in a
-  larger repository, scan each app's folder separately. The report's *Residual risk* section lists
-  every source or config file it skipped, and why.
+  larger repository, scan each app's folder separately. A file with a source file's name but binary
+  content isn't read either. The report's *Residual risk* section lists every source or config file it
+  skipped, and why, and how many files each `exclude` glob left out; `--fail-on-incomplete` turns a
+  skipped file into a failed run.
 - **Where it runs:** see [Install and upgrade](install.md).
 
 It can't see your server, how the app behaves at runtime, or your business logic, which is where many

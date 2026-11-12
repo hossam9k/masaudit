@@ -11,7 +11,9 @@ from urllib.parse import quote
 
 from masaudit import REPO_URL, __version__
 from masaudit.model import SEVERITY_RANK, Finding, Rule
-from masaudit.report.jsonout import report_datetime, sort_key
+from masaudit.report.jsonout import excluded_line, report_datetime, sort_key
+from masaudit.report.markdown import prose
+from masaudit.safety import show_invisible as _shown
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 SECURITY_SEVERITY = {"critical": 9.5, "high": 7.5, "medium": 5.0, "low": 3.0, "info": 1.0}
@@ -34,20 +36,22 @@ def _uri(path: str) -> str:
 
 def _rule_entry(rule: Rule, severity: str) -> dict:
     ids = [i for i in (rule.maswe, rule.masvs) if i]
-    help_text = f"Why: {rule.why}\nFix: {rule.fix}\nVerify: {rule.verify}\nBook: {rule.book} {rule.book_url}".strip()
-    md = [f"**Why it matters:** {rule.why}", "", f"**Fix:** {rule.fix}", ""]
+    # An imported rule's text comes from another tool's SARIF file: its help Markdown is escaped (prose), and
+    # every text field shows hidden characters, since GitHub displays them to reviewers.
+    help_text = _shown(f"Why: {rule.why}\nFix: {rule.fix}\nVerify: {rule.verify}\nBook: {rule.book} {rule.book_url}".strip())
+    md = [f"**Why it matters:** {prose(rule, rule.why)}", "", f"**Fix:** {prose(rule, rule.fix)}", ""]
     if rule.fix_code and rule.fix_code.get("code"):
         lang = re.sub(r"[^A-Za-z0-9_+-]", "", rule.fix_code.get("lang", ""))
         md += [f"```{lang}", rule.fix_code["code"].rstrip(), "```", ""]
-    md += [f"**How to verify:** {rule.verify}", ""]
+    md += [f"**How to verify:** {prose(rule, rule.verify)}", ""]
     if rule.book_url:
         md.append(f"Book: [{rule.book}]({rule.book_url})")
     entry = {
         "id": rule.id,
         "name": rule_name(rule),
-        "shortDescription": {"text": rule.title},
-        "fullDescription": {"text": rule.why},
-        "help": {"text": help_text, "markdown": "\n".join(md)},
+        "shortDescription": {"text": _shown(rule.title)},
+        "fullDescription": {"text": _shown(rule.why)},
+        "help": {"text": help_text, "markdown": _shown("\n".join(md))},
         "defaultConfiguration": {"level": LEVEL.get(severity, "warning")},
         "properties": {
             "tags": ["security"] + ids,
@@ -110,12 +114,12 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
             }
         }
         if f.location.snippet:
-            location["physicalLocation"]["region"]["snippet"] = {"text": f.location.snippet}
+            location["physicalLocation"]["region"]["snippet"] = {"text": _shown(f.location.snippet)}
         res = {
             "ruleId": f.rule.id,
             "ruleIndex": index[f.rule.id],
             "level": "note" if f.bucket == "not-needed" else LEVEL.get(sev, "warning"),
-            "message": {"text": msg},
+            "message": {"text": _shown(msg)},
             "locations": [location],
             "partialFingerprints": {"masaudit/v1": f.fingerprint()},
             "properties": {
@@ -126,13 +130,39 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
         }
         if f.status == "suppressed":
             res["suppressions"] = [{"kind": "inSource", "status": "accepted",
-                                    "justification": f.suppression_reason}]
+                                    "justification": _shown(f.suppression_reason)}]
         elif f.status == "baselined":
             res["suppressions"] = [{"kind": "external", "status": "accepted",
-                                    "justification": "Listed in the masaudit baseline file."}]
+                                    "justification": _shown(f"Listed in the masaudit baseline file: {f.suppression_reason}"
+                                                            if f.suppression_reason
+                                                            else "Listed in the masaudit baseline file.")}]
         results.append(res)
 
     when = report_datetime().strftime("%Y-%m-%dT%H:%M:%SZ")
+    invocation: dict = {"executionSuccessful": True, "endTimeUtc": when}
+    config_notes = [{
+        "descriptor": {"id": "masaudit/app-type"},
+        "level": "warning",
+        "message": {"text": w.summary()},
+        "locations": [{"physicalLocation": {"artifactLocation": {"uri": _uri(w.path)}}}],
+    } for w in result.profile.warnings]
+    excluded = excluded_line(result.project)
+    if excluded:
+        config_notes.append({"descriptor": {"id": "masaudit/excluded"}, "level": "note",
+                             "message": {"text": _shown(excluded)}})
+    if config_notes:
+        invocation["toolConfigurationNotifications"] = config_notes
+    # One notification per reason a file wasn't read: an incomplete scan says so in the SARIF too.
+    by_reason: "OrderedDict[str, List[str]]" = OrderedDict()
+    for path, why in getattr(result.project, "skipped", []):
+        by_reason.setdefault(why, []).append(path)
+    if by_reason:
+        invocation["toolExecutionNotifications"] = [{
+            "descriptor": {"id": "masaudit/not-scanned"},
+            "level": "warning",
+            "message": {"text": _shown(f"Not scanned ({why}): {len(paths)} file{'s' if len(paths) != 1 else ''}, "
+                                       f"such as {', '.join(paths[:3])}.")},
+        } for why, paths in by_reason.items()]
     run = {
         "tool": {
             "driver": {
@@ -143,15 +173,7 @@ def to_dict(result, include_not_needed: bool = False) -> dict:
                 "rules": [_rule_entry(rules[rid], worst[rid]) for rid in rule_ids],
             }
         },
-        "invocations": [dict(
-            {"executionSuccessful": True, "endTimeUtc": when},
-            **({"toolConfigurationNotifications": [{
-                "descriptor": {"id": "masaudit/app-type"},
-                "level": "warning",
-                "message": {"text": w.summary()},
-                "locations": [{"physicalLocation": {"artifactLocation": {"uri": _uri(w.path)}}}],
-            } for w in result.profile.warnings]} if result.profile.warnings else {}),
-        )],
+        "invocations": [invocation],
         "columnKind": "unicodeCodePoints",
         "results": results,
         "properties": {

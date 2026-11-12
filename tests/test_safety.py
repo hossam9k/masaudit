@@ -90,6 +90,24 @@ class Safety(unittest.TestCase):
         self.assertNotIn("build/gen.xml", safety.walk(self.root))
         self.assertIsNone(safety.read_text(self.root, "bin.json"))
 
+    def test_binary_file_under_a_source_name_is_reported_not_hidden(self):
+        # It passes the walk (its name says Kotlin), then holds binary content: listed as not scanned, never
+        # treated as a clean file. A compiled plist is read by the plist parser, so it isn't a gap.
+        os.makedirs(os.path.join(self.root, "app"))
+        with open(os.path.join(self.root, "app", "Blob.kt"), "wb") as fh:
+            fh.write(b"\x00\x01binary")
+        with open(os.path.join(self.root, "app", "Info.plist"), "wb") as fh:
+            fh.write(b"bplist00\x00\x01")
+        self.assertEqual(safety.read_text_why(self.root, "app/Blob.kt"),
+                         (None, "binary content in a file of a scanned type"))
+        self.assertEqual(safety.read_text_why(self.root, "app/Info.plist"), (None, ""))
+        self._write(os.path.join(self.root, "app", "Main.kt"), "fun main() {}\n")
+        from masaudit import cli
+        result = cli.scan(self.root, cli_type="general", cfg={}, allow_prompt=False)
+        self.assertEqual(result.project.skipped, [("app/Blob.kt", "binary content in a file of a scanned type")])
+        self.assertIn("Not scanned (binary content in a file of a scanned type): app/Blob.kt.", result.project.unknowns)
+        self.assertTrue(cli.incomplete(result.project))
+
     def test_mask_hides_aws_keys(self):
         line = 'val key = "AKIAIOSFODNN7EXAMPLE" // AWS'
         masked = safety.mask(line)
@@ -99,6 +117,29 @@ class Safety(unittest.TestCase):
         self.assertNotIn("ghp_" + "a" * 36, safety.mask("token=ghp_" + "a" * 36))
         self.assertLessEqual(len(safety.mask("x" * 1000 + " y")), 160)
 
+
+
+class OwnSource(unittest.TestCase):
+    def test_masaudit_holds_no_hidden_characters_itself(self):
+        # A scanner that reports Trojan Source must not carry it: every such character in masaudit's own code,
+        # tests, and docs is written as an escape (\\u202e), never raw. Fixtures hold them on purpose.
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        found = []
+        for top in ("src", "scripts", "fuzz", "tests", "docs", "plugin"):
+            for dirpath, dirnames, names in os.walk(os.path.join(root, top)):
+                dirnames[:] = [d for d in dirnames if d not in ("fixtures", "__pycache__")]
+                for name in names:
+                    if not name.endswith((".py", ".md", ".json", ".yml", ".yaml")):
+                        continue
+                    path = os.path.join(dirpath, name)
+                    with open(path, encoding="utf-8", errors="replace") as fh:
+                        for n, line in enumerate(fh, 1):
+                            if safety.INVISIBLE.search(line.rstrip("\n")):
+                                found.append(f"{os.path.relpath(path, root)}:{n}")
+        for name in ("README.md", "CHANGELOG.md", "action.yml"):
+            with open(os.path.join(root, name), encoding="utf-8") as fh:
+                found += [f"{name}:{n}" for n, line in enumerate(fh, 1) if safety.INVISIBLE.search(line.rstrip("\n"))]
+        self.assertEqual(found, [])
 
 if __name__ == "__main__":
     unittest.main()

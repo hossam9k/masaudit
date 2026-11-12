@@ -1,0 +1,58 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github@2025.4.8"
+      ]
+    },
+    "pkgflag": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "-p",
+        "figma-mcp@0.3.1",
+        "figma-mcp"
+      ]
+    },
+    "py": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch==2025.1.17"
+      ]
+    },
+    "pyfrom": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/acme/mcp@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "acme-mcp"
+      ]
+    },
+    "img": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/acme/mcp@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ]
+    },
+    "local": {
+      "command": "node",
+      "args": [
+        "./tools/mcp/server.js"
+      ]
+    },
+    "localnpx": {
+      "command": "npx",
+      "args": [
+        "./tools/mcp"
+      ]
+    },
+    "remote": {
+      "url": "https://mcp.example.com/sse"
+    }
+  }
+}

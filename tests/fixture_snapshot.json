@@ -1,0 +1,4541 @@
+{
+ "AND-001/clean": {
+  "AND-035": 1
+ },
+ "AND-001/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-001/clean_nsc_wins": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-001/clean_old_target_opted_out": {
+  "AND-021": 3,
+  "AND-027": 1,
+  "AND-028": 3,
+  "AND-029": 2,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-001/vulnerable": {
+  "AND-001": 2,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-001/vulnerable_acknowledged": {
+  "AND-001": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-001/vulnerable_expo": {
+  "AND-001": 1,
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-001/vulnerable_old_min_sdk": {
+  "AND-001": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-029": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-001/vulnerable_old_target": {
+  "AND-001": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-029": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-002/clean": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-002/vulnerable": {
+  "AND-002": 4,
+  "AND-021": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-003/clean": {},
+ "AND-003/clean_template": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-003/vulnerable": {
+  "AND-003": 2
+ },
+ "AND-003/vulnerable_acknowledged": {
+  "AND-003": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-003/vulnerable_debug_file": {
+  "AND-003": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-004/clean": {},
+ "AND-004/clean_validated": {},
+ "AND-004/vulnerable": {
+  "AND-004": 2
+ },
+ "AND-004/vulnerable_conditions": {
+  "AND-004": 2
+ },
+ "AND-005/clean": {},
+ "AND-005/vulnerable": {
+  "AND-005": 5
+ },
+ "AND-005/vulnerable_insecure_factory": {
+  "AND-005": 1
+ },
+ "AND-006/clean": {},
+ "AND-006/clean_protocols": {},
+ "AND-006/vulnerable": {
+  "AND-006": 4
+ },
+ "AND-006/vulnerable_protocols": {
+  "AND-006": 2
+ },
+ "AND-007/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_custom_pinner": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_expo_managed_js": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-007/clean_flutter": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_flutter_dep": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_flutter_native_pins": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_node_tooling": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_offline": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_okhttp": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_react_native": {},
+ "AND-007/clean_rn_private_factory": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_rn_public_key_pinning": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_rn_ssl_pinning": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/clean_trustkit_dep": {},
+ "AND-007/vulnerable": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/vulnerable_comments": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-007/vulnerable_flavor_first": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/vulnerable_flutter": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/vulnerable_react_native": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/vulnerable_rn_not_called": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-007/vulnerable_rn_own_factory": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-008/clean": {},
+ "AND-008/clean_rn_two_hashes": {},
+ "AND-008/vulnerable": {
+  "AND-008": 3
+ },
+ "AND-008/vulnerable_rn_one_hash": {
+  "AND-008": 1,
+  "IOS-006": 1
+ },
+ "AND-009/clean": {},
+ "AND-009/vulnerable": {
+  "AND-009": 2
+ },
+ "AND-010/clean": {},
+ "AND-010/clean_default_access": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-029": 1,
+  "AND-059": 1
+ },
+ "AND-010/clean_default_access_target_30": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-029": 1,
+  "AND-059": 1
+ },
+ "AND-010/vulnerable": {
+  "AND-010": 3
+ },
+ "AND-010/vulnerable_default_access": {
+  "AND-010": 2,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-029": 1,
+  "AND-059": 2
+ },
+ "AND-010/vulnerable_file_page": {
+  "AND-010": 1
+ },
+ "AND-010/vulnerable_web_only": {
+  "AND-010": 1
+ },
+ "AND-011/clean": {},
+ "AND-011/clean_rn": {},
+ "AND-011/vulnerable": {
+  "AND-011": 2
+ },
+ "AND-011/vulnerable_rn": {
+  "AND-011": 4
+ },
+ "AND-012/clean": {},
+ "AND-012/clean_declaration": {},
+ "AND-012/clean_origin_checked": {},
+ "AND-012/vulnerable": {
+  "AND-012": 2,
+  "AND-059": 1
+ },
+ "AND-012/vulnerable_apply": {
+  "AND-012": 1,
+  "AND-059": 1
+ },
+ "AND-012/vulnerable_fixed_origin": {
+  "AND-012": 1
+ },
+ "AND-012/vulnerable_intent_url": {
+  "AND-012": 1,
+  "AND-014": 1
+ },
+ "AND-013/clean": {},
+ "AND-013/clean_resolved_guards": {},
+ "AND-013/clean_rn": {},
+ "AND-013/vulnerable": {
+  "AND-013": 3
+ },
+ "AND-013/vulnerable_preference": {
+  "AND-013": 1
+ },
+ "AND-013/vulnerable_rn": {
+  "AND-013": 2,
+  "IOS-014": 2
+ },
+ "AND-014/clean": {},
+ "AND-014/clean_not_exported": {
+  "AND-019": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-014/vulnerable": {
+  "AND-014": 3
+ },
+ "AND-014/vulnerable_exported": {
+  "AND-014": 1,
+  "AND-019": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-015/clean_app_permission": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/clean_interop": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/clean_media_transfer": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/clean_public_contracts": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-015/clean_wear_config": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/vulnerable": {
+  "AND-015": 5,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/vulnerable_caller_check": {
+  "AND-015": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/vulnerable_must_stay_high": {
+  "AND-015": 3,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/vulnerable_private_surfaces": {
+  "AND-015": 8,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-015/vulnerable_reads_no_intent": {
+  "AND-015": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-016/clean": {},
+ "AND-016/clean_unreferenced": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-016/severity_tiers": {
+  "AND-016": 4
+ },
+ "AND-016/vulnerable": {
+  "AND-016": 2
+ },
+ "AND-016/vulnerable_shared_storage": {
+  "AND-016": 3
+ },
+ "AND-017/clean": {},
+ "AND-017/clean_not_exported": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-017/vulnerable": {
+  "AND-017": 3
+ },
+ "AND-017/vulnerable_exported": {
+  "AND-017": 1,
+  "AND-019": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-018/clean": {},
+ "AND-018/clean_min_sdk_31": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-018/clean_no_flags": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-018/vulnerable": {
+  "AND-018": 2
+ },
+ "AND-018/vulnerable_no_flags": {
+  "AND-018": 2,
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-019/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-019/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-019/clean_third_party_domains": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-019/vulnerable": {
+  "AND-019": 2,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-019/vulnerable_expo": {
+  "AND-007": 1,
+  "AND-019": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-019/vulnerable_own_domain": {
+  "AND-019": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-020/clean": {},
+ "AND-020/clean_identifiers_and_numbers": {},
+ "AND-020/clean_migration": {},
+ "AND-020/clean_query_builder": {
+  "AND-015": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-020/vulnerable": {
+  "AND-020": 3
+ },
+ "AND-020/vulnerable_migration_db_value": {
+  "AND-020": 1
+ },
+ "AND-020/vulnerable_provider_uri": {
+  "AND-020": 1
+ },
+ "AND-020/vulnerable_query_builder": {
+  "AND-015": 1,
+  "AND-020": 2,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-020/vulnerable_values": {
+  "AND-020": 4
+ },
+ "AND-021/clean": {
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/clean_agent": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/clean_expo": {
+  "AND-007": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-021/clean_expo_dynamic": {
+  "AND-007": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-021/clean_expo_plugin_backup": {
+  "AND-007": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-021/clean_overlay_and_library": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/clean_rules_exclude_secret": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1,
+  "XPL-044": 3
+ },
+ "AND-021/vulnerable": {
+  "AND-021": 2,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/vulnerable_acknowledged": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/vulnerable_expo_default": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-021/vulnerable_expo_dynamic": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-021/vulnerable_expo_explicit": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-021/vulnerable_from_library": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/vulnerable_full_backup_agent": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-021/vulnerable_rules_miss_secret": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1,
+  "XPL-044": 3
+ },
+ "AND-022/clean": {
+  "AND-027": 1
+ },
+ "AND-022/vulnerable": {
+  "AND-022": 3,
+  "AND-027": 1
+ },
+ "AND-022/vulnerable_import_line": {
+  "AND-022": 1
+ },
+ "AND-022/vulnerable_refresh_versions": {
+  "AND-022": 2,
+  "AND-027": 1
+ },
+ "AND-023/clean": {
+  "AND-027": 1
+ },
+ "AND-023/vulnerable": {
+  "AND-023": 2,
+  "AND-027": 1
+ },
+ "AND-024/clean": {},
+ "AND-024/vulnerable": {
+  "AND-024": 1
+ },
+ "AND-025/clean": {},
+ "AND-025/vulnerable": {
+  "AND-025": 2
+ },
+ "AND-026/clean": {},
+ "AND-026/vulnerable": {
+  "AND-026": 3,
+  "AND-074": 1
+ },
+ "AND-027/clean": {},
+ "AND-027/clean_convention_plugin": {
+  "AND-021": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-027/clean_expo_minify": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-027/clean_expo_property": {},
+ "AND-027/clean_flutter": {
+  "AND-021": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-027/clean_rn_template": {},
+ "AND-027/vulnerable": {
+  "AND-027": 3
+ },
+ "AND-027/vulnerable_default": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-027/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-027/vulnerable_expo_property": {
+  "AND-027": 1
+ },
+ "AND-027/vulnerable_rn_template": {
+  "AND-027": 1
+ },
+ "AND-028/clean": {
+  "AND-027": 1
+ },
+ "AND-028/vulnerable": {
+  "AND-027": 1,
+  "AND-028": 3
+ },
+ "AND-029/clean": {
+  "AND-027": 1
+ },
+ "AND-029/vulnerable": {
+  "AND-027": 1,
+  "AND-029": 2
+ },
+ "AND-030/clean": {},
+ "AND-030/clean_comparisons": {},
+ "AND-030/vulnerable": {
+  "AND-030": 2
+ },
+ "AND-031/clean": {},
+ "AND-031/nearmiss_own_apk": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-031/vulnerable": {
+  "AND-031": 2
+ },
+ "AND-032/clean": {},
+ "AND-032/clean_dead_code": {},
+ "AND-032/clean_hardened_and_clone": {},
+ "AND-032/vulnerable": {
+  "AND-032": 2
+ },
+ "AND-032/vulnerable_sources": {
+  "AND-032": 3
+ },
+ "AND-033/clean": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-033/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-033/clean_legacy_grants": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-033/vulnerable": {
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-072": 1
+ },
+ "AND-033/vulnerable_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-033/vulnerable_modules": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-034/clean": {},
+ "AND-034/clean_bundles": {},
+ "AND-034/clean_encrypted_values": {},
+ "AND-034/vulnerable": {
+  "AND-034": 4
+ },
+ "AND-034/vulnerable_editors": {
+  "AND-034": 2
+ },
+ "AND-034/vulnerable_encrypting_file": {
+  "AND-034": 1
+ },
+ "AND-035/clean": {
+  "AND-007": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-035/vulnerable": {
+  "AND-007": 1,
+  "AND-035": 2,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/clean": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/clean_agent_and_library": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/clean_backup_off_with_transfer_rules": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/clean_old_target": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/vulnerable": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-036": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/vulnerable_backup_off": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-036": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/vulnerable_empty_transfer": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-036": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-036/vulnerable_legacy_rules": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-036": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-037/clean": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-037/vulnerable": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-037": 4
+ },
+ "AND-038/clean": {
+  "AND-021": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-038/vulnerable": {
+  "AND-021": 1,
+  "AND-028": 1,
+  "AND-038": 3,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-039/clean": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-039/vulnerable": {
+  "AND-039": 3
+ },
+ "AND-040/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-040/vulnerable": {
+  "AND-040": 3,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-041/clean": {},
+ "AND-041/vulnerable": {
+  "AND-041": 2
+ },
+ "AND-042/clean": {},
+ "AND-042/clean_phone_number": {},
+ "AND-042/vulnerable": {
+  "AND-042": 5
+ },
+ "AND-042/vulnerable_imei": {
+  "AND-042": 2
+ },
+ "AND-043/clean": {},
+ "AND-043/clean_reassigned_checked": {},
+ "AND-043/vulnerable": {
+  "AND-043": 2
+ },
+ "AND-043/vulnerable_reassigned": {
+  "AND-043": 1
+ },
+ "AND-044/clean": {},
+ "AND-044/vulnerable": {
+  "AND-044": 2
+ },
+ "AND-045/clean": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/clean_compose": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/clean_expo_screen_capture": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-045/clean_flutter": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-028": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/clean_library": {},
+ "AND-045/clean_rn_expo_screen_capture": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/unclear_outside_package": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-028": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/vulnerable": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-045/vulnerable_flutter_local_package": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-045/vulnerable_rn_unrelated": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-046/clean": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-046/clean_hide_overlays": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-048": 1
+ },
+ "AND-046/clean_library": {},
+ "AND-046/clean_window_filter": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-046/vulnerable": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-046/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-046/vulnerable_per_view": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 2,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-046/vulnerable_permission_unused": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-047/clean": {
+  "AND-028": 1
+ },
+ "AND-047/nearmiss_not_minified": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-047/vulnerable": {
+  "AND-028": 1,
+  "AND-047": 5
+ },
+ "AND-048/clean": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-048/clean_code": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-048/clean_library": {},
+ "AND-048/clean_rn_app_check": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-048/clean_rn_expo_integrity": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-048/clean_safetynet_only": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-044": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-048/vulnerable": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-048/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-048/vulnerable_rn_unrelated": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-049/clean": {},
+ "AND-049/vulnerable": {
+  "AND-049": 3
+ },
+ "AND-050/clean": {},
+ "AND-050/nearmiss_add_provider": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-050/vulnerable": {
+  "AND-050": 3
+ },
+ "AND-051/clean": {},
+ "AND-051/vulnerable": {
+  "AND-051": 2,
+  "XPL-018": 1
+ },
+ "AND-052/clean": {},
+ "AND-052/vulnerable": {
+  "AND-052": 2
+ },
+ "AND-053/clean": {},
+ "AND-053/vulnerable": {
+  "AND-053": 2
+ },
+ "AND-054/clean": {},
+ "AND-054/clean_boolean_flag": {},
+ "AND-054/vulnerable": {
+  "AND-054": 2
+ },
+ "AND-054/vulnerable_new_password": {
+  "AND-054": 1
+ },
+ "AND-055/clean": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-055/vulnerable": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-055": 2
+ },
+ "AND-056/clean": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-056/vulnerable": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-056": 2
+ },
+ "AND-056/vulnerable_helper": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-056": 1
+ },
+ "AND-057/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-057/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-057": 2
+ },
+ "AND-058/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-058/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-058": 1
+ },
+ "AND-059/clean": {},
+ "AND-059/vulnerable": {
+  "AND-059": 2
+ },
+ "AND-059/vulnerable_local_page": {
+  "AND-059": 1
+ },
+ "AND-059/vulnerable_web_only": {
+  "AND-059": 1
+ },
+ "AND-060/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-060/clean_mediastore_export": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-060/clean_read_only": {
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-060/vulnerable": {
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-060": 1
+ },
+ "AND-060/vulnerable_mediastore_secret": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-060": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "AND-060/vulnerable_user_download": {
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-060": 1
+ },
+ "AND-061/clean": {},
+ "AND-061/vulnerable": {
+  "AND-061": 2
+ },
+ "AND-062/clean": {},
+ "AND-062/vulnerable": {
+  "AND-062": 1
+ },
+ "AND-063/clean": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-063/vulnerable": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-063": 2
+ },
+ "AND-064/clean": {
+  "AND-027": 1,
+  "AND-028": 1
+ },
+ "AND-064/vulnerable": {
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-064": 1
+ },
+ "AND-065/clean": {
+  "AND-019": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-065/vulnerable": {
+  "AND-019": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-065": 1
+ },
+ "AND-072/clean": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-072/clean_background_location": {
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "AND-072/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-072/vulnerable": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-028": 1,
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-072": 1
+ },
+ "AND-072/vulnerable_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-072": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "AND-072/vulnerable_install": {
+  "AND-033": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "AND-072": 1
+ },
+ "AND-073/clean": {},
+ "AND-073/vulnerable": {
+  "AND-073": 2
+ },
+ "AND-074/clean": {
+  "AND-026": 1
+ },
+ "AND-074/vulnerable": {
+  "AND-026": 1,
+  "AND-074": 3
+ },
+ "AND-075/clean": {
+  "AND-059": 1
+ },
+ "AND-075/vulnerable": {
+  "AND-059": 2,
+  "AND-075": 2
+ },
+ "AND-075/vulnerable_expression_body": {
+  "AND-059": 1,
+  "AND-075": 1
+ },
+ "AND-076/clean": {},
+ "AND-076/vulnerable": {
+  "AND-076": 4
+ },
+ "CI-001/clean": {
+  "CI-005": 1
+ },
+ "CI-001/mustfire": {
+  "CI-001": 10,
+  "CI-005": 1
+ },
+ "CI-001/nearmiss": {
+  "CI-001": 4
+ },
+ "CI-001/vulnerable": {
+  "CI-001": 4,
+  "CI-005": 1
+ },
+ "CI-002/clean": {},
+ "CI-002/mustfire": {
+  "CI-002": 1
+ },
+ "CI-002/nearmiss": {
+  "CI-002": 1
+ },
+ "CI-002/vulnerable": {
+  "CI-002": 3
+ },
+ "CI-003/clean": {},
+ "CI-003/mustfire": {
+  "CI-002": 1,
+  "CI-003": 5,
+  "CI-005": 4
+ },
+ "CI-003/nearmiss": {},
+ "CI-003/vulnerable": {
+  "CI-003": 2
+ },
+ "CI-004/clean": {},
+ "CI-004/mustfire": {
+  "CI-002": 1,
+  "CI-003": 1,
+  "CI-004": 5
+ },
+ "CI-004/nearmiss": {
+  "CI-002": 1,
+  "CI-004": 1
+ },
+ "CI-004/vulnerable": {
+  "CI-004": 3
+ },
+ "CI-005/clean": {},
+ "CI-005/info_gradle_push": {
+  "CI-005": 1
+ },
+ "CI-005/mustfire": {
+  "CI-001": 9,
+  "CI-005": 8
+ },
+ "CI-005/mustfire_fastlane": {
+  "CI-001": 3,
+  "CI-005": 2
+ },
+ "CI-005/nearmiss": {
+  "CI-005": 2
+ },
+ "CI-005/nearmiss_disabled_job": {},
+ "CI-005/vulnerable": {
+  "CI-005": 2
+ },
+ "CI-006/clean": {},
+ "CI-006/mustfire": {
+  "CI-006": 4
+ },
+ "CI-006/mustfire_password_env": {
+  "CI-006": 1
+ },
+ "CI-006/mustfire_password_literal": {
+  "CI-006": 1
+ },
+ "CI-006/nearmiss": {
+  "CI-006": 2
+ },
+ "CI-006/vulnerable": {
+  "CI-006": 3
+ },
+ "CI-007/clean": {},
+ "CI-007/vulnerable": {
+  "CI-007": 1
+ },
+ "CI-008/clean": {
+  "AND-027": 1
+ },
+ "CI-008/mustfire": {
+  "CI-008": 1
+ },
+ "CI-008/nearmiss": {},
+ "CI-008/vulnerable": {
+  "AND-027": 1,
+  "CI-008": 2
+ },
+ "CI-009/clean": {
+  "CI-008": 1
+ },
+ "CI-009/vulnerable": {
+  "CI-008": 1,
+  "CI-009": 7
+ },
+ "CI-010/clean": {
+  "CI-008": 1
+ },
+ "CI-010/vulnerable": {
+  "CI-008": 1,
+  "CI-010": 5
+ },
+ "CI-011/clean": {
+  "CI-008": 1
+ },
+ "CI-011/vulnerable": {
+  "CI-008": 1,
+  "CI-011": 4
+ },
+ "CI-012/clean": {
+  "CI-008": 1
+ },
+ "CI-012/vulnerable": {
+  "CI-008": 1,
+  "CI-012": 3
+ },
+ "CI-013/clean": {
+  "CI-008": 1
+ },
+ "CI-013/vulnerable": {
+  "CI-008": 1,
+  "CI-013": 6
+ },
+ "CI-014/clean": {
+  "CI-008": 1
+ },
+ "CI-014/vulnerable": {
+  "CI-008": 1,
+  "CI-014": 3
+ },
+ "FLT-001/clean": {},
+ "FLT-001/nearmiss_pinned_callback": {},
+ "FLT-001/nearmiss_static_pin_check": {},
+ "FLT-001/vulnerable": {
+  "FLT-001": 4
+ },
+ "FLT-001/vulnerable_legacy_adapter": {
+  "FLT-001": 2
+ },
+ "FLT-001/vulnerable_static_and_closure": {
+  "FLT-001": 2
+ },
+ "FLT-002/clean": {},
+ "FLT-002/nearmiss_constant_values": {},
+ "FLT-002/nearmiss_non_secret_prefs": {},
+ "FLT-002/nearmiss_push_tokens": {},
+ "FLT-002/vulnerable": {
+  "FLT-002": 4
+ },
+ "FLT-002/vulnerable_json_session": {
+  "FLT-002": 3
+ },
+ "FLT-002/vulnerable_session_repo": {
+  "FLT-002": 3
+ },
+ "FLT-003/clean": {},
+ "FLT-003/clean_no_lock": {},
+ "FLT-003/debug_only": {
+  "FLT-003": 1
+ },
+ "FLT-003/vulnerable": {
+  "FLT-003": 4
+ },
+ "FLT-004/clean": {},
+ "FLT-004/nearmiss_android_js_off": {},
+ "FLT-004/nearmiss_js_off_local_file": {},
+ "FLT-004/vulnerable": {
+  "FLT-004": 5
+ },
+ "FLT-004/vulnerable_android_controller": {
+  "FLT-004": 2
+ },
+ "FLT-004/vulnerable_mutable_settings": {
+  "FLT-004": 4
+ },
+ "FLT-005/clean": {},
+ "FLT-005/nearmiss_browser_pin_check": {},
+ "FLT-005/nearmiss_pin_check": {},
+ "FLT-005/vulnerable": {
+  "FLT-005": 4
+ },
+ "FLT-005/vulnerable_browser_subclass": {
+  "FLT-005": 1
+ },
+ "FLT-005/vulnerable_legacy_and_ref": {
+  "FLT-005": 2
+ },
+ "FLT-006/clean": {},
+ "FLT-006/nearmiss_build_mode_flag": {},
+ "FLT-006/vulnerable": {
+  "FLT-006": 5
+ },
+ "FLT-006/vulnerable_platform_branch": {
+  "FLT-006": 3
+ },
+ "FLT-007/clean": {
+  "XPL-018": 2
+ },
+ "FLT-007/clean_native": {
+  "XPL-018": 2
+ },
+ "FLT-007/clean_other": {
+  "IOS-017": 1
+ },
+ "FLT-007/vulnerable": {
+  "FLT-007": 2,
+  "XPL-018": 2
+ },
+ "FLT-008/clean": {
+  "CI-002": 1
+ },
+ "FLT-008/nearmiss_folded_command": {
+  "CI-002": 1
+ },
+ "FLT-008/nearmiss_gitlab_obfuscated": {},
+ "FLT-008/vulnerable": {
+  "CI-002": 1,
+  "FLT-008": 2
+ },
+ "FLT-008/vulnerable_gitlab_fvm": {
+  "FLT-008": 2
+ },
+ "IOS-001/clean": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-001/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-001/vulnerable": {
+  "IOS-001": 3,
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-001/vulnerable_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-001": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-002/clean": {},
+ "IOS-002/clean_onion": {},
+ "IOS-002/vulnerable": {
+  "IOS-002": 2
+ },
+ "IOS-003/clean": {},
+ "IOS-003/nearmiss_property_spellings": {},
+ "IOS-003/nearmiss_tls12_floor": {},
+ "IOS-003/vulnerable": {
+  "IOS-003": 3
+ },
+ "IOS-003/vulnerable_objc_session": {
+  "IOS-003": 2
+ },
+ "IOS-003/vulnerable_property_spellings": {
+  "IOS-003": 3
+ },
+ "IOS-004/clean": {},
+ "IOS-004/clean_branches": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-004/vulnerable": {
+  "IOS-004": 4
+ },
+ "IOS-004/vulnerable_extension": {
+  "IOS-004": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-005/clean": {},
+ "IOS-005/clean_tofu": {},
+ "IOS-005/vulnerable": {
+  "IOS-004": 1,
+  "IOS-005": 1
+ },
+ "IOS-006/clean": {},
+ "IOS-006/clean_rn_two_hashes": {},
+ "IOS-006/clean_rn_variable": {},
+ "IOS-006/vulnerable": {
+  "IOS-006": 2
+ },
+ "IOS-006/vulnerable_expo_managed": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-006": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-006/vulnerable_rn_one_hash": {
+  "AND-008": 1,
+  "IOS-006": 1
+ },
+ "IOS-007/clean": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_anchor": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_connection_pinning": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_delegate": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_expo_managed_plist": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-007/clean_flutter": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_flutter_native_pins": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_kmp_scaffold": {
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_react_native": {},
+ "IOS-007/clean_rn_public_key_pinning": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_rn_ssl_pinning": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/clean_trustkit": {
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/vulnerable": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-007/vulnerable_flutter": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/vulnerable_react_native": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/vulnerable_rn_not_called": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/vulnerable_tofu": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-007/vulnerable_xcodegen": {
+  "IOS-007": 2,
+  "IOS-028": 2,
+  "IOS-030": 2,
+  "IOS-036": 2
+ },
+ "IOS-008/clean": {},
+ "IOS-008/clean_rn": {},
+ "IOS-008/vulnerable": {
+  "IOS-008": 2
+ },
+ "IOS-008/vulnerable_rn": {
+  "IOS-008": 3
+ },
+ "IOS-009/clean": {},
+ "IOS-009/clean_compare": {},
+ "IOS-009/clean_rn": {},
+ "IOS-009/debug_rn": {
+  "IOS-009": 1
+ },
+ "IOS-009/vulnerable": {
+  "IOS-009": 2
+ },
+ "IOS-009/vulnerable_keychainaccess": {
+  "IOS-009": 1
+ },
+ "IOS-009/vulnerable_rn": {
+  "IOS-009": 5
+ },
+ "IOS-010/clean": {},
+ "IOS-010/clean_entitlement": {},
+ "IOS-010/clean_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-010/vulnerable": {
+  "IOS-010": 3
+ },
+ "IOS-010/vulnerable_entitlement": {
+  "IOS-010": 1
+ },
+ "IOS-010/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-010": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-011/clean": {},
+ "IOS-011/clean_read": {},
+ "IOS-011/vulnerable": {
+  "IOS-011": 2
+ },
+ "IOS-011/vulnerable_read": {
+  "IOS-011": 1
+ },
+ "IOS-012/clean": {},
+ "IOS-012/clean_delegate": {},
+ "IOS-012/vulnerable": {
+  "IOS-012": 1
+ },
+ "IOS-012/vulnerable_binds_elsewhere": {
+  "IOS-012": 1
+ },
+ "IOS-012/vulnerable_multiline": {
+  "IOS-012": 2,
+  "XPL-018": 1
+ },
+ "IOS-013/clean": {},
+ "IOS-013/nearmiss_current_set": {
+  "XPL-018": 1
+ },
+ "IOS-013/vulnerable": {
+  "IOS-013": 2
+ },
+ "IOS-013/vulnerable_keychain_item": {
+  "IOS-013": 2,
+  "XPL-018": 1
+ },
+ "IOS-014/clean": {},
+ "IOS-014/clean_flavor": {
+  "IOS-007": 1,
+  "IOS-019": 3,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-014/clean_rn": {},
+ "IOS-014/vulnerable": {
+  "IOS-014": 2
+ },
+ "IOS-014/vulnerable_debug_in_release": {
+  "IOS-007": 1,
+  "IOS-014": 1,
+  "IOS-019": 1,
+  "IOS-025": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-014/vulnerable_else_extension": {
+  "IOS-007": 1,
+  "IOS-014": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-014/vulnerable_extension_flag": {
+  "IOS-007": 1,
+  "IOS-014": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-014/vulnerable_rn": {
+  "AND-013": 2,
+  "IOS-014": 2
+ },
+ "IOS-015/clean": {},
+ "IOS-015/clean_stub_handlers": {},
+ "IOS-015/clean_trampoline": {},
+ "IOS-015/vulnerable": {
+  "IOS-015": 1
+ },
+ "IOS-015/vulnerable_delegate_action": {
+  "IOS-015": 1
+ },
+ "IOS-015/vulnerable_keyboard_frameinfo": {
+  "IOS-015": 1
+ },
+ "IOS-016/clean": {},
+ "IOS-016/nearmiss_wkwebview": {},
+ "IOS-016/vulnerable": {
+  "IOS-016": 2
+ },
+ "IOS-016/vulnerable_objc_impl": {
+  "IOS-016": 1
+ },
+ "IOS-017/clean": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-017/clean_payment": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-017/cookie_sync": {
+  "IOS-007": 1,
+  "IOS-017": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-017/vulnerable": {
+  "IOS-007": 1,
+  "IOS-017": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-017/vulnerable_fallback": {
+  "IOS-007": 1,
+  "IOS-017": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-017/vulnerable_flutter": {
+  "IOS-017": 2
+ },
+ "IOS-017/vulnerable_os_redirect": {
+  "IOS-007": 1,
+  "IOS-017": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-017/webview_captured": {
+  "IOS-007": 1,
+  "IOS-017": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-018/clean": {},
+ "IOS-018/vulnerable": {
+  "IOS-018": 2
+ },
+ "IOS-018/vulnerable_app_group": {
+  "IOS-018": 2
+ },
+ "IOS-019/clean": {
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-019/clean_spm_demo": {
+  "CI-008": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-019/clean_synced": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-019/nearmiss_sample_project": {
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-019/nearmiss_test_host_and_mac": {
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-019/vulnerable": {
+  "IOS-019": 2,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-020/clean": {},
+ "IOS-020/clean_localonly": {},
+ "IOS-020/internal_only": {
+  "IOS-020": 1
+ },
+ "IOS-020/vulnerable": {
+  "IOS-020": 2
+ },
+ "IOS-020/vulnerable_multiline": {
+  "IOS-020": 2
+ },
+ "IOS-020/vulnerable_no_expiry": {
+  "IOS-020": 1
+ },
+ "IOS-021/clean": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-021/clean_schemes": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-021/vulnerable": {
+  "IOS-019": 1,
+  "IOS-021": 3,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-021/vulnerable_archived_staging": {
+  "IOS-019": 1,
+  "IOS-021": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-021/vulnerable_strip": {
+  "IOS-019": 1,
+  "IOS-021": 2,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-022/clean": {},
+ "IOS-022/nearmiss_lookalike_pods": {},
+ "IOS-022/vulnerable": {
+  "IOS-022": 3
+ },
+ "IOS-022/vulnerable_staging_config": {
+  "IOS-022": 3
+ },
+ "IOS-023/clean": {},
+ "IOS-023/nearmiss_constant_key": {},
+ "IOS-023/nearmiss_kvc_off": {},
+ "IOS-023/vulnerable": {
+  "IOS-023": 3
+ },
+ "IOS-023/vulnerable_constant_key": {
+  "IOS-023": 3
+ },
+ "IOS-023/vulnerable_multiline_kvc": {
+  "IOS-023": 3
+ },
+ "IOS-024/clean": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-024/clean_no_project": {},
+ "IOS-024/vulnerable": {
+  "IOS-019": 1,
+  "IOS-024": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-024/vulnerable_no_project": {
+  "IOS-024": 1
+ },
+ "IOS-025/clean": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-025/nearmiss_release_flags": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-025/vulnerable": {
+  "IOS-019": 1,
+  "IOS-025": 3,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-025/vulnerable_base_xcconfig": {
+  "IOS-019": 1,
+  "IOS-025": 2,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-026/clean": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-026/nearmiss_generated_plist": {},
+ "IOS-026/nearmiss_objc_prompt": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-026/vulnerable": {
+  "IOS-007": 1,
+  "IOS-026": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-026/vulnerable_no_purpose_string": {
+  "IOS-007": 1,
+  "IOS-026": 2,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "IOS-038": 1
+ },
+ "IOS-027/clean": {},
+ "IOS-027/clean_no_manifest": {},
+ "IOS-027/vulnerable": {
+  "IOS-027": 3
+ },
+ "IOS-028/clean": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-028/clean_flutter": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-028/clean_rn_app_attest": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-028/vulnerable": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-028/vulnerable_devicecheck": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-028/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-028/vulnerable_rn_device_check_default": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-029/clean": {},
+ "IOS-029/nearmiss_zero_reuse": {},
+ "IOS-029/vulnerable": {
+  "IOS-029": 2
+ },
+ "IOS-029/vulnerable_objc_setter": {
+  "IOS-029": 3
+ },
+ "IOS-030/clean": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-030/clean_expo_screen_capture": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-030/clean_flutter": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-030/clean_notification": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-030/clean_rn_appstate": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-030/clean_rn_privacy_snapshot": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-030/vulnerable": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-030/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-030/vulnerable_rn_appstate_other": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-031/clean": {},
+ "IOS-031/nearmiss_objc_nested": {},
+ "IOS-031/nearmiss_scoped_folder": {},
+ "IOS-031/vulnerable": {
+  "IOS-031": 4
+ },
+ "IOS-031/vulnerable_objc_nested": {
+  "IOS-031": 1
+ },
+ "IOS-031/vulnerable_tmp_and_docs": {
+  "IOS-031": 3
+ },
+ "IOS-032/clean": {},
+ "IOS-032/nearmiss_exact_host": {},
+ "IOS-032/nearmiss_objc_allowlist": {},
+ "IOS-032/vulnerable": {
+  "IOS-032": 2
+ },
+ "IOS-032/vulnerable_objc_and_blocklist": {
+  "IOS-032": 3
+ },
+ "IOS-032/vulnerable_scene_swiftui": {
+  "IOS-032": 2
+ },
+ "IOS-033/clean": {},
+ "IOS-033/nearmiss_c_api": {},
+ "IOS-033/nearmiss_dtls12_securetransport": {},
+ "IOS-033/vulnerable": {
+  "IOS-033": 4
+ },
+ "IOS-033/vulnerable_c_api": {
+  "IOS-033": 2
+ },
+ "IOS-033/vulnerable_dtls_securetransport": {
+  "IOS-033": 3
+ },
+ "IOS-034/clean": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "IOS-046": 2,
+  "XPL-044": 3
+ },
+ "IOS-034/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-034/vulnerable": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-034": 2,
+  "IOS-036": 1,
+  "IOS-046": 2,
+  "XPL-044": 3
+ },
+ "IOS-034/vulnerable_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-034": 2,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-035/clean": {},
+ "IOS-035/nearmiss_keychain_group": {},
+ "IOS-035/vulnerable": {
+  "IOS-035": 1,
+  "XPL-044": 1
+ },
+ "IOS-035/vulnerable_encoded_write": {
+  "IOS-035": 1,
+  "XPL-044": 1
+ },
+ "IOS-035/vulnerable_objc_url": {
+  "IOS-035": 1,
+  "XPL-044": 1
+ },
+ "IOS-036/clean": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-036/vulnerable": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-036/vulnerable_allows": {
+  "IOS-036": 1
+ },
+ "IOS-036/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-037/clean": {},
+ "IOS-037/nearmiss_key_absent": {},
+ "IOS-037/vulnerable": {
+  "IOS-037": 1
+ },
+ "IOS-037/vulnerable_string_yes": {
+  "IOS-037": 1
+ },
+ "IOS-038/clean": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1
+ },
+ "IOS-038/clean_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-038/vulnerable": {
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "IOS-038": 2
+ },
+ "IOS-038/vulnerable_expo": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "IOS-038": 2,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "IOS-039/clean": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-039/clean_no_project": {},
+ "IOS-039/vulnerable": {
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "IOS-039": 2,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-039/vulnerable_no_project": {
+  "IOS-039": 1
+ },
+ "IOS-040/clean": {},
+ "IOS-040/nearmiss_subdomain_declared": {},
+ "IOS-040/nearmiss_vendor_site": {},
+ "IOS-040/vulnerable": {
+  "IOS-040": 2
+ },
+ "IOS-040/vulnerable_partial_declared": {
+  "IOS-040": 2
+ },
+ "IOS-040/vulnerable_sibling_subdomain": {
+  "IOS-040": 1
+ },
+ "IOS-041/clean": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-041/nearmiss_unarchived_config": {
+  "IOS-019": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-041/vulnerable": {
+  "IOS-019": 1,
+  "IOS-041": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-041/vulnerable_xcconfig": {
+  "IOS-019": 1,
+  "IOS-041": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "IOS-042/clean": {},
+ "IOS-042/nearmiss_entities_off": {},
+ "IOS-042/nearmiss_masked_flags": {},
+ "IOS-042/vulnerable": {
+  "IOS-042": 2
+ },
+ "IOS-042/vulnerable_objc_libxml": {
+  "IOS-042": 2
+ },
+ "IOS-043/clean": {
+  "XPL-033": 1
+ },
+ "IOS-043/nearmiss_numberpad_secure": {},
+ "IOS-043/nearmiss_parent_modifier": {},
+ "IOS-043/vulnerable": {
+  "IOS-043": 4
+ },
+ "IOS-043/vulnerable_lazy_closure": {
+  "IOS-043": 1
+ },
+ "IOS-043/vulnerable_lazy_objc": {
+  "IOS-043": 3
+ },
+ "IOS-043/vulnerable_sibling_view": {
+  "IOS-043": 1
+ },
+ "IOS-044/clean": {},
+ "IOS-044/nearmiss_c_api_localhost": {},
+ "IOS-044/nearmiss_tls_bonjour": {},
+ "IOS-044/vulnerable": {
+  "IOS-044": 2
+ },
+ "IOS-044/vulnerable_c_api": {
+  "IOS-044": 1
+ },
+ "IOS-044/vulnerable_endpoint_streams": {
+  "IOS-044": 3
+ },
+ "IOS-045/clean": {},
+ "IOS-045/nearmiss_hidden_passwordless": {},
+ "IOS-045/vulnerable": {
+  "IOS-045": 2
+ },
+ "IOS-045/vulnerable_objc_variable": {
+  "IOS-045": 2
+ },
+ "IOS-045/vulnerable_static_page": {
+  "IOS-045": 1
+ },
+ "IOS-046/clean": {
+  "XPL-044": 1
+ },
+ "IOS-046/nearmiss_folder_excluded": {},
+ "IOS-046/nearmiss_tokenizer_excluded": {},
+ "IOS-046/vulnerable": {
+  "IOS-046": 3
+ },
+ "IOS-046/vulnerable_second_write": {
+  "IOS-046": 1
+ },
+ "IOS-046/vulnerable_url_api_objc": {
+  "IOS-046": 2
+ },
+ "IOS-047/clean": {},
+ "IOS-047/clean_no_pins": {},
+ "IOS-047/vulnerable": {
+  "IOS-047": 2
+ },
+ "KMP-001/clean": {},
+ "KMP-001/nearmiss_intent_named_api": {},
+ "KMP-001/vulnerable": {
+  "KMP-001": 3
+ },
+ "KMP-001/vulnerable_platform_named_api": {
+  "KMP-001": 4
+ },
+ "KMP-002/clean": {},
+ "KMP-002/nearmiss_multiplatform_libs": {},
+ "KMP-002/vulnerable": {
+  "KMP-002": 3
+ },
+ "KMP-002/vulnerable_attestation_imports": {
+  "KMP-002": 5
+ },
+ "KMP-002/vulnerable_qualified_subpackages": {
+  "KMP-002": 2
+ },
+ "KMP-003/clean": {},
+ "KMP-003/nearmiss_nsc_pin_set": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "KMP-003/nearmiss_pinner_factory": {},
+ "KMP-003/vulnerable": {
+  "KMP-003": 1
+ },
+ "KMP-003/vulnerable_expired_pin_set": {
+  "AND-008": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "KMP-003": 1
+ },
+ "KMP-003/vulnerable_preconfigured_session": {
+  "KMP-003": 1
+ },
+ "KMP-004/clean": {},
+ "KMP-004/nearmiss_runtime_level": {},
+ "KMP-004/nearmiss_sanitized_headers": {},
+ "KMP-004/vulnerable": {
+  "KMP-004": 3
+ },
+ "KMP-004/vulnerable_custom_logger": {
+  "KMP-004": 2
+ },
+ "KMP-004/vulnerable_level_constant": {
+  "KMP-004": 1
+ },
+ "KMP-005/clean": {},
+ "KMP-005/nearmiss_client_certificate": {},
+ "KMP-005/nearmiss_helper_evaluation": {},
+ "KMP-005/vulnerable": {
+  "KMP-005": 2
+ },
+ "KMP-005/vulnerable_auth_method_check": {
+  "KMP-005": 2
+ },
+ "KMP-005/vulnerable_staging_handler": {
+  "KMP-005": 1
+ },
+ "KMP-006/clean": {},
+ "KMP-006/clean_keychain": {},
+ "KMP-006/vulnerable": {
+  "KMP-006": 3
+ },
+ "RN-001/clean": {
+  "IOS-009": 1
+ },
+ "RN-001/vulnerable": {
+  "RN-001": 11
+ },
+ "RN-002/clean": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "RN-002/vulnerable": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "RN-002": 12,
+  "XPL-001": 2,
+  "XPL-003": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "RN-003/clean": {
+  "RN-015": 1
+ },
+ "RN-003/clean_stripped": {},
+ "RN-003/vulnerable": {
+  "RN-003": 7
+ },
+ "RN-004/clean": {},
+ "RN-004/debug": {
+  "RN-004": 1
+ },
+ "RN-004/vulnerable": {
+  "RN-004": 3
+ },
+ "RN-005/clean": {},
+ "RN-005/vulnerable": {
+  "RN-005": 8
+ },
+ "RN-006/clean": {
+  "XPL-046": 1
+ },
+ "RN-006/vulnerable": {
+  "RN-006": 3
+ },
+ "RN-007/clean": {},
+ "RN-007/vulnerable": {
+  "RN-007": 4,
+  "RN-009": 1
+ },
+ "RN-008/clean": {},
+ "RN-008/nearmiss_origin_whitelist": {},
+ "RN-008/vulnerable": {
+  "RN-008": 8,
+  "RN-015": 1
+ },
+ "RN-008/vulnerable_wildcard_whitelist": {
+  "RN-008": 1
+ },
+ "RN-009/clean": {},
+ "RN-009/vulnerable": {
+  "RN-009": 5
+ },
+ "RN-010/clean": {},
+ "RN-010/vulnerable": {
+  "RN-010": 4
+ },
+ "RN-011/clean": {},
+ "RN-011/clean_nodep": {},
+ "RN-011/vulnerable": {
+  "RN-011": 3
+ },
+ "RN-012/clean": {},
+ "RN-012/clean_bound": {},
+ "RN-012/vulnerable": {
+  "RN-012": 4
+ },
+ "RN-013/clean": {
+  "XPL-004": 1
+ },
+ "RN-013/vulnerable": {
+  "RN-013": 4,
+  "XPL-011": 2
+ },
+ "RN-014/clean": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "RN-014/clean-computed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "RN-014/clean-disabled": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "RN-014/vulnerable": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "RN-014": 2,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "RN-014/vulnerable-http": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "RN-014": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "RN-015/clean": {},
+ "RN-015/clean-dev-only": {},
+ "RN-015/clean-noop": {},
+ "RN-015/clean-package-tools": {},
+ "RN-015/vulnerable": {
+  "RN-015": 1
+ },
+ "RN-016/clean": {
+  "CI-008": 1
+ },
+ "RN-016/vulnerable": {
+  "AND-027": 1,
+  "CI-008": 1,
+  "RN-016": 4
+ },
+ "RN-017/clean": {},
+ "RN-017/vulnerable": {
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "RN-017": 4
+ },
+ "RN-018/clean": {},
+ "RN-018/vulnerable": {
+  "RN-018": 4
+ },
+ "RN-019/clean": {},
+ "RN-019/vulnerable": {
+  "RN-019": 16
+ },
+ "RN-020/clean": {},
+ "RN-020/vulnerable": {
+  "RN-020": 4,
+  "XPL-042": 1
+ },
+ "XPL-001/clean": {},
+ "XPL-001/rn_clean": {},
+ "XPL-001/rn_vulnerable": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "RN-002": 1,
+  "XPL-001": 3,
+  "XPL-003": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-001/vulnerable": {
+  "XPL-001": 9
+ },
+ "XPL-002/clean": {},
+ "XPL-002/rn_clean": {},
+ "XPL-002/rn_vulnerable": {
+  "XPL-002": 1
+ },
+ "XPL-002/vulnerable": {
+  "XPL-002": 3
+ },
+ "XPL-003/clean": {},
+ "XPL-003/debug": {
+  "XPL-003": 1
+ },
+ "XPL-003/rn_clean": {
+  "RN-002": 1
+ },
+ "XPL-003/rn_vulnerable": {
+  "XPL-003": 7
+ },
+ "XPL-003/vulnerable": {
+  "XPL-003": 7
+ },
+ "XPL-004/clean": {},
+ "XPL-004/rn_clean": {},
+ "XPL-004/rn_vulnerable": {
+  "XPL-004": 2
+ },
+ "XPL-004/vulnerable": {
+  "XPL-004": 8
+ },
+ "XPL-004/vulnerable_fallback": {
+  "XPL-004": 1
+ },
+ "XPL-005/clean": {},
+ "XPL-005/clean_mac_size": {},
+ "XPL-005/vulnerable": {
+  "XPL-005": 4
+ },
+ "XPL-005/vulnerable_auth_bound": {
+  "XPL-005": 1
+ },
+ "XPL-006/clean": {
+  "XPL-005": 2
+ },
+ "XPL-006/rn_clean": {},
+ "XPL-006/rn_vulnerable": {
+  "XPL-006": 2
+ },
+ "XPL-006/vulnerable": {
+  "XPL-005": 2,
+  "XPL-006": 11,
+  "XPL-011": 1
+ },
+ "XPL-007/clean": {},
+ "XPL-007/rn_clean": {},
+ "XPL-007/rn_vulnerable": {
+  "XPL-007": 1
+ },
+ "XPL-007/vulnerable": {
+  "XPL-007": 6
+ },
+ "XPL-008/clean": {},
+ "XPL-008/rn_clean": {},
+ "XPL-008/rn_vulnerable": {
+  "XPL-008": 2
+ },
+ "XPL-008/vulnerable": {
+  "XPL-008": 9
+ },
+ "XPL-009/clean": {
+  "XPL-036": 2
+ },
+ "XPL-009/nearmiss_identifiers": {},
+ "XPL-009/rn_clean": {
+  "XPL-036": 1
+ },
+ "XPL-009/rn_vulnerable": {
+  "XPL-009": 5
+ },
+ "XPL-009/vulnerable": {
+  "XPL-009": 8
+ },
+ "XPL-009/vulnerable_after_namespaces": {
+  "XPL-009": 1
+ },
+ "XPL-010/clean": {},
+ "XPL-010/debug": {
+  "XPL-010": 2
+ },
+ "XPL-010/nearmiss_option_names": {},
+ "XPL-010/rn_clean": {
+  "RN-015": 1
+ },
+ "XPL-010/rn_debug": {
+  "XPL-010": 1
+ },
+ "XPL-010/rn_stripped": {},
+ "XPL-010/rn_vulnerable": {
+  "RN-015": 1,
+  "XPL-010": 3
+ },
+ "XPL-010/vulnerable": {
+  "XPL-010": 13
+ },
+ "XPL-011/clean": {},
+ "XPL-011/rn_clean": {},
+ "XPL-011/rn_vulnerable": {
+  "RN-013": 1,
+  "XPL-011": 3
+ },
+ "XPL-011/vulnerable": {
+  "XPL-003": 1,
+  "XPL-005": 1,
+  "XPL-006": 1,
+  "XPL-011": 12
+ },
+ "XPL-012/clean": {},
+ "XPL-012/rn_clean": {},
+ "XPL-012/rn_vulnerable": {
+  "XPL-012": 3
+ },
+ "XPL-012/vulnerable": {
+  "XPL-012": 3
+ },
+ "XPL-013/clean": {},
+ "XPL-013/rn_clean": {},
+ "XPL-013/rn_vulnerable": {
+  "XPL-006": 1,
+  "XPL-013": 2
+ },
+ "XPL-013/vulnerable": {
+  "XPL-013": 6,
+  "XPL-014": 1
+ },
+ "XPL-014/clean": {},
+ "XPL-014/rn_clean": {},
+ "XPL-014/rn_vulnerable": {
+  "XPL-014": 1
+ },
+ "XPL-014/vulnerable": {
+  "XPL-014": 6
+ },
+ "XPL-015/clean": {},
+ "XPL-015/clean_benchmark": {},
+ "XPL-015/clean_random_password": {},
+ "XPL-015/clean_wrapper": {},
+ "XPL-015/rn_clean": {},
+ "XPL-015/rn_vulnerable": {
+  "XPL-015": 2
+ },
+ "XPL-015/vulnerable": {
+  "XPL-015": 4
+ },
+ "XPL-015/vulnerable_legacy": {
+  "XPL-015": 2
+ },
+ "XPL-015/vulnerable_medium": {
+  "XPL-015": 1
+ },
+ "XPL-015/vulnerable_wrapper": {
+  "XPL-015": 1,
+  "XPL-016": 1
+ },
+ "XPL-016/clean": {},
+ "XPL-016/clean_wrapper": {},
+ "XPL-016/rn_clean": {},
+ "XPL-016/rn_vulnerable": {
+  "XPL-016": 1
+ },
+ "XPL-016/vulnerable": {
+  "XPL-016": 4
+ },
+ "XPL-016/vulnerable_wrapper": {
+  "XPL-015": 1,
+  "XPL-016": 1
+ },
+ "XPL-017/clean": {},
+ "XPL-017/nearmiss_loopback_core": {},
+ "XPL-017/vulnerable": {
+  "XPL-017": 3
+ },
+ "XPL-017/vulnerable_mixed_targets": {
+  "XPL-017": 1
+ },
+ "XPL-018/clean": {},
+ "XPL-018/rn_clean": {
+  "IOS-009": 1
+ },
+ "XPL-018/rn_vulnerable": {
+  "IOS-009": 1,
+  "XPL-018": 3
+ },
+ "XPL-018/vulnerable": {
+  "XPL-018": 5
+ },
+ "XPL-019/clean": {
+  "XPL-001": 1
+ },
+ "XPL-019/vulnerable": {
+  "XPL-019": 4
+ },
+ "XPL-020/clean": {},
+ "XPL-020/vulnerable": {
+  "XPL-020": 3
+ },
+ "XPL-021/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-021/clean_expo_jail_monkey": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-021/library": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-021/plistonly": {
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-021/rn_clean_dep": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-021/rn_clean_rasp": {
+  "XPL-028": 1,
+  "XPL-040": 1
+ },
+ "XPL-021/rn_vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-021/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-021/vulnerable_expo_managed": {
+  "AND-007": 1,
+  "AND-021": 1,
+  "AND-027": 1,
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-021/watch_anchor": {
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-022/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-022/library": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-022/rn_clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-022/rn_vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-022/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-022/vulnerable_not_antidebug": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-023/clean": {},
+ "XPL-023/vulnerable": {
+  "XPL-023": 5
+ },
+ "XPL-023/vulnerable_legacy": {
+  "XPL-023": 1
+ },
+ "XPL-024/clean": {},
+ "XPL-024/vulnerable": {
+  "XPL-024": 4
+ },
+ "XPL-025/clean": {},
+ "XPL-025/vulnerable": {
+  "XPL-025": 3
+ },
+ "XPL-025/vulnerable_network": {
+  "XPL-025": 1
+ },
+ "XPL-026/clean": {},
+ "XPL-026/vulnerable": {
+  "XPL-026": 2
+ },
+ "XPL-027/clean": {},
+ "XPL-027/vulnerable": {
+  "XPL-027": 3
+ },
+ "XPL-028/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-028/library": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-028/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-029/clean": {
+  "XPL-048": 1
+ },
+ "XPL-029/rn_clean": {},
+ "XPL-029/rn_vulnerable": {
+  "RN-008": 2,
+  "XPL-029": 2
+ },
+ "XPL-029/vulnerable": {
+  "XPL-029": 2
+ },
+ "XPL-030/clean": {},
+ "XPL-030/vulnerable": {
+  "XPL-030": 3
+ },
+ "XPL-031/clean": {},
+ "XPL-031/clean-native": {},
+ "XPL-031/encrypted": {},
+ "XPL-031/rn_clean": {},
+ "XPL-031/rn_vulnerable": {
+  "XPL-031": 2
+ },
+ "XPL-031/vulnerable": {
+  "XPL-031": 3
+ },
+ "XPL-031/vulnerable-native": {
+  "XPL-031": 3
+ },
+ "XPL-032/clean": {},
+ "XPL-032/rn_clean": {},
+ "XPL-032/rn_vulnerable": {
+  "XPL-032": 2
+ },
+ "XPL-032/vulnerable": {
+  "XPL-032": 3
+ },
+ "XPL-033/clean": {},
+ "XPL-033/rn_clean": {},
+ "XPL-033/rn_vulnerable": {
+  "XPL-033": 3
+ },
+ "XPL-033/vulnerable": {
+  "XPL-033": 6
+ },
+ "XPL-034/clean": {},
+ "XPL-034/nearmiss_event_names": {},
+ "XPL-034/rn_clean": {},
+ "XPL-034/rn_vulnerable": {
+  "XPL-034": 3
+ },
+ "XPL-034/vulnerable": {
+  "XPL-034": 5
+ },
+ "XPL-034/vulnerable_swift_extras": {
+  "XPL-034": 1
+ },
+ "XPL-035/clean": {},
+ "XPL-035/vulnerable": {
+  "XPL-035": 4
+ },
+ "XPL-036/clean": {},
+ "XPL-036/debug": {
+  "XPL-036": 1
+ },
+ "XPL-036/rn_clean": {},
+ "XPL-036/rn_vulnerable": {
+  "XPL-036": 3
+ },
+ "XPL-036/vulnerable": {
+  "XPL-036": 3
+ },
+ "XPL-037/clean": {},
+ "XPL-037/rn_clean": {},
+ "XPL-037/rn_vulnerable": {
+  "XPL-037": 2
+ },
+ "XPL-037/vulnerable": {
+  "XPL-037": 4
+ },
+ "XPL-038/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-038/library": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-038/rn_clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-038/rn_vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-038/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-039/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-040": 2
+ },
+ "XPL-039/library": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-039/rn_clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-040": 1
+ },
+ "XPL-039/rn_vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-039/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-040/clean": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2
+ },
+ "XPL-040/library": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-040/rn_clean_dep": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1
+ },
+ "XPL-040/rn_clean_js": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1
+ },
+ "XPL-040/rn_clean_version_blocker": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1
+ },
+ "XPL-040/rn_vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "XPL-021": 1,
+  "XPL-022": 1,
+  "XPL-028": 1,
+  "XPL-038": 1,
+  "XPL-039": 1,
+  "XPL-040": 1
+ },
+ "XPL-040/vulnerable": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1,
+  "IOS-007": 1,
+  "IOS-019": 1,
+  "IOS-028": 1,
+  "IOS-030": 1,
+  "IOS-036": 1,
+  "XPL-021": 2,
+  "XPL-022": 2,
+  "XPL-028": 2,
+  "XPL-038": 2,
+  "XPL-039": 2,
+  "XPL-040": 2
+ },
+ "XPL-041/clean": {},
+ "XPL-041/vulnerable": {
+  "XPL-041": 2
+ },
+ "XPL-042/clean": {},
+ "XPL-042/vulnerable": {
+  "XPL-042": 4
+ },
+ "XPL-043/clean": {},
+ "XPL-043/rn_clean": {},
+ "XPL-043/rn_vulnerable": {
+  "XPL-043": 3
+ },
+ "XPL-043/vulnerable": {
+  "XPL-043": 3
+ },
+ "XPL-044/clean": {},
+ "XPL-044/rn_clean": {},
+ "XPL-044/rn_vulnerable": {
+  "XPL-044": 2
+ },
+ "XPL-044/vulnerable": {
+  "XPL-044": 5
+ },
+ "XPL-044/vulnerable_kotlin_writetext": {
+  "XPL-044": 1
+ },
+ "XPL-045/clean": {},
+ "XPL-045/nearmiss_totp": {
+  "AND-045": 1,
+  "AND-046": 1,
+  "AND-048": 1
+ },
+ "XPL-045/rn_clean": {},
+ "XPL-045/rn_vulnerable": {
+  "XPL-045": 1
+ },
+ "XPL-045/vulnerable": {
+  "XPL-045": 5
+ },
+ "XPL-046/clean": {},
+ "XPL-046/rn_clean": {},
+ "XPL-046/rn_vulnerable": {
+  "XPL-046": 2
+ },
+ "XPL-046/vulnerable": {
+  "XPL-046": 4
+ },
+ "XPL-047/clean": {},
+ "XPL-047/vulnerable": {
+  "XPL-047": 2
+ },
+ "XPL-048/clean": {},
+ "XPL-048/vulnerable": {
+  "XPL-048": 1
+ },
+ "XPL-049/clean": {},
+ "XPL-049/vulnerable": {
+  "XPL-049": 5
+ }
+}

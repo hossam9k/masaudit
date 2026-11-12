@@ -66,14 +66,53 @@ Commit `.masaudit-baseline.json` and fix the accepted findings over time. In CI,
 
 A finding stays accepted while its file path and the text of its line stay the same.
 
+Say why each finding is accepted, and until when. The reason appears wherever the finding is listed as
+accepted: in the report, the SARIF suppression, and the Action's job summary, where a pull request's
+reviewer sees it.
+
+```bash
+masaudit . --update-baseline --baseline-reason SEC-142 --baseline-expires 2027-03-31   # a ticket that tracks the fix
+```
+
+Each entry in the file can also be edited by hand:
+
+```json
+"9f2c...": {"rule": "AND-001", "path": "app/src/main/AndroidManifest.xml", "line": 3,
+            "reason": "legacy login, removed in 3.0", "expires": "2027-03-31"}
+```
+
+- **`reason`:** kept when you run `--update-baseline` again; new entries get this run's
+  `--baseline-reason`.
+- **`expires`:** after this date the finding counts again and the report says the entry expired.
+  `--update-baseline` never moves the date: renew it on purpose, with a new reason.
+- **Stale entries:** an entry whose finding is gone (fixed, moved, or excluded) is listed in the
+  report and the JSON `baseline.stale` count. Run `--update-baseline` to remove it.
+
+Files from earlier versions (without `reason` or `expires`) still work.
+
 ## Bring results from other tools
 
 ```bash
 masaudit . --import-sarif lint.sarif mobsfscan.sarif
 ```
 
-masaudit reads SARIF files from Android Lint, mobsfscan, Semgrep, and zizmor, and sorts their results
-into the same buckets for your app type, in one report.
+masaudit reads SARIF files from Android Lint, mobsfscan, Semgrep, zizmor, and other tools, and sorts their
+results into the same buckets for your app type, in one report. Text from an imported file is treated
+as untrusted: it is masked, kept to one line, and can't add links or headings to the report.
+
+### Known vulnerabilities in dependencies
+
+masaudit never uses the network, so it doesn't look up vulnerabilities in the versions your lockfiles
+pin. [osv-scanner](https://github.com/google/osv-scanner) does; import its results so they're sorted
+with everything else:
+
+```bash
+osv-scanner scan source --format sarif --output osv.sarif .
+masaudit . --import-sarif osv.sarif
+```
+
+Each vulnerable package becomes a finding on its lockfile, with the advisory's severity and a link to
+it, under the book's section on [dependencies and build inputs](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs).
 
 ## Next steps
 

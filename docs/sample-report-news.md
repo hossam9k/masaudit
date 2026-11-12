@@ -1,7 +1,7 @@
 # Security audit: acme-wallet
 
 - **Date:** 2026-01-01
-- **Scanner:** masaudit 0.7.1, rules 2.3.2
+- **Scanner:** masaudit 0.7.1, rules 2.4.0
 - **Platforms:** Android, iOS, CI/CD pipeline
 - **App profile:** content (News, video, music, reading, or learning); MAS-L1+P; from --app-type
 - **Code clues (suggestions only, not applied):**
@@ -841,12 +841,19 @@ These checks ran and found nothing to fix.
 - Web page or HTML string inserts untrusted text as markup (`XPL-046`)
 - Native code copies Java input into a fixed buffer without a length check (`XPL-047`)
 - App reads sensitive page data in the page's JavaScript world (`XPL-048`)
+- Hidden bidirectional character can make code read differently from how it runs (`XPL-049`)
 
 **CI/CD pipeline**
 
 - Signing key or signing password is committed to the repository (`CI-006`)
 - Gradle wrapper download is not checked against a SHA-256 (`CI-007`)
 - No dependency lockfile is committed (`CI-008`)
+- MCP server runs a package or image that isn't pinned (`CI-009`)
+- Secret is written into a committed MCP server config (`CI-010`)
+- Agent instruction file holds text a reviewer can't see (`CI-011`)
+- Agent instruction file has a hidden comment that gives orders (`CI-012`)
+- Committed agent settings let it run commands without asking (`CI-013`)
+- Committed agent hook downloads and runs code (`CI-014`)
 
 ## Residual risk
 

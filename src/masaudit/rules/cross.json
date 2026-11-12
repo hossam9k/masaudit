@@ -1111,6 +1111,28 @@
       ],
       "confidence": "medium",
       "detector": "xpl_webview_page_world_read"
+    },
+    {
+      "id": "XPL-049",
+      "title": "Hidden bidirectional character can make code read differently from how it runs",
+      "platform": "cross",
+      "severity": "high",
+      "profiles": [
+        "L1"
+      ],
+      "why": "A bidirectional control character (Trojan Source, CVE-2021-42574) reorders how a line is displayed. A reviewer sees a comment or a closed string where the compiler sees code, so a change can pass review with a hidden check removed or a branch added.",
+      "fix": "Remove the character, or write it as an escape such as `\\u202E` inside the string that needs it. Then add a check that rejects these characters in pull requests, such as GCC's `-Wbidi-chars`, a lint rule, or a CI step that searches for U+202A-U+202E and U+2066-U+2069.",
+      "verify": "Run `grep -rnP '[\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]' .` in the repository: it should print nothing outside translation files, and the line should read the same in your editor and in `cat -v`.",
+      "effort": "minutes",
+      "book": "§15.4",
+      "book_url": "https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs",
+      "mastg": [],
+      "fix_code": {
+        "lang": "kotlin",
+        "code": "// Before: an invisible U+202E reorders what a reviewer sees\n// After: the character is gone, or written as an escape where a string needs it\nval rtlOverride = \"\\u202E\""
+      },
+      "confidence": "high",
+      "detector": "xpl_trojan_source"
     }
   ]
 }

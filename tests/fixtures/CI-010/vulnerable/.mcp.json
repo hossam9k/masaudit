@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "s@1.0.0"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{{FAKE_GITHUB_TOKEN}}"
+      }
+    },
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "s@1.0.0"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "f3a9c2e1b7d84a6f9e0c1d2b3a4f5e6d"
+      }
+    },
+    "api": {
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer 9fK2mQ7xL4pR8tV1wZ3c"
+      }
+    },
+    "arg": {
+      "command": "uvx",
+      "args": [
+        "x==1.0.0",
+        "--api-key=Zk29Fh38Gj47Kl56"
+      ]
+    },
+    "q": {
+      "url": "https://mcp.example.com/sse?access_token=Q1w2E3r4T5y6U7i8"
+    }
+  }
+}

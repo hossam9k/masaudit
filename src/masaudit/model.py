@@ -45,6 +45,7 @@ class Rule:
     detector: Optional[str] = None     # name of a registered Python detector
     pattern: Optional[Dict] = None     # declarative code pattern (see engine.run_pattern)
     retired: bool = False
+    imported: bool = False             # made from another tool's SARIF: its text is untrusted, never Markdown
 
 
 @dataclass
@@ -147,3 +148,8 @@ class Project:
     unknowns: List[str] = field(default_factory=list)      # things the scanner could not decide
     undecided: Dict[str, str] = field(default_factory=dict)  # rule id -> why it couldn't decide
     exclude: List[str] = field(default_factory=list)        # the config's `exclude` globs
+    # Files of a scanned type that weren't read, as (path, reason): left out by the walk for safety, or found
+    # unreadable (binary content, say) when a rule opened them. An incomplete scan never looks clean.
+    skipped: List[Tuple[str, str]] = field(default_factory=list)
+    # Files of a scanned type the `exclude` globs left out, per glob (the first glob that matches a file).
+    excluded: Dict[str, int] = field(default_factory=dict)

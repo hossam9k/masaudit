@@ -4,6 +4,7 @@
     [masaudit]
     app_type = banking
     fail_on = high
+    fail_on_incomplete = true
     exclude = vendor/*, third_party/**
 
 Precedence is CLI > config > prompt > default. Unknown sections or keys are an error, so a
@@ -22,7 +23,7 @@ from masaudit import profile, safety
 
 FILE_NAME = ".masaudit.ini"
 SECTION = "masaudit"
-KEYS = ("app_type", "app_type_reviewed", "fail_on", "exclude")
+KEYS = ("app_type", "app_type_reviewed", "fail_on", "fail_on_incomplete", "exclude")
 FAIL_ON = ("critical", "high", "medium", "low")
 
 
@@ -35,8 +36,10 @@ def path_for(root: str) -> str:
 
 
 def load(root: str) -> Dict[str, object]:
-    """Return {"app_type": str|None, "app_type_reviewed": [types], "fail_on": str|None, "exclude": [globs]}."""
-    out: Dict[str, object] = {"app_type": None, "app_type_reviewed": [], "fail_on": None, "exclude": []}
+    """Return {"app_type": str|None, "app_type_reviewed": [types], "fail_on": str|None,
+    "fail_on_incomplete": bool, "exclude": [globs]}."""
+    out: Dict[str, object] = {"app_type": None, "app_type_reviewed": [], "fail_on": None,
+                              "fail_on_incomplete": False, "exclude": []}
     path = path_for(root)
     if not os.path.lexists(path):
         return out
@@ -76,6 +79,12 @@ def load(root: str) -> Dict[str, object]:
         if value not in FAIL_ON:
             raise ConfigError(f"{FILE_NAME}: fail_on must be one of {', '.join(FAIL_ON)}, not '{value}'")
         out["fail_on"] = value
+    if sec.get("fail_on_incomplete", "").strip():
+        try:
+            out["fail_on_incomplete"] = sec.getboolean("fail_on_incomplete")
+        except ValueError:
+            raise ConfigError(f"{FILE_NAME}: fail_on_incomplete must be true or false, "
+                              f"not '{sec['fail_on_incomplete'].strip()}'") from None
     if sec.get("exclude", "").strip():
         out["exclude"] = split_globs(sec["exclude"])
     return out
@@ -88,8 +97,13 @@ def split_globs(value: str) -> List[str]:
 
 def is_excluded(path: str, globs: List[str]) -> bool:
     """True if a repo-relative path matches a glob, or sits under a directory that does."""
+    return matching_glob(path, globs) is not None
+
+
+def matching_glob(path: str, globs: List[str]) -> Optional[str]:
+    """The first glob that excludes a repo-relative path (it matches the path or a directory above it)."""
     if not globs:
-        return False
+        return None
     parts = path.split("/")
     prefixes = ["/".join(parts[: i + 1]) for i in range(len(parts))]
     for pattern in globs:
@@ -99,8 +113,8 @@ def is_excluded(path: str, globs: List[str]) -> bool:
             pat = pat[:-3]
         for candidate in prefixes:
             if fnmatch.fnmatchcase(candidate, pat):
-                return True
-    return False
+                return pattern
+    return None
 
 
 def save_app_type(root: str, app_type: str, reviewed: Sequence[str] = ()) -> str:

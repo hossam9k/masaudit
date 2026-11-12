@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "s@1.0.0"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "s@1.0.0"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "<your-sentry-token>",
+        "SENTRY_HOST": "sentry.io",
+        "LOG_LEVEL": "debug"
+      }
+    },
+    "api": {
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TOKEN}"
+      }
+    },
+    "short": {
+      "command": "x",
+      "env": {
+        "API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}

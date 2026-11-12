@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "one": {
+      "command": "npx -y mcp-remote https://x.invalid/sse"
+    }
+  }
+}

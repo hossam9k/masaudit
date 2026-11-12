@@ -20,7 +20,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
 from masaudit import engine, importers, lexer, safety, suppress  # noqa: E402
-from masaudit.detectors import flutter, ios, kmp, reactnative, rn_platform, rn_storage  # noqa: E402
+from masaudit.detectors import agents, cross, flutter, ios, kmp, reactnative, rn_platform, rn_storage  # noqa: E402
 from masaudit.model import Project  # noqa: E402
 from masaudit.parsers import (  # noqa: E402
     gradle, manifest, pbxproj, plist, proguard, workflows, xcconfig, xcscheme, xmlsafe,
@@ -66,6 +66,12 @@ def check_project(text: str) -> None:
         doc = json.loads(text)
     except (ValueError, RecursionError):
         return
+    if isinstance(doc, dict) and isinstance(doc.get("findings"), dict):
+        _write("baseline.json", text)            # a baseline file is the repository's, so it's untrusted too
+        try:
+            suppress.apply([], suppress.load_baseline(os.path.join(_TMP, "baseline.json")), today="2026-01-01")
+        except suppress.BaselineError:
+            pass
     if isinstance(doc, dict) and isinstance(doc.get("runs"), list):
         _write("in.sarif", text)
         try:
@@ -121,6 +127,25 @@ def check(data: bytes) -> None:
         rn_platform._parse_fn(js_blank, i, i + 2000)
     reactnative.DevGuard(js_code, js_blank)
     rn_storage._load_json(text)
+    # AI-agent configs (MCP servers, settings, instruction files) and hidden Unicode.
+    config = agents.load_jsonc(text)
+    if isinstance(config, dict):
+        for _name, server in agents._servers(config):
+            command = server.get("command") if isinstance(server.get("command"), str) else ""
+            agents.unpinned_package(command, agents._strings(server.get("args")))
+            list(agents._secret_values(server))
+        list(agents._hook_commands(config.get("hooks")))
+    words = text.split()[:40]
+    if words:
+        agents.unpinned_package(words[0], words[1:])
+    for m in agents._HTML_COMMENT.finditer(text[:20_000]):
+        agents.hidden_directive(m.group(1))
+    safety.show_invisible(text)
+    kt_lines, kt_blanks = safety.lines(text), safety.lines(lexer.strip(text, "kotlin", keep_strings=False))
+    for line, blank in list(zip(kt_lines, kt_blanks))[:200]:
+        agents.hidden_text(line)
+        cross._bidi_problem(line, blank if len(blank) == len(line) else None, True)
+        cross._bidi_problem(line, None, False)
     safety.mask(text)
     safety.reject_xml_entities(text)
     for line in text.splitlines()[:50]:
@@ -147,7 +172,9 @@ def _mutate(rng: random.Random, data: bytes, pool) -> bytes:
         elif op == 2:
             b[i:i] = rng.choice((b"{", b"}", b"(", b"\"", b"'", b"/*", b"*/", b"//", b"<", b">", b"<!",
                                  b"\n", b"\r", b"\\", b"${", b"=", b":", b"- ", b"  ", b"\xef\xbb\xbf",
-                                 b'"""', b"#", b";", b"@", b"&", b"\x00"))
+                                 b'"""', b"#", b";", b"@", b"&", b"\x00",
+                                 b"\xe2\x80\xae", b"\xe2\x81\xa6", b"\xe2\x81\xa9", b"\xe2\x80\xac",  # bidi controls
+                                 b"\xf3\xa0\x81\x81", b"\xe2\x80\x8b", b"<!--", b"-->", b"npx -y "))
         elif op == 3 and pool:
             other = rng.choice(pool)
             j = rng.randrange(len(other) + 1)

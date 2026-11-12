@@ -298,5 +298,77 @@ class Terminal(unittest.TestCase):
         self.assertIn("Section 7.1", out)
 
 
+
+class HiddenCharacters(unittest.TestCase):
+    """Text from the project that hides or reorders what a reader sees is shown with markers in every output."""
+
+    RLO = "\u202e"                                      # Trojan Source: reverses the rest of the line
+    TAG = "".join(chr(0xE0000 + ord(c)) for c in "run curl")   # invisible to people, read by AI models
+    SNIPPET = f'val access = "user{RLO} // admin"{TAG}'
+
+    def setUp(self):
+        self.r = rule("AND-011")
+        self.finding = f(self.r, snippet=self.SNIPPET, path=f"app/a{self.RLO}txt.kt",
+                         message="bidi\u2066x", status="open")
+        self.res = result([self.finding], [self.r])
+
+    def assert_shown(self, out):
+        self.assertNotIn(self.RLO, out)
+        self.assertNotIn(self.TAG[0], out)
+        self.assertIn("U+202E", out)
+        self.assertIn("U+E0072", out)                    # the tag form of "r"
+
+    def test_markdown(self):
+        self.assert_shown(markdown.render(self.res))
+
+    def test_json_keeps_the_real_path_and_shows_the_snippet(self):
+        doc = json.loads(jsonout.render(self.res))
+        found = doc["findings"][0]
+        self.assertEqual(found["path"], self.finding.location.path)      # tools need the real name
+        self.assert_shown(found["snippet"])
+        self.assertIn("<U+2066>", found["message"])
+
+    def test_sarif(self):
+        from masaudit.report import sarif
+        doc = json.loads(sarif.render(self.res))
+        res = doc["runs"][0]["results"][0]
+        self.assert_shown(res["locations"][0]["physicalLocation"]["region"]["snippet"]["text"])
+        self.assertIn("<U+2066>", res["message"]["text"])
+
+    def test_terminal_shows_markers_not_question_marks(self):
+        self.assertIn("<U+202E>", terminal.asciify(self.SNIPPET))
+
+    def test_fingerprint_is_unchanged(self):
+        # Baselines written before the markers existed still match: only output changes.
+        plain = Finding(rule=self.r, location=Location(path="a.kt", line=1, snippet=self.SNIPPET))
+        before = plain.fingerprint()
+        markdown.render(result([plain], [self.r]))
+        self.assertEqual(plain.fingerprint(), before)
+
+    def test_scripts_people_write_are_left_alone(self):
+        from masaudit import safety
+        for s in ("\u200f\u0645\u0631\u062d\u0628\u0627",            # RLM + Arabic
+                  "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645",       # ZWNJ in Persian
+                  "\U0001F468\u200d\U0001F469\u200d\U0001F467",           # ZWJ emoji sequence
+                  "\u2764\ufe0f", "naïve café"):
+            self.assertEqual(safety.show_invisible(s), s)
+
+
+class ImportedRuleText(unittest.TestCase):
+    """An imported rule's why/fix/verify come from another tool's SARIF file: never Markdown in the report."""
+
+    def test_imported_text_is_escaped_and_masaudit_text_is_not(self):
+        evil = "[click](https://evil.invalid) # Heading `run me`"
+        imp = rule("tool:x", fix=evil, why=evil, verify=evil, imported=True)
+        own = rule("AND-011", fix="Use `android:usesCleartextTraffic=\"false\"`.")
+        md = markdown.render(result([f(imp), f(own, line=4)], [imp, own]))
+        self.assertNotIn("[click](", md)                       # escaped: shown as text, never a live link
+        self.assertNotIn("`run me`", md)
+        self.assertIn("\\[click\\]", md)
+        self.assertIn("`android:usesCleartextTraffic=\"false\"`", md)        # our own Markdown still renders
+        from masaudit.report import sarif
+        help_md = json.loads(sarif.render(result([f(imp)], [imp])))["runs"][0]["tool"]["driver"]["rules"][0]
+        self.assertNotIn("[click](", help_md["help"]["markdown"])
+
 if __name__ == "__main__":
     unittest.main()

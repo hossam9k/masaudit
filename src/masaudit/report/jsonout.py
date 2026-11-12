@@ -15,6 +15,7 @@ from typing import Dict, List
 from masaudit import __version__
 from masaudit import profile as profile_mod
 from masaudit.model import SEVERITY_RANK, Finding
+from masaudit.safety import show_invisible as _shown
 
 SCHEMA_VERSION = 1
 BUCKETS = ["fix-before-release", "fix-soon", "check-by-hand", "hardening", "notes", "not-needed"]
@@ -86,30 +87,66 @@ def counts(findings: List[Finding]) -> Dict[str, int]:
     return out
 
 
+MAX_LISTED_SKIPS = 1000
+
+
+def excluded_count(project) -> int:
+    return sum(getattr(project, "excluded", {}).values())
+
+
+def excluded_line(project) -> str:
+    """One plain sentence on what the `exclude` globs left out, or "" when there are none."""
+    excluded = getattr(project, "excluded", {})
+    if not excluded:
+        return ""
+    n = excluded_count(project)
+    per = ", ".join(f"{g} ({c})" for g, c in excluded.items())
+    stale = [g for g, c in excluded.items() if not c]
+    tail = (f" {'This pattern matches' if len(stale) == 1 else 'These patterns match'} no file, so "
+            f"{'it' if len(stale) == 1 else 'they'} can go: {', '.join(stale)}." if stale else "")
+    return (f"Not scanned because exclude in .masaudit.ini leaves them out: {n} file{'s' if n != 1 else ''} "
+            f"({per}).{tail}")
+
+
+def scope_dict(project) -> dict:
+    """What the scan covered: files read, files not read and why, and files the settings excluded."""
+    skipped = list(getattr(project, "skipped", []))
+    listed = set(project.files)
+    unreadable = sum(1 for p, _why in skipped if p in listed)     # listed by the walk, then found unreadable
+    return {
+        "files_scanned": len(project.files) - unreadable,
+        "files_not_read": len(skipped),
+        "not_read": [{"path": _shown(p), "reason": why} for p, why in skipped[:MAX_LISTED_SKIPS]],
+        "files_excluded": excluded_count(project),
+        "excluded_by_pattern": [{"pattern": g, "files": c} for g, c in getattr(project, "excluded", {}).items()],
+        "complete": not skipped,
+    }
+
+
 def finding_dict(f: Finding) -> dict:
     r = f.rule
     return {
         "rule_id": r.id,
-        "title": r.title,
+        "title": _shown(r.title),
         "platform": r.platform,
         "severity": r.severity,
         "effective_severity": f.effective_severity,
         "bucket": f.bucket,
-        "bucket_reason": f.bucket_reason,
+        "bucket_reason": _shown(f.bucket_reason),
         "acknowledged": f.acknowledged,
         "confidence": r.confidence,
         "kind": r.kind,
         "status": f.status,
-        "suppression_reason": f.suppression_reason,
-        "path": f.location.path,
+        "suppression_reason": _shown(f.suppression_reason),
+        "path": f.location.path,             # the real name, for tools: shown with markers in every report
         "line": f.location.line,
-        "snippet": f.location.snippet,
-        "message": f.message,
+        "snippet": _shown(f.location.snippet),
+        "message": _shown(f.message),
         "scope": f.scope,
         "fingerprint": f.fingerprint(),
-        "why": r.why,
-        "fix": r.fix,
-        "verify": r.verify,
+        "why": _shown(r.why),
+        "fix": _shown(r.fix),
+        "verify": _shown(r.verify),
         "effort": r.effort,
         "maswe": r.maswe,
         "masvs": r.masvs,
@@ -117,7 +154,7 @@ def finding_dict(f: Finding) -> dict:
         "book": r.book,
         "book_url": r.book_url,
         "safe_fix": r.safe_fix,
-        "imported": ":" in r.id,
+        "imported": r.imported,
     }
 
 
@@ -140,9 +177,11 @@ def to_dict(result) -> dict:
             "warnings": [w.to_dict() for w in p.warnings],
         },
         "summary": counts(result.findings),
+        "scope": scope_dict(result.project),
+        "baseline": result.baseline.to_dict() if getattr(result, "baseline", None) is not None else None,
         "findings": [finding_dict(f) for f in findings],
-        "unknowns": list(result.project.unknowns),
-        "notes": list(getattr(result, "notes", [])),
+        "unknowns": [_shown(u) for u in result.project.unknowns],
+        "notes": [_shown(n) for n in getattr(result, "notes", [])],
     }
 
 

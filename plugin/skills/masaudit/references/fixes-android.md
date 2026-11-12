@@ -1172,3 +1172,17 @@ startActivityForResult(authService.getAuthorizationRequestIntent(request), RC_AU
 Verify: Sign in and confirm the browser, not a WebView, shows the login page, and that the request carries `response_type=code` and `code_challenge_method=S256`.
 
 Book: [Chapter 0.3](https://github.com/hossam9k/mobile-app-security/blob/main/book/00-foundations.md#chapter-03-authentication-sessions-and-tokens)
+
+## XPL-049: Hidden bidirectional character can make code read differently from how it runs
+
+Remove the character, or write it as an escape such as `\u202E` inside the string that needs it. Then add a check that rejects these characters in pull requests, such as GCC's `-Wbidi-chars`, a lint rule, or a CI step that searches for U+202A-U+202E and U+2066-U+2069.
+
+```kotlin
+// Before: an invisible U+202E reorders what a reviewer sees
+// After: the character is gone, or written as an escape where a string needs it
+val rtlOverride = "\u202E"
+```
+
+Verify: Run `grep -rnP '[\x{202A}-\x{202E}\x{2066}-\x{2069}]' .` in the repository: it should print nothing outside translation files, and the line should read the same in your editor and in `cat -v`.
+
+Book: [§15.4](https://github.com/hossam9k/mobile-app-security/blob/main/book/06-the-build-and-release-pipeline.md#154-dependencies-and-build-inputs)
