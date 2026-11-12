@@ -3,7 +3,7 @@
 All notable changes, newest first. Versions follow [SemVer](https://semver.org/); the rules have
 their own version (`rules_version`), shown in every report.
 
-## Unreleased
+## 0.8.0 — 2026-11-12
 
 **Reports can't be hidden from, and a scan can't look cleaner than it was.** Rules 2.4.0, 214 rules. Several
 ideas come from NVIDIA's [SkillSpector](https://github.com/NVIDIA/skillspector), a scanner for AI agent
@@ -89,6 +89,8 @@ A baseline from 0.7.1 keeps matching: no fingerprint changed.
   for the existing rules.
 - The fuzz harness covers the agent-config parsers, the Trojan Source check, hidden-text detection, and
   baseline files, with bidirectional and tag characters among its mutations.
+- masaudit's own source, tests, and docs hold no raw hidden characters: the patterns that match them are
+  written as escapes, and a test fails on any raw one.
 
 ## 0.7.1 — 2026-10-27
 
