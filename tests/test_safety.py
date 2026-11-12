@@ -118,5 +118,28 @@ class Safety(unittest.TestCase):
         self.assertLessEqual(len(safety.mask("x" * 1000 + " y")), 160)
 
 
+
+class OwnSource(unittest.TestCase):
+    def test_masaudit_holds_no_hidden_characters_itself(self):
+        # A scanner that reports Trojan Source must not carry it: every such character in masaudit's own code,
+        # tests, and docs is written as an escape (\\u202e), never raw. Fixtures hold them on purpose.
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        found = []
+        for top in ("src", "scripts", "fuzz", "tests", "docs", "plugin"):
+            for dirpath, dirnames, names in os.walk(os.path.join(root, top)):
+                dirnames[:] = [d for d in dirnames if d not in ("fixtures", "__pycache__")]
+                for name in names:
+                    if not name.endswith((".py", ".md", ".json", ".yml", ".yaml")):
+                        continue
+                    path = os.path.join(dirpath, name)
+                    with open(path, encoding="utf-8", errors="replace") as fh:
+                        for n, line in enumerate(fh, 1):
+                            if safety.INVISIBLE.search(line.rstrip("\n")):
+                                found.append(f"{os.path.relpath(path, root)}:{n}")
+        for name in ("README.md", "CHANGELOG.md", "action.yml"):
+            with open(os.path.join(root, name), encoding="utf-8") as fh:
+                found += [f"{name}:{n}" for n, line in enumerate(fh, 1) if safety.INVISIBLE.search(line.rstrip("\n"))]
+        self.assertEqual(found, [])
+
 if __name__ == "__main__":
     unittest.main()

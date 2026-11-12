@@ -306,10 +306,10 @@ def mcp_secret(ctx: Context, rule: Rule) -> Iterable[Hit]:
 
 # ---------------------------------------------------------------------------- CI-011 hidden text in instructions
 
-_TAGS = re.compile("[\U000e0000-\U000e007f]+")
-_VARIATION_SUPPLEMENT = re.compile("[\U000e0100-\U000e01ef]{2,}")
-_BIDI = re.compile("[‪-‮⁦-⁩]")
-_ZERO_WIDTH_RUN = re.compile("[​‌‍⁠-⁤﻿᠎]{3,}")
+_TAGS = re.compile(r"[\U000e0000-\U000e007f]+")
+_VARIATION_SUPPLEMENT = re.compile(r"[\U000e0100-\U000e01ef]{2,}")
+_BIDI = re.compile(r"[\u202a-\u202e\u2066-\u2069]")
+_ZERO_WIDTH_RUN = re.compile(r"[\u200b\u200c\u200d\u2060-\u2064\ufeff\u180e]{3,}")
 
 
 def _decode_tags(run: str) -> str:

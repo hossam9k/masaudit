@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import os
+import pathlib
 import shutil
 import socket
 import subprocess
@@ -311,7 +312,7 @@ class ImportSarif(unittest.TestCase):
                   "properties": {"security-severity": "7.5"}}]
         result = {"ruleId": vuln, "ruleIndex": 0, "kind": "fail", "level": "warning",
                   "message": {"text": f"Package 'com.squareup.okhttp3:okhttp@3.12.0' is vulnerable to '{vuln}'."},
-                  "locations": [{"physicalLocation": {"artifactLocation": {"uri": "file://" + lock}}}]}
+                  "locations": [{"physicalLocation": {"artifactLocation": {"uri": pathlib.Path(lock).as_uri()}}}]}
         path = self._sarif([result], name="osv-scanner", rules=rules)
         findings, _notes = importers.import_sarif(path, self.dir, engine.load_rules())
         self.assertEqual(len(findings), 1)

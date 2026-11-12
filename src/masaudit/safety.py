@@ -346,13 +346,13 @@ def clean_text(text: str) -> str:
 # (U+FE00-U+FE0F). Arabic, Persian, Hebrew and emoji text use them, and none of them can reorder text or
 # hide a message on its own.
 INVISIBLE = re.compile(
-    "[\u0080-\u009f­ᅟᅠ᠎​  ‪-‮⁠-⁤⁦-⁩"
-    "ㅤ﻿ﾠ\U000e0000-\U000e007f\U000e0100-\U000e01ef]"
+    r"[\u0080-\u009f\u00ad\u115f\u1160\u180e\u200b\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069"
+    r"\u3164\ufeff\uffa0\U000e0000-\U000e007f\U000e0100-\U000e01ef]"
 )
 # Bidirectional formatting characters: the ones that reorder what a reader sees.
-BIDI_OVERRIDES = "‭‮"                    # LRO, RLO: reverse everything up to their end
-BIDI_OPENERS = "‪‫‭‮"          # LRE, RLE, LRO, RLO: closed by PDF (U+202C)
-BIDI_ISOLATES = "⁦⁧⁨"               # LRI, RLI, FSI: closed by PDI (U+2069)
+BIDI_OVERRIDES = "\u202d\u202e"                    # LRO, RLO: reverse everything up to their end
+BIDI_OPENERS = "\u202a\u202b\u202d\u202e"          # LRE, RLE, LRO, RLO: closed by PDF (U+202C)
+BIDI_ISOLATES = "\u2066\u2067\u2068"               # LRI, RLI, FSI: closed by PDI (U+2069)
 
 
 def show_invisible(text: str) -> str:

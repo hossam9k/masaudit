@@ -182,7 +182,7 @@ class _Parser:
 
 def loads(text: str) -> Any:
     """Parse old-style plist text. Raises ParseError on malformed input."""
-    if text.startswith("﻿"):
+    if text.startswith("\ufeff"):
         text = text[1:]
     p = _Parser(text)
     # Xcode writes a `// !$*UTF8*$!` header; _skip treats it as a comment.

@@ -178,14 +178,14 @@ def plan(root: str, findings: List[Finding]) -> FixPlan:
         if old is None:
             result.skipped.append(f"{path}: couldn't read it as UTF-8, left alone.")
             continue
-        parse_text = old[1:] if old.startswith("﻿") else old
+        parse_text = old[1:] if old.startswith("\ufeff") else old
         if xmlsafe.parse(parse_text) is None:
             result.skipped.append(f"{path}: couldn't parse it safely, left alone.")
             continue
         new = remove_debuggable(old)
         if new == old:
             continue
-        new_parse = new[1:] if new.startswith("﻿") else new
+        new_parse = new[1:] if new.startswith("\ufeff") else new
         root_el = xmlsafe.parse(new_parse)
         if root_el is None or any(xmlsafe.is_true(a.get("android:debuggable")) for a in root_el.iter("application")):
             result.skipped.append(f"{path}: the edit didn't produce clean XML, left alone.")

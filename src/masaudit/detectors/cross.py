@@ -5191,14 +5191,14 @@ def _js_biometric_fallback(ctx: Context) -> Iterable[Hit]:
 
 # Bidirectional formatting characters (CVE-2021-42574). The marks LRM, RLM and ALM are left out: they can't
 # reorder text, and Arabic and Hebrew strings use them.
-_BIDI_CONTROL = re.compile("[‪-‮⁦-⁩]")
+_BIDI_CONTROL = re.compile(r"[\u202a-\u202e\u2066-\u2069]")
 _BIDI_NAMES = {
-    "‪": "left-to-right embedding", "‫": "right-to-left embedding", "‬": "pop directional formatting",
-    "‭": "left-to-right override", "‮": "right-to-left override", "⁦": "left-to-right isolate",
-    "⁧": "right-to-left isolate", "⁨": "first strong isolate", "⁩": "pop directional isolate",
+    "\u202a": "left-to-right embedding", "\u202b": "right-to-left embedding", "\u202c": "pop directional formatting",
+    "\u202d": "left-to-right override", "\u202e": "right-to-left override", "\u2066": "left-to-right isolate",
+    "\u2067": "right-to-left isolate", "\u2068": "first strong isolate", "\u2069": "pop directional isolate",
 }
-_EMBEDDINGS = "‪‫‭‮"            # closed by U+202C
-_ISOLATES = "⁦⁧⁨"                     # closed by U+2069
+_EMBEDDINGS = "\u202a\u202b\u202d\u202e"            # closed by U+202C
+_ISOLATES = "\u2066\u2067\u2068"                     # closed by U+2069
 _QUOTES = "\"'`"
 _RIGHT_TO_LEFT = "\u202b\u2067"                     # RLE, RLI: reorder the left-to-right code they span
 # Open to the end of a line, these can reorder ASCII code after them: right-to-left ones, and a first-strong

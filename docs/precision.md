@@ -274,8 +274,8 @@ React Native apps, and the 87 apps of benchmark rounds 1 to 5. Every finding was
 | CI-010 to CI-014 | 0 | 0 | No finding. |
 
 - **XPL-049 was rewritten before release.** Its first version reported 14 lines on the 19 corpus apps,
-  all false alarms: Signal's constants (`const val RLO = "‮"` written raw) and a sanitizer's
-  `'‪'..'‮'` range, Element's isolate around a user name (`"⁨" + id + "⁩"`), and a minified
+  all false alarms: Signal's constants (`const val RLO = "<U+202E>"`, the character written raw) and a sanitizer's
+  `'<U+202A>'..'<U+202E>'` range, Element's isolate around a user name (`"<U+2068>" + id + "<U+2069>"`), and a minified
   Wikipedia test fixture. A literal that holds only control characters, and a left-to-right or
   first-strong isolate around a value, are now left alone; each shape has a clean fixture. Every
   attack form in the fixtures is still reported.
